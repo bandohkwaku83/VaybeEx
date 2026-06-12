@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fafaf9;
+  --foreground: #1c1917;
+  --primary: #0d9488;
+  --primary-foreground: #ffffff;
+  --accent: #f59e0b;
+  --muted: #78716c;
+  --border: #e7e5e4;
+  --card: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
+}
+
+.font-serif {
+  font-family: var(--font-playfair), Georgia, "Times New Roman", serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.btn-gradient {
+  background: linear-gradient(90deg, #e07850 0%, #3d8b8b 100%);
+}
+
+.hero-botanical {
+  background-image: url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M60 10c-8 20-30 25-35 45 12-5 28-2 35 15 8-18 25-22 35-40-15 2-28 8-35-20zm0 55c-10 15-28 18-40 35 18-8 32-5 40 12 10-14 26-18 40-32-18 3-32 10-40-15z' fill='%23ffffff'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+.hero-wave {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 1200' preserveAspectRatio='none'%3E%3Cpath d='M0,0 C60,200 40,400 100,600 C30,800 70,1000 0,1200 L0,0 Z' fill='%231e3636'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
+}
