@@ -1,13 +1,17 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/purity */
 "use client";
 
 import { RequireAuth } from "@/components/auth/require-auth";
 import { CancelBookingDialog } from "@/components/dashboard/cancel-booking-dialog";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Calendar, Clock, XCircle, Star, Bell, RefreshCw, CheckCircle2,
+  MapPin, Compass, TrendingUp, ArrowRight, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,148 +25,188 @@ import {
 import { userBookings } from "@/lib/mock-data";
 import type { Booking, CancellationRequest } from "@/lib/types";
 import { formatCurrency, formatDateRange } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
-const statusConfig = {
-  confirmed: { label: "Confirmed", variant: "success" as const, icon: Calendar },
-  pending: { label: "Pending Payment", variant: "warning" as const, icon: Clock },
-  cancelled: { label: "Cancelled", variant: "destructive" as const, icon: XCircle },
-  waitlisted: { label: "Waitlisted", variant: "secondary" as const, icon: Bell },
+gsap.registerPlugin(ScrollTrigger);
+
+const statusMeta = {
+  confirmed: { label: "Confirmed", color: "var(--gold)", bg: "var(--gold-dim)", icon: Calendar },
+  pending: { label: "Pending Payment", color: "var(--amber)", bg: "rgba(208,138,60,0.14)", icon: Clock },
+  cancelled: { label: "Cancelled", color: "var(--coral)", bg: "rgba(181,82,58,0.1)", icon: XCircle },
+  waitlisted: { label: "Waitlisted", color: "var(--text-secondary)", bg: "var(--bg-secondary)", icon: Bell },
 };
 
-const cancellationStatusVariant: Record<
-  CancellationRequest["status"],
-  "warning" | "secondary" | "success" | "destructive"
-> = {
-  pending: "warning",
-  processing: "secondary",
-  refunded: "success",
-  denied: "destructive",
+const cancellationStatusMeta: Record<CancellationRequest["status"], { color: string; bg: string }> = {
+  pending: { color: "var(--amber)", bg: "rgba(208,138,60,0.14)" },
+  processing: { color: "var(--text-secondary)", bg: "var(--bg-secondary)" },
+  refunded: { color: "var(--gold)", bg: "var(--gold-dim)" },
+  denied: { color: "var(--coral)", bg: "rgba(181,82,58,0.1)" },
 };
 
 interface BookingCardProps {
   booking: Booking;
-  index: number;
   hasCancellation: boolean;
   onRequestCancel: (booking: Booking) => void;
 }
 
-function BookingCard({ booking, index, hasCancellation, onRequestCancel }: BookingCardProps) {
-  const config = statusConfig[booking.status];
-  const Icon = config.icon;
+function BookingCard({ booking, hasCancellation, onRequestCancel }: BookingCardProps) {
+  const meta = statusMeta[booking.status];
+  const Icon = meta.icon;
   const isPast = new Date(booking.endDate) < new Date();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+    <div
+      className="dash-reveal group overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1"
+      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.boxShadow = "var(--glow-teal)")}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.boxShadow = "none")}
     >
-      <Card className="overflow-hidden hover:shadow-md transition-shadow">
-        <div className="flex flex-col sm:flex-row">
-          <div className="relative h-40 sm:h-auto sm:w-48 shrink-0">
-            <Image src={booking.image} alt={booking.tripTitle} fill className="object-cover" />
-          </div>
-          <CardContent className="flex flex-1 flex-col justify-between p-5">
-            <div>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-semibold text-stone-900">{booking.tripTitle}</h3>
-                  <p className="text-sm text-stone-500 mt-0.5">{booking.destination}</p>
-                </div>
-                <Badge variant={config.variant}>
-                  <Icon className="h-3 w-3 mr-1" />
-                  {config.label}
-                </Badge>
-              </div>
-              <p className="text-sm text-stone-500 mt-2">
-                {formatDateRange(booking.startDate, booking.endDate)} · {booking.travelers} traveler{booking.travelers > 1 ? "s" : ""}
-              </p>
-              {booking.amount > 0 && (
-                <p className="text-sm mt-1">
-                  <span className="text-stone-500">Amount: </span>
-                  <span className="font-medium">{formatCurrency(booking.amount)}</span>
-                  {booking.paymentStatus === "partial" && (
-                    <Badge variant="warning" className="ml-2">Partial</Badge>
-                  )}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button size="sm" variant="outline" asChild>
-                <Link href={`/trips/${booking.tripId}`}>View Trip</Link>
-              </Button>
-              {booking.status === "confirmed" && isPast && (
-                <Button size="sm" variant="ghost" asChild>
-                  <Link href={`/reviews/${booking.tripId}`}>
-                    <Star className="h-3.5 w-3.5" /> Leave Review
-                  </Link>
-                </Button>
-              )}
-              {booking.status === "confirmed" && !isPast && !hasCancellation && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-red-600 hover:text-red-700"
-                  onClick={() => onRequestCancel(booking)}
-                >
-                  Request Cancellation
-                </Button>
-              )}
-            </div>
-          </CardContent>
+      <div className="flex flex-col sm:flex-row">
+        <div className="relative h-44 shrink-0 overflow-hidden sm:h-auto sm:w-52">
+          <Image
+            src={booking.image}
+            alt={booking.tripTitle}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+          <div
+            className="absolute inset-0 sm:bg-gradient-to-r sm:from-transparent sm:to-[rgba(255,255,255,0.04)]"
+            style={{ background: "linear-gradient(to top, rgba(42,27,15,0.35), transparent 50%)" }}
+          />
         </div>
-      </Card>
-    </motion.div>
+        <div className="flex flex-1 flex-col justify-between p-5">
+          <div>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="font-display font-bold" style={{ color: "var(--text)" }}>{booking.tripTitle}</h3>
+                <p className="mt-0.5 flex items-center gap-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <MapPin className="h-3.5 w-3.5" /> {booking.destination}
+                </p>
+              </div>
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                style={{ background: meta.bg, color: meta.color }}
+              >
+                <Icon className="h-3 w-3" />
+                {meta.label}
+              </span>
+            </div>
+            <p className="mt-3 flex items-center gap-1.5 text-sm" style={{ color: "var(--text-tertiary)" }}>
+              <Calendar className="h-3.5 w-3.5" />
+              {formatDateRange(booking.startDate, booking.endDate)} · {booking.travelers} traveler{booking.travelers > 1 ? "s" : ""}
+            </p>
+            {booking.amount > 0 && (
+              <p className="mt-1.5 text-sm">
+                <span style={{ color: "var(--text-tertiary)" }}>Amount: </span>
+                <span className="font-semibold" style={{ color: "var(--text)" }}>{formatCurrency(booking.amount)}</span>
+                {booking.paymentStatus === "partial" && (
+                  <span
+                    className="ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                    style={{ background: "rgba(208,138,60,0.14)", color: "var(--amber)" }}
+                  >
+                    Partial
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              className="rounded-xl"
+              style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
+            >
+              <Link href={`/trips/${booking.tripId}`}>View Trip</Link>
+            </Button>
+            {booking.status === "confirmed" && isPast && (
+              <Button
+                size="sm"
+                variant="ghost"
+                asChild
+                className="rounded-xl"
+                style={{ color: "var(--primary)" }}
+              >
+                <Link href={`/reviews/${booking.tripId}`}>
+                  <Star className="h-3.5 w-3.5" /> Leave Review
+                </Link>
+              </Button>
+            )}
+            {booking.status === "confirmed" && !isPast && !hasCancellation && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-xl"
+                style={{ color: "var(--coral)" }}
+                onClick={() => onRequestCancel(booking)}
+              >
+                Request Cancellation
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function CancellationCard({ request }: { request: CancellationRequest }) {
+  const meta = cancellationStatusMeta[request.status];
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-stone-900">{request.tripTitle}</h3>
-              <Badge variant={cancellationStatusVariant[request.status]}>
-                {request.status === "refunded" && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                {request.status === "processing" && <RefreshCw className="h-3 w-3 mr-1" />}
-                {CANCELLATION_STATUS_LABELS[request.status]}
-              </Badge>
-            </div>
-            <p className="text-sm text-stone-500 mt-1">
-              {request.destination} · Departs {new Date(request.startDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-            </p>
-            {request.reason && (
-              <p className="text-sm text-stone-600 mt-2">&ldquo;{request.reason}&rdquo;</p>
-            )}
+    <div
+      className="dash-reveal rounded-2xl border p-5"
+      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display font-bold" style={{ color: "var(--text)" }}>{request.tripTitle}</h3>
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ background: meta.bg, color: meta.color }}
+            >
+              {request.status === "refunded" && <CheckCircle2 className="h-3 w-3" />}
+              {request.status === "processing" && <RefreshCw className="h-3 w-3" />}
+              {CANCELLATION_STATUS_LABELS[request.status]}
+            </span>
           </div>
-          <div className="text-sm sm:text-right shrink-0 space-y-1">
-            <p>
-              <span className="text-stone-500">Paid: </span>
-              <span className="font-medium">{formatCurrency(request.amountPaid)}</span>
-            </p>
-            <p>
-              <span className="text-stone-500">Refund: </span>
-              <span className={`font-medium ${request.refundEligible ? "text-emerald-600" : "text-stone-400"}`}>
-                {formatCurrency(request.refundAmount)}
-              </span>
-            </p>
-            {request.refundDestination && request.status !== "denied" && (
-              <p className="text-xs text-stone-400">{request.refundDestination}</p>
-            )}
-          </div>
+          <p className="mt-1 flex items-center gap-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
+            <MapPin className="h-3.5 w-3.5" />
+            {request.destination} · Departs {new Date(request.startDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+          </p>
+          {request.reason && (
+            <p className="mt-2 text-sm italic" style={{ color: "var(--text-secondary)" }}>&ldquo;{request.reason}&rdquo;</p>
+          )}
         </div>
-      </CardContent>
-    </Card>
+        <div className="shrink-0 space-y-1 text-sm sm:text-right">
+          <p>
+            <span style={{ color: "var(--text-tertiary)" }}>Paid: </span>
+            <span className="font-medium" style={{ color: "var(--text)" }}>{formatCurrency(request.amountPaid)}</span>
+          </p>
+          <p>
+            <span style={{ color: "var(--text-tertiary)" }}>Refund: </span>
+            <span className="font-medium" style={{ color: request.refundEligible ? "var(--gold)" : "var(--text-tertiary)" }}>
+              {formatCurrency(request.refundAmount)}
+            </span>
+          </p>
+          {request.refundDestination && request.status !== "denied" && (
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{request.refundDestination}</p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
 function DashboardContent() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>(userBookings);
   const [cancellations, setCancellations] = useState<CancellationRequest[]>([]);
   const [cancelBooking, setCancelBooking] = useState<Booking | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [activeTabOverride, setActiveTabOverride] = useState<string | null>(null);
+  const activeTab = activeTabOverride ?? "upcoming";
 
   const refreshCancellations = useCallback(() => {
     setCancellations(getCancellationRequests());
@@ -187,63 +231,167 @@ function DashboardContent() {
   const upcoming = bookings.filter((b) => new Date(b.endDate) >= new Date() && b.status !== "cancelled");
   const past = bookings.filter((b) => new Date(b.endDate) < new Date());
   const waitlisted = bookings.filter((b) => b.status === "waitlisted");
+  const totalSpent = bookings.reduce((s, b) => s + (b.amount || 0), 0);
+
+  const nextTrip = upcoming
+    .slice()
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+  const daysUntilNext = nextTrip
+    ? Math.max(0, Math.ceil((new Date(nextTrip.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
+
+
+  const pageRef = useRef<HTMLDivElement>(null);
+  const heroCounterRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".dash-hero-anim",
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, stagger: 0.08, ease: "power3.out" }
+      );
+    }, pageRef);
+    return () => ctx.revert();
+  }, []);
+
+  useEffect(() => {
+    if (!heroCounterRef.current) return;
+    const obj = { val: 0 };
+    gsap.to(obj, {
+      val: totalSpent,
+      duration: 1.2,
+      ease: "power2.out",
+      onUpdate: () => {
+        if (heroCounterRef.current) heroCounterRef.current.textContent = formatCurrency(Math.round(obj.val));
+      },
+    });
+  }, [totalSpent]);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".dash-reveal",
+        { y: 24, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, stagger: 0.06, ease: "power2.out" }
+      );
+    }, pageRef);
+    return () => ctx.revert();
+  }, [activeTab, bookings.length, cancellations.length]);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-900">My Dashboard</h1>
-        <p className="text-stone-500 mt-1">Manage your trips, bookings, and cancellation requests</p>
+    <div ref={pageRef} className="mx-auto w-full mt-10 px-4 py-8 sm:px-6 lg:px-8" style={{ background: "var(--bg)" }}>
+      {/* ── Hero header ────────────────────────────────────────── */}
+      <div className="dash-hero-anim mb-6">
+        <h1 className="font-display text-2xl font-bold" style={{ color: "var(--text)" }}>
+          Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+          Manage your trips, bookings, and cancellation requests.
+        </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
-        {[
-          { label: "Upcoming", value: upcoming.length, color: "text-teal-600 bg-teal-50" },
-          { label: "Past Trips", value: past.length, color: "text-stone-600 bg-stone-100" },
-          { label: "Waitlisted", value: waitlisted.length, color: "text-amber-600 bg-amber-50" },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${stat.color}`}>
-                <span className="text-lg font-bold">{stat.value}</span>
+      {/* ── Next trip spotlight ────────────────────────────────── */}
+      {nextTrip && (
+        <div
+          className="dash-hero-anim relative mb-6 overflow-hidden rounded-2xl"
+          style={{ background: "var(--gradient-teal)" }}
+        >
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ backgroundImage: "radial-gradient(circle, rgba(251,247,241,0.14) 1px, transparent 1px)", backgroundSize: "26px 26px" }}
+          />
+          <div
+            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full opacity-25 blur-3xl"
+            style={{ background: "var(--gold)" }}
+          />
+          <div className="relative flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--gold)" }}>
+                <Sparkles className="h-3.5 w-3.5" /> Your next adventure
+              </span>
+              <h2 className="font-display mt-2 text-xl font-bold sm:text-2xl" style={{ color: "#fbf7f1" }}>
+                {nextTrip.tripTitle}
+              </h2>
+              <p className="mt-1 flex items-center gap-1.5 text-sm" style={{ color: "rgba(251,247,241,0.75)" }}>
+                <MapPin className="h-3.5 w-3.5" /> {nextTrip.destination}
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="font-display text-3xl font-black" style={{ color: "var(--gold)" }}>{daysUntilNext}</p>
+                <p className="text-xs" style={{ color: "rgba(251,247,241,0.65)" }}>day{daysUntilNext === 1 ? "" : "s"} to go</p>
               </div>
-              <span className="text-sm font-medium text-stone-600">{stat.label}</span>
-            </CardContent>
-          </Card>
-        ))}
+              <Button asChild className="rounded-xl" style={{ background: "#fbf7f1", color: "var(--primary)" }}>
+                <Link href={`/trips/${nextTrip.tripId}`}>
+                  View Trip <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Stat row ───────────────────────────────────────────── */}
+      <div className="dash-hero-anim mb-8 grid gap-4 sm:grid-cols-4">
+        <StatTile icon={Compass} label="Upcoming" value={upcoming.length} accent="var(--primary)" />
+        <StatTile icon={Calendar} label="Past Trips" value={past.length} accent="var(--text-secondary)" />
+        <StatTile icon={Bell} label="Waitlisted" value={waitlisted.length} accent="var(--amber)" />
+        <div
+          className="rounded-2xl border p-4"
+          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--gold-dim)" }}>
+              <TrendingUp className="h-4 w-4" style={{ color: "var(--gold)" }} />
+            </div>
+            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Total spent</span>
+          </div>
+          <p className="font-display mt-2 text-xl font-bold" style={{ color: "var(--text)" }}>
+            <span ref={heroCounterRef}>{formatCurrency(0)}</span>
+          </p>
+        </div>
       </div>
 
-      <Tabs defaultValue="upcoming">
-        <TabsList>
-          <TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
-          <TabsTrigger value="past">Past ({past.length})</TabsTrigger>
-          <TabsTrigger value="history">Booking History</TabsTrigger>
-          <TabsTrigger value="cancellations" onClick={refreshCancellations}>
+      {/* ── Tabs ───────────────────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTabOverride(v)}>
+        <TabsList className="rounded-xl p-1" style={{ background: "var(--bg-secondary)" }}>
+          <TabsTrigger value="upcoming" className="rounded-lg data-[state=active]:shadow-sm">Upcoming ({upcoming.length})</TabsTrigger>
+          <TabsTrigger value="past" className="rounded-lg data-[state=active]:shadow-sm">Past ({past.length})</TabsTrigger>
+          <TabsTrigger value="history" className="rounded-lg data-[state=active]:shadow-sm">Booking History</TabsTrigger>
+          <TabsTrigger
+            value="cancellations"
+            className="rounded-lg data-[state=active]:shadow-sm"
+            onClick={refreshCancellations}
+          >
             Cancellations ({cancellations.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="upcoming" className="space-y-4 mt-4">
+        <TabsContent value="upcoming" className="mt-4 space-y-4">
           {upcoming.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-stone-500">No upcoming trips. <Link href="/" className="text-teal-600 hover:underline">Browse trips</Link></CardContent></Card>
-          ) : upcoming.map((b, i) => (
+            <EmptyState
+              icon={Compass}
+              title="No upcoming trips"
+              action={<Link href="/" style={{ color: "var(--primary)" }} className="font-medium hover:underline">Browse trips</Link>}
+            />
+          ) : upcoming.map((b) => (
             <BookingCard
               key={b.id}
               booking={b}
-              index={i}
               hasCancellation={Boolean(getCancellationByBookingId(b.id))}
               onRequestCancel={handleRequestCancel}
             />
           ))}
         </TabsContent>
 
-        <TabsContent value="past" className="space-y-4 mt-4">
+        <TabsContent value="past" className="mt-4 space-y-4">
           {past.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-stone-500">No past trips yet.</CardContent></Card>
-          ) : past.map((b, i) => (
+            <EmptyState icon={Calendar} title="No past trips yet" />
+          ) : past.map((b) => (
             <BookingCard
               key={b.id}
               booking={b}
-              index={i}
               hasCancellation={Boolean(getCancellationByBookingId(b.id))}
               onRequestCancel={handleRequestCancel}
             />
@@ -251,36 +399,44 @@ function DashboardContent() {
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">All Bookings</CardTitle></CardHeader>
+          <Card className="dash-reveal border shadow-none" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+            <CardHeader>
+              <CardTitle className="font-display text-base" style={{ color: "var(--text)" }}>All Bookings</CardTitle>
+            </CardHeader>
             <CardContent>
-              <div className="divide-y divide-stone-100">
-                {bookings.map((b) => (
-                  <div key={b.id} className="flex items-center justify-between py-3 text-sm">
-                    <div>
-                      <p className="font-medium text-stone-900">{b.tripTitle}</p>
-                      <p className="text-stone-500">{formatDateRange(b.startDate, b.endDate)}</p>
+              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                {bookings.map((b) => {
+                  const meta = statusMeta[b.status];
+                  return (
+                    <div key={b.id} className="flex items-center justify-between py-3 text-sm" style={{ borderColor: "var(--border)" }}>
+                      <div>
+                        <p className="font-medium" style={{ color: "var(--text)" }}>{b.tripTitle}</p>
+                        <p style={{ color: "var(--text-tertiary)" }}>{formatDateRange(b.startDate, b.endDate)}</p>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                          style={{ background: meta.bg, color: meta.color }}
+                        >
+                          {meta.label}
+                        </span>
+                        {b.amount > 0 && <p className="mt-1" style={{ color: "var(--text-secondary)" }}>{formatCurrency(b.amount)}</p>}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant={statusConfig[b.status].variant}>{statusConfig[b.status].label}</Badge>
-                      {b.amount > 0 && <p className="text-stone-600 mt-1">{formatCurrency(b.amount)}</p>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="cancellations" className="space-y-4 mt-4">
+        <TabsContent value="cancellations" className="mt-4 space-y-4">
           {cancellations.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center text-stone-500">
-                <XCircle className="h-8 w-8 text-stone-300 mx-auto mb-3" />
-                <p>No cancellation requests yet.</p>
-                <p className="text-xs mt-1">Request a cancellation from any confirmed upcoming trip.</p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={XCircle}
+              title="No cancellation requests yet"
+              subtitle="Request a cancellation from any confirmed upcoming trip."
+            />
           ) : (
             cancellations.map((request) => <CancellationCard key={request.id} request={request} />)
           )}
@@ -293,6 +449,41 @@ function DashboardContent() {
         onOpenChange={setCancelDialogOpen}
         onSubmitted={handleCancellationSubmitted}
       />
+    </div>
+  );
+}
+
+function StatTile({
+  icon: Icon, label, value, accent,
+}: { icon: typeof Compass; label: string; value: number; accent: string }) {
+  return (
+    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--primary-dim)" }}>
+          <Icon className="h-4 w-4" style={{ color: accent }} />
+        </div>
+        <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{label}</span>
+      </div>
+      <p className="font-display mt-2 text-2xl font-bold" style={{ color: "var(--text)" }}>{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon, title, subtitle, action,
+}: { icon: typeof Compass; title: string; subtitle?: string; action?: React.ReactNode }) {
+  return (
+    <div
+      className="dash-reveal flex flex-col items-center justify-center rounded-2xl border p-10 text-center"
+      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+    >
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: "var(--bg-secondary)" }}>
+        <Icon className="h-6 w-6" style={{ color: "var(--text-tertiary)" }} />
+      </div>
+      <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+        {title}{action && <>. {action}</>}
+      </p>
+      {subtitle && <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>{subtitle}</p>}
     </div>
   );
 }

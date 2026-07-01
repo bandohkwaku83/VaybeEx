@@ -14,6 +14,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { trips, getAvailabilityStatus } from "@/lib/mock-data";
 import type { TripFilters } from "@/lib/types";
+import Hero from "@/components/home/hero";
+import Journal from "@/components/home/journal";
+import RoleCards from "@/components/home/role-cards";
+import ParallaxBlock from "@/components/home/parallaxBlock";
+import FeaturedTrips from "@/components/home/featuredTrips";
+import HowItWorks from "@/components/home/how-it-works";
+import BigCta from "@/components/home/big-cta";
+import Reviews from "@/components/home/reviews";
+import CircularGallery from "@/components/CircularGallery";
 
 const defaultFilters: TripFilters = {
   destination: "",
@@ -56,13 +65,35 @@ export default function HomePage() {
 
   return (
     <div>
-      <HeroCarousel onSearch={applyFilters} />
+      {/* <HeroCarousel onSearch={applyFilters} /> */}
+      <Hero/>
+
+      <Journal/>
+
+
+    
+
+      <RoleCards/>
+
+      <ParallaxBlock/>
+
+
+
       <StatsBar />
 
-      <FeaturesGrid />
+      <FeaturedTrips/>
 
-      <CtaBanner />
+      <HowItWorks/>
 
+      <BigCta/>
+
+      <Reviews/>
+
+
+      
+
+    
+{/* 
       <section id="trips" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-8 text-center sm:text-left">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#3d8b8b]">
@@ -118,7 +149,7 @@ export default function HomePage() {
 
       <Testimonials />
 
-      <NewsletterSection />
+      <NewsletterSection /> */}
     </div>
   );
 }

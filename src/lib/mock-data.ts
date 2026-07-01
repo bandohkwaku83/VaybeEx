@@ -277,6 +277,14 @@ export const trips: Trip[] = [
   },
 ];
 
+export const platformHighlights = [
+  { label: "Trips posted", value: 500, suffix: "+" },
+  { label: "Travellers on board", value: 12000, suffix: "+" },
+  { label: "Average rating", value: 4.8, suffix: "★" },
+  { label: "Destinations", value: 50, suffix: "+" },
+  { label: "Verified organisers", value: 80, suffix: "+" },
+];
+
 export const userBookings: Booking[] = [
   {
     id: "bk-1",

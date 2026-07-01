@@ -55,7 +55,7 @@ function LoginForm() {
   };
 
   return (
-    <Card className="w-full max-w-md shadow-lg border-teal-100">
+    <Card className="w-full max-w-md shadow-lg mt-10 border-teal-100">
       <CardHeader className="text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-600 text-white">
           <Compass className="h-6 w-6" />

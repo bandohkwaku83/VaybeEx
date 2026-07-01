@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { RequireOrganizerAuth } from "@/components/auth/require-organizer-auth";
-import { OrganizerSidebar } from "@/components/organizer/sidebar";
+import { OrganizerSidebar, useSidebarCollapsed } from "@/components/organizer/sidebar";
 import { OrganizerTripsProvider } from "@/hooks/use-organizer-trips";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -19,7 +19,10 @@ function PendingGate({ children }: { children: React.ReactNode }) {
 
   if (isLoading || user?.organizerStatus === "pending") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-stone-500">
+      <div
+        className="flex min-h-screen items-center justify-center"
+        style={{ background: "var(--bg)", color: "var(--text-secondary)" }}
+      >
         Loading...
       </div>
     );
@@ -29,12 +32,18 @@ function PendingGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function OrganizerPortalLayout({ children }: { children: React.ReactNode }) {
+  // Lifted here (not just inside OrganizerSidebar) so the content
+  // area's left padding/margin can react to the same collapsed value —
+  // otherwise the sidebar would animate its width while the content
+  // area stayed locked to the old width, causing a jump or overlap.
+  const { collapsed, toggle } = useSidebarCollapsed();
+
   return (
     <RequireOrganizerAuth>
       <PendingGate>
         <OrganizerTripsProvider>
-          <div className="flex min-h-screen">
-            <OrganizerSidebar />
+          <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
+            <OrganizerSidebar collapsed={collapsed} onToggle={toggle} />
             <div className="flex-1 overflow-auto">{children}</div>
           </div>
         </OrganizerTripsProvider>
