@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Check, CreditCard, Smartphone, Building2, Banknote, Clock } from "lucide-react";
+import { Check } from "lucide-react";
 import { RevealBox, SectionEyebrow } from "../page";
-import CardSwap, { Card } from "./cardswap";
+// import CardSwap, { Card } from "./cardswap";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -17,60 +17,124 @@ const PAYMENT_POINTS = [
   "No hidden charges — one transparent commission per confirmed booking",
 ];
 
-const SWAP_CARDS = [
+/** Verified Unsplash images — thematic per payment method */
+const img = (id: string, w = 900, h = 1100) =>
+  `https://images.unsplash.com/${id}?w=${w}&h=${h}&q=85&auto=format&fit=crop`;
+
+const PAYMENT_IMAGES = [
   {
-    icon: Smartphone,
-    title: "Mobile Money",
-    subtitle: "Instant collection",
-    color: "var(--gold)",
-    dimColor: "rgba(196,134,76,0.12)",
-    items: [
-      { label: "MTN MoMo",        status: "✓ Active",    dot: "#f5c069" },
-      { label: "Vodafone Cash",   status: "✓ Active",    dot: "#e53935" },
-      { label: "AirtelTigo Money",status: "✓ Active",    dot: "#1565c0" },
-    ],
-    footer: "Funds collected instantly on booking confirmation.",
+    label: "Mobile Money",
+    tag: "MoMo · Vodafone · AirtelTigo",
+    src: img("photo-1556742049-0cfed4f6a45d"),
+    alt: "Person making a mobile payment on a smartphone",
+    className: "col-start-1 row-start-1 row-span-2",
   },
   {
-    icon: CreditCard,
-    title: "Card Payments",
-    subtitle: "Visa & Mastercard",
-    color: "#7c6af7",
-    dimColor: "rgba(124,106,247,0.12)",
-    items: [
-      { label: "Visa",       status: "✓ Enabled",  dot: "#1a73e8" },
-      { label: "Mastercard", status: "✓ Enabled",  dot: "#eb8c00" },
-      { label: "3-D Secure", status: "✓ Protected",dot: "#2e7d32" },
-    ],
-    footer: "Secure card processing with built-in fraud protection.",
+    label: "Card payments",
+    tag: "Visa · Mastercard",
+    src: img("photo-1563013544-824ae1b704d3", 600, 500),
+    alt: "Hands holding a credit card for online payment",
+    className: "col-start-2 row-start-1",
   },
   {
-    icon: Building2,
-    title: "Bank Transfer",
-    subtitle: "GHS & foreign currency",
-    color: "var(--primary)",
-    dimColor: "rgba(107,63,29,0.12)",
-    items: [
-      { label: "GHS transfers",   status: "✓ Same day",  dot: "#6b3f1d" },
-      { label: "USD / GBP",       status: "✓ Supported", dot: "#0f6e56" },
-      { label: "Deposit holds",   status: "✓ Available", dot: "#c4864c" },
-    ],
-    footer: "International travelers can pay in their home currency.",
+    label: "Instant payout",
+    tag: "1–3 day transfer",
+    src: img("photo-1579621970563-ebec7560ff3e", 600, 500),
+    alt: "Mobile banking and digital wallet on a phone",
+    className: "col-start-2 row-start-2",
   },
-  {
-    icon: Banknote,
-    title: "Payout Schedule",
-    subtitle: "Automatic & reliable",
-    color: "#2e7d32",
-    dimColor: "rgba(46,125,50,0.12)",
-    items: [
-      { label: "Trip confirmed", status: "→ Auto trigger", dot: "#c4864c" },
-      { label: "Processing time", status: "1–3 days",      dot: "#6b3f1d" },
-      { label: "To MoMo / Bank",  status: "✓ Delivered",  dot: "#2e7d32" },
-    ],
-    footer: "Payouts trigger automatically once your trip hits minimum capacity.",
-  },
-];
+] as const;
+
+// const SWAP_CARDS = [
+//   {
+//     icon: Smartphone,
+//     title: "Mobile Money",
+//     subtitle: "Instant collection",
+//     color: "var(--gold)",
+//     dimColor: "rgba(196,134,76,0.12)",
+//     items: [
+//       { label: "MTN MoMo",        status: "✓ Active",    dot: "#f5c069" },
+//       { label: "Vodafone Cash",   status: "✓ Active",    dot: "#e53935" },
+//       { label: "AirtelTigo Money",status: "✓ Active",    dot: "#1565c0" },
+//     ],
+//     footer: "Funds collected instantly on booking confirmation.",
+//   },
+//   {
+//     icon: CreditCard,
+//     title: "Card Payments",
+//     subtitle: "Visa & Mastercard",
+//     color: "#7c6af7",
+//     dimColor: "rgba(124,106,247,0.12)",
+//     items: [
+//       { label: "Visa",       status: "✓ Enabled",  dot: "#1a73e8" },
+//       { label: "Mastercard", status: "✓ Enabled",  dot: "#eb8c00" },
+//       { label: "3-D Secure", status: "✓ Protected",dot: "#2e7d32" },
+//     ],
+//     footer: "Secure card processing with built-in fraud protection.",
+//   },
+//   {
+//     icon: Building2,
+//     title: "Bank Transfer",
+//     subtitle: "GHS & foreign currency",
+//     color: "var(--primary)",
+//     dimColor: "rgba(107,63,29,0.12)",
+//     items: [
+//       { label: "GHS transfers",   status: "✓ Same day",  dot: "#6b3f1d" },
+//       { label: "USD / GBP",       status: "✓ Supported", dot: "#0f6e56" },
+//       { label: "Deposit holds",   status: "✓ Available", dot: "#c4864c" },
+//     ],
+//     footer: "International travelers can pay in their home currency.",
+//   },
+//   {
+//     icon: Banknote,
+//     title: "Payout Schedule",
+//     subtitle: "Automatic & reliable",
+//     color: "#2e7d32",
+//     dimColor: "rgba(46,125,50,0.12)",
+//     items: [
+//       { label: "Trip confirmed", status: "→ Auto trigger", dot: "#c4864c" },
+//       { label: "Processing time", status: "1–3 days",      dot: "#6b3f1d" },
+//       { label: "To MoMo / Bank",  status: "✓ Delivered",  dot: "#2e7d32" },
+//     ],
+//     footer: "Payouts trigger automatically once your trip hits minimum capacity.",
+//   },
+// ];
+
+function PaymentImagePanel() {
+  return (
+    <div className="grid h-[480px] grid-cols-2 grid-rows-2 gap-3 sm:h-[520px]">
+      {PAYMENT_IMAGES.map((image) => (
+        <div
+          key={image.label}
+          className={`group relative h-full min-h-0 overflow-hidden rounded-2xl ${image.className}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image.src}
+            alt={image.alt}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(42,27,15,0.05) 0%, rgba(42,27,15,0.45) 55%, rgba(42,27,15,0.82) 100%)",
+            }}
+          />
+          <div className="absolute inset-x-0 bottom-0 p-4">
+            <p className="font-display text-sm font-bold text-[#fbf7f1]">{image.label}</p>
+            <p
+              className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: "var(--gold)" }}
+            >
+              {image.tag}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function PaymentsSection() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -97,7 +161,7 @@ export function PaymentsSection() {
     <section
       id="payments"
       ref={sectionRef}
-      className="scroll-mt-32 relative overflow-hidden"
+      className="scroll-mt-32 relative overflow-x-clip"
       style={{ background: "var(--primary-dark)", color: "#fbf7f1" }}
     >
       {/* decorative dot grid */}
@@ -115,7 +179,7 @@ export function PaymentsSection() {
         style={{ background: "linear-gradient(to bottom, var(--primary-dark), transparent)" }}
       />
 
-      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
 
           {/* ── LEFT: headline + counter + checklist ── */}
@@ -155,45 +219,22 @@ export function PaymentsSection() {
             </RevealBox>
           </div>
 
-          {/* ── RIGHT: CardSwap stack ── */}
-       
-          <div className="" style={{ height: "600px", position: "relative" }}>
-                  <CardSwap
-                    cardDistance={20}
-                    verticalDistance={70}
-                    delay={5000}
-                    pauseOnHover={false}
-                    height={550}
-                    width={500}
-                  >
-                    <Card>
-                      <h3>Card 1</h3>
-                      <p>Your content here</p>
-                    </Card>
-                    <Card>
-                      <h3>Card 2</h3>
-                      <p>Your content here</p>
-                    </Card>
-                    <Card>
-                      <h3>Card 3</h3>
-                      <p>Your content here</p>
-                    </Card>
-                  </CardSwap>
-                </div>
+          {/* ── RIGHT: payment image collage ── */}
+          <div className="relative">
+            <PaymentImagePanel />
+          </div>
+
+          {/* ── RIGHT: CardSwap stack (commented out) ── */}
           {/* <RevealBox
             delay={0.2}
-            className="relative hidden lg:block h-[460px]"
+            className="relative hidden h-[500px] lg:flex lg:items-center lg:justify-end"
           >
-            
-            <div
-              className="absolute inset-0 overflow-hidden"
-              style={{ borderRadius: "1.5rem" }}
-            >
+            <div className="relative h-[400px] w-full max-w-[420px]">
               <CardSwap
-                width={360}
-                height={240}
-                cardDistance={40}
-                verticalDistance={28}
+                width={380}
+                height={320}
+                cardDistance={44}
+                verticalDistance={32}
                 delay={3200}
                 pauseOnHover
                 skewAmount={3}
@@ -204,83 +245,12 @@ export function PaymentsSection() {
                   return (
                     <Card
                       key={i}
-                      customClass="overflow-hidden !border-0"
+                      customClass="overflow-hidden !border-0 !bg-[#fbf7f1] shadow-[0_28px_70px_-24px_rgba(0,0,0,0.45)]"
                       style={{
-                        background: "var(--primary-dark)",
-                        border: `1px solid rgba(251,247,241,0.1)`,
+                        border: "1px solid rgba(251,247,241,0.25)",
                       }}
                     >
-                      
-                      <div
-                        className="flex items-center justify-between px-5 py-4"
-                        style={{
-                          background: card.dimColor,
-                          borderBottom: "1px solid rgba(251,247,241,0.08)",
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="flex h-8 w-8 items-center justify-center rounded-lg"
-                            style={{ background: card.dimColor, border: `1px solid ${card.color}30` }}
-                          >
-                            <Icon className="h-4 w-4" style={{ color: card.color }} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold leading-none" style={{ color: "#fbf7f1" }}>
-                              {card.title}
-                            </p>
-                            <p className="mt-0.5 text-xs" style={{ color: "rgba(251,247,241,0.45)" }}>
-                              {card.subtitle}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <span
-                          className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
-                          style={{ background: `${card.color}20`, color: card.color }}
-                        >
-                          Live
-                        </span>
-                      </div>
-
-                
-                      <div className="divide-y" style={{ borderColor: "rgba(251,247,241,0.06)" }}>
-                        {card.items.map(({ label, status, dot }) => (
-                          <div key={label} className="flex items-center justify-between px-5 py-3">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="h-2 w-2 rounded-full shrink-0"
-                                style={{ background: dot }}
-                              />
-                              <span className="text-xs" style={{ color: "rgba(251,247,241,0.6)" }}>
-                                {label}
-                              </span>
-                            </div>
-                            <span
-                              className="text-xs font-semibold"
-                              style={{ color: "#fbf7f1" }}
-                            >
-                              {status}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      
-                      <div
-                        className="px-5 py-3"
-                        style={{ borderTop: "1px solid rgba(251,247,241,0.06)" }}
-                      >
-                        <div className="flex items-start gap-2">
-                          <Clock className="mt-0.5 h-3 w-3 shrink-0" style={{ color: "rgba(251,247,241,0.3)" }} />
-                          <p className="text-[11px] leading-relaxed" style={{ color: "rgba(251,247,241,0.4)" }}>
-                            {card.footer}
-                          </p>
-                        </div>
-                      </div>
-
-                      
-                      <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${card.color}, transparent)` }} />
+                      ...
                     </Card>
                   );
                 })}

@@ -3,7 +3,7 @@ import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
+import { ConditionalFooter } from "@/components/layout/conditional-footer";
 import "./globals.css";
 
  const bricolage = Bricolage_Grotesque({
@@ -31,13 +31,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${jakarta.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${jakarta.variable} h-full overflow-x-clip antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-stone-50" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col overflow-x-clip bg-stone-50 overscroll-x-none" suppressHydrationWarning>
         <AuthProvider>
           <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <main className="flex-1 overflow-x-clip">{children}</main>
+          <ConditionalFooter />
           <Toaster position="top-right" richColors />
         </AuthProvider>
       </body>

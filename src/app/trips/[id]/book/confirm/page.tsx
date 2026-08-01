@@ -1,86 +1,191 @@
 "use client";
 
-import { use } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { CheckCircle, Download, Calendar, Mail, MessageSquare, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { getTripById } from "@/lib/mock-data";
-import { formatCurrency, formatDateRange } from "@/lib/utils";
+import { Suspense, use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { BookingConfirmReceipt } from "@/components/booking/booking-confirm-receipt";
+import { ApiError } from "@/lib/api/client";
+import {
+  extractBookingReceiptDetails,
+  listMyBookings,
+  mapBookingFromApi,
+  verifyBookingPayment,
+  type BookingReceiptDetails,
+} from "@/lib/api/bookings";
+import { getPublicTrip, organizerFromPublicTrip } from "@/lib/api/public-trips";
+import {
+  getOrganizerBrandSlug,
+  getTenantTripUrl,
+  getTripPublicSlug,
+} from "@/lib/tenant";
+import type { Booking, Trip } from "@/lib/types";
+
+function ConfirmInner({
+  tripId,
+  waitlist,
+  reference,
+}: {
+  tripId: string;
+  waitlist: boolean;
+  reference: string | null;
+}) {
+  const router = useRouter();
+  const [trip, setTrip] = useState<Trip | null>(null);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [details, setDetails] = useState<BookingReceiptDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await getPublicTrip(tripId);
+        if (cancelled) return;
+        const data = res.data;
+        if (data) {
+          const org = organizerFromPublicTrip(data, res.raw);
+          const brand = getOrganizerBrandSlug({
+            brandSlug: data.organizerBrandSlug ?? org.brandSlug,
+            organizerName: data.organizerName ?? org.name,
+          });
+          if (!reference && !waitlist && brand && brand !== "organizer") {
+            const qs = waitlist ? "?waitlist=true" : "";
+            router.replace(
+              getTenantTripUrl(
+                brand,
+                getTripPublicSlug(data),
+                `/book/confirm${qs}`
+              )
+            );
+            return;
+          }
+          setTrip(data);
+        }
+      } catch {
+        /* continue without trip */
+      }
+
+      if (reference) {
+        try {
+          const res = await verifyBookingPayment({ reference });
+          if (!cancelled && res.data) {
+            const raw = res.data as unknown as Record<string, unknown>;
+            setBooking(mapBookingFromApi(raw));
+            setDetails(extractBookingReceiptDetails(raw));
+          }
+        } catch {
+          try {
+            const list = await listMyBookings({ status: "upcoming", limit: 20 });
+            if (!cancelled) {
+              const match = list.data?.bookings.find((b) => b.tripId === tripId);
+              if (match) setBooking(match);
+            }
+          } catch (err) {
+            if (!(err instanceof ApiError)) {
+              /* ignore */
+            }
+          }
+        }
+      }
+
+      if (!cancelled) setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId, reference, waitlist, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2
+          className="h-6 w-6 animate-spin"
+          style={{ color: "var(--primary)" }}
+        />
+      </div>
+    );
+  }
+
+  const title =
+    booking?.tripTitle?.trim() ||
+    trip?.title?.trim() ||
+    "Your trip";
+  const total =
+    details?.totalAmount ||
+    booking?.amount ||
+    trip?.price ||
+    0;
+  const start = booking?.startDate || trip?.startDate || "";
+  const end = booking?.endDate || trip?.endDate || "";
+  const destination = booking?.destination || trip?.destination || "";
+  const image = booking?.image || trip?.image || trip?.images?.[0];
+  const travelers =
+    details?.partySize || booking?.travelers || details?.guests.length;
+  const tripHref =
+    trip &&
+    (() => {
+      const brand = getOrganizerBrandSlug({
+        brandSlug: trip.organizerBrandSlug,
+        organizerName: trip.organizerName,
+      });
+      if (brand && brand !== "organizer") {
+        return getTenantTripUrl(brand, getTripPublicSlug(trip));
+      }
+      return `/trips/${tripId}`;
+    })() ||
+    `/trips/${tripId}`;
+
+  return (
+    <BookingConfirmReceipt
+      waitlist={waitlist}
+      title={title}
+      destination={destination}
+      image={image}
+      startDate={start}
+      endDate={end}
+      total={total}
+      travelers={travelers}
+      reference={
+        reference ?? details?.reference ?? booking?.id ?? null
+      }
+      dashboardHref="/dashboard"
+      tripHref={tripHref}
+      organizerName={trip?.organizerName}
+      meetingPoint={trip?.meetingPoint}
+      durationDays={trip?.durationDays}
+      details={details}
+    />
+  );
+}
 
 export default function BookingConfirmPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ waitlist?: string }>;
+  searchParams: Promise<{ waitlist?: string; reference?: string }>;
 }) {
   const { id } = use(params);
-  const { waitlist } = use(searchParams);
-  const trip = getTripById(id);
-  const isWaitlist = waitlist === "true";
-
-  if (!trip) return null;
+  const sp = use(searchParams);
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-16 text-center">
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 200, damping: 15 }}
-        className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100"
-      >
-        <CheckCircle className="h-10 w-10 text-emerald-600" />
-      </motion.div>
-
-      <h1 className="text-2xl font-bold text-stone-900">
-        {isWaitlist ? "You're on the waitlist!" : "Booking Confirmed!"}
-      </h1>
-      <p className="mt-2 text-stone-500">
-        {isWaitlist
-          ? "We'll send you an email and SMS as soon as a spot opens up."
-          : `Your spot on ${trip.title} is secured.`}
-      </p>
-
-      <Card className="mt-8 text-left">
-        <CardContent className="p-6 space-y-3">
-          <h3 className="font-semibold text-stone-900">{trip.title}</h3>
-          <p className="text-sm text-stone-500">{formatDateRange(trip.startDate, trip.endDate)}</p>
-          {!isWaitlist && (
-            <p className="text-sm">
-              <span className="text-stone-500">Total: </span>
-              <span className="font-semibold">{formatCurrency(trip.price)}</span>
-            </p>
-          )}
-          <p className="text-xs text-stone-400 font-mono">Ref: TRX-{Date.now().toString(36).toUpperCase()}</p>
-        </CardContent>
-      </Card>
-
-      {!isWaitlist && (
-        <div className="mt-6 flex flex-col gap-2">
-          <Button variant="outline" className="w-full" onClick={() => alert("PDF receipt downloaded (demo)")}>
-            <Download className="h-4 w-4" /> Download PDF Receipt
-          </Button>
-          <Button variant="outline" className="w-full" onClick={() => alert("Calendar invite added (demo)")}>
-            <Calendar className="h-4 w-4" /> Add to Calendar
-          </Button>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2
+            className="h-6 w-6 animate-spin"
+            style={{ color: "var(--primary)" }}
+          />
         </div>
-      )}
-
-      <div className="mt-6 flex items-center justify-center gap-4 text-xs text-stone-400">
-        <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Email sent</span>
-        <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> SMS sent</span>
-      </div>
-
-      <div className="mt-8 flex flex-col gap-2">
-        <Button asChild>
-          <Link href="/dashboard">Go to Dashboard <ArrowRight className="h-4 w-4" /></Link>
-        </Button>
-        <Button variant="ghost" asChild>
-          <Link href="/">Browse more trips</Link>
-        </Button>
-      </div>
-    </div>
+      }
+    >
+      <ConfirmInner
+        tripId={id}
+        waitlist={sp.waitlist === "true"}
+        reference={sp.reference ?? null}
+      />
+    </Suspense>
   );
 }

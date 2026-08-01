@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { HeroCarousel } from "@/components/home/hero-carousel";
-import { StatsBar } from "@/components/home/stats-bar";
 import { FeaturesGrid } from "@/components/home/features-grid";
 import { CtaBanner } from "@/components/home/cta-banner";
 import { Testimonials } from "@/components/home/testimonials";
@@ -16,7 +15,6 @@ import { trips, getAvailabilityStatus } from "@/lib/mock-data";
 import type { TripFilters } from "@/lib/types";
 import Hero from "@/components/home/hero";
 import Journal from "@/components/home/journal";
-import RoleCards from "@/components/home/role-cards";
 import ParallaxBlock from "@/components/home/parallaxBlock";
 import FeaturedTrips from "@/components/home/featuredTrips";
 import HowItWorks from "@/components/home/how-it-works";
@@ -36,11 +34,19 @@ const defaultFilters: TripFilters = {
 
 export default function HomePage() {
   const [filters, setFilters] = useState<TripFilters>(defaultFilters);
-  const { requireAuth } = useAuth();
+  const { requireTravelerAuth } = useAuth();
   const { toggle, isWishlisted } = useWishlist();
 
   const handleToggleWishlist = (tripId: string) => {
-    requireAuth(() => toggle(tripId));
+    requireTravelerAuth(() => {
+      void (async () => {
+        try {
+          await toggle(tripId);
+        } catch {
+          /* toast already shown in hook */
+        }
+      })();
+    });
   };
 
   const filteredTrips = useMemo(() => {
@@ -70,16 +76,10 @@ export default function HomePage() {
 
       <Journal/>
 
-
-    
-
-      <RoleCards/>
-
       <ParallaxBlock/>
 
 
 
-      <StatsBar />
 
       <FeaturedTrips/>
 

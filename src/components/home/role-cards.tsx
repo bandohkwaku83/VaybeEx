@@ -23,7 +23,7 @@ const ROLES = [
   {
     title: "Admin Portal",
     body: "Approve organisers, moderate listings, oversee bookings and platform revenue.",
-    href: "/login/admin",
+    href: "/admin-portal/login",
     badge: "Internal",
     Icon: ShieldCheck,
   },

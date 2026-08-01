@@ -192,7 +192,7 @@ export function TrustSection() {
             <div className="mt-7 flex items-center gap-3">
               <button
                 type="button"
-                className="rounded-full px-5 py-2.5 text-xs font-bold transition-transform duration-200 hover:scale-105"
+                className="rounded-none px-5 py-2.5 text-xs font-bold transition-transform duration-200 hover:scale-105"
                 style={{ background: "var(--primary-dark)", color: "#fbf7f1" }}
               >
                 Contact us
@@ -200,7 +200,7 @@ export function TrustSection() {
               <button
                 type="button"
                 aria-label="Learn more"
-                className="flex h-9 w-9 items-center justify-center rounded-full border transition-transform duration-200 hover:scale-105"
+                className="flex h-9 w-9 items-center justify-center rounded-none border transition-transform duration-200 hover:scale-105"
                 style={{ borderColor: "var(--border)" }}
               >
                 <ArrowUpRight className="h-4 w-4" style={{ color: "var(--text)" }} />

@@ -28,7 +28,7 @@ export function CtaBanner() {
           <div className="mt-8">
             <Link
               href="#trips"
-              className="btn-gradient inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold uppercase tracking-wider text-white shadow-lg transition-transform hover:scale-[1.02]"
+              className="btn-gradient inline-flex items-center gap-2 rounded-none px-8 py-3.5 text-sm font-semibold uppercase tracking-wider text-white shadow-lg transition-transform hover:scale-[1.02]"
             >
               Get started
               <ArrowRight className="h-4 w-4" />

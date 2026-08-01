@@ -2,11 +2,11 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-import heroExplorer from "@public/images/hero-explorer.jpg";
-import groupSafari from "@public/images/group-safari.jpg";
-import coastAerial from "@public/images/coast-aerial.jpg";
-import canopyWalk from "@public/images/canopy-walk.jpg";
-import portraitMarket from "@public/images/portrait-market.jpg";
+import voltaPostcard from "@public/images/postcards/volta.jpg";
+import northernPostcard from "@public/images/postcards/northen.jpg";
+import capeCoastPostcard from "@public/images/postcards/cape_coast.jpg";
+import lakePostcard from "@public/images/postcards/Lake.png";
+import accraPostcard from "@public/images/postcards/accra.jpg";
 
 import { MapPin, X, ArrowUpRight, Compass } from "lucide-react";
 
@@ -14,52 +14,76 @@ gsap.registerPlugin(ScrollTrigger);
 
 interface Postcard {
   src: { src: string };
-  place: string;
   region: string;
-  blurb: string;
   tag: string;
+  sites: string[];
 }
 
 const POSTCARDS: Postcard[] = [
   {
-    src: heroExplorer,
-    place: "Wli Waterfalls",
+    src: voltaPostcard,
     region: "Volta Region",
     tag: "Postcard 01",
-    blurb:
-      "Ghana's tallest waterfall, tucked into the Agumatsa range. A 45-minute forest trail opens onto a curtain of falling water, with fruit bats circling the cliffs above.",
+    sites: [
+      "Wli Waterfalls",
+      "Mount Afadja",
+      "Tafi Atome Monkey Sanctuary",
+      "Tagbo Falls",
+      "Amedzofe canopy village",
+      "Keta & Ada Foah coast",
+    ],
   },
   {
-    src: groupSafari,
-    place: "Mole National Park",
+    src: northernPostcard,
     region: "Northern Ghana",
     tag: "Postcard 02",
-    blurb:
-      "Elephants at dawn, antelope grazing the savanna, and a watering hole that draws the whole park together at golden hour. Ghana's largest wildlife refuge.",
+    sites: [
+      "Mole National Park",
+      "Larabanga Mosque",
+      "Paga Crocodile Pond",
+      "Gambaga Escarpment",
+      "Tamale Cultural Centre",
+      "Salaga slave market",
+    ],
   },
   {
-    src: coastAerial,
-    place: "Cape Coast",
+    src: capeCoastPostcard,
     region: "Central Region",
     tag: "Postcard 03",
-    blurb:
-      "Whitewashed castle walls against the Atlantic, fishing canoes pulled up on black sand, and a history that every traveller should sit with at least once.",
+    sites: [
+      "Cape Coast Castle",
+      "Elmina Castle",
+      "Kakum National Park",
+      "Kakum Canopy Walk",
+      "Assin Manso Slave River",
+      "Hans Cottage Botel",
+    ],
   },
   {
-    src: canopyWalk,
-    place: "Kakum Canopy Walk",
-    region: "Central Region",
+    src: lakePostcard,
+    region: "Ashanti Region",
     tag: "Postcard 04",
-    blurb:
-      "Seven rope bridges strung 30 metres above the rainforest floor. Come for sunrise when mist still clings to the canopy and the forest is just waking up.",
+    sites: [
+      "Lake Bosomtwe",
+      "Manhyia Palace",
+      "Kejetia Market",
+      "Kumasi Fort & Military Museum",
+      "Bonwire kente village",
+      "Ntonso Adinkra village",
+    ],
   },
   {
-    src: portraitMarket,
-    place: "Makola Market",
+    src: accraPostcard,
     region: "Accra",
     tag: "Postcard 05",
-    blurb:
-      "West Africa's beating commercial heart — kente cloth stalls, fresh produce towers, and a current of people that never quite slows down, day or night.",
+    sites: [
+      "Kwame Nkrumah Memorial Park",
+      "Makola Market",
+      "Jamestown",
+      "Labadi Beach",
+      "Black Star Square",
+      "National Museum of Ghana",
+    ],
   },
 ];
 
@@ -202,28 +226,24 @@ const Journal = () => {
     <section
       id="journal"
       ref={sectionRef}
-      className="relative w-screen overflow-hidden bg-bg-secondary py-20 sm:py-28"
-      style={{
-        marginLeft: "calc(50% - 50vw)",
-        marginRight: "calc(50% - 50vw)",
-      }}
+      className="relative w-full overflow-x-clip bg-bg py-14 sm:py-28"
     >
       {/* ── Heading ── */}
-      <div className="journal-heading relative z-10 mx-auto mb-14 max-w-3xl px-4 text-center">
+      <div className="journal-heading relative z-10 mx-auto mb-10 max-w-3xl px-4 text-center sm:mb-14">
         <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">
           <Compass size={12} /> Field journal
         </span>
-        <h2 className="mt-3 font-display text-4xl font-bold leading-[1.05] text-text sm:text-6xl">
+        <h2 className="mt-3 font-display text-3xl font-bold leading-[1.05] text-text sm:text-6xl">
           Postcards from the road
         </h2>
-        <p className="mt-4 text-base text-text-secondary sm:text-lg">
-          Tap any card to read its story. The deck keeps drifting while you browse.
+        <p className="mt-3 text-sm text-text-secondary sm:mt-4 sm:text-lg">
+          Tap any card to see some of the tourist sites in each region.
         </p>
       </div>
 
       {/* ── Auto-scrolling fan-of-cards marquee ── */}
       <div
-        className="relative w-full"
+        className="relative w-full overflow-x-clip"
         onMouseEnter={pauseMarquee}
         onMouseLeave={resumeMarquee}
       >
@@ -232,14 +252,14 @@ const Journal = () => {
           className="pointer-events-none absolute inset-y-0 left-0 z-20 w-24 sm:w-40"
           style={{
             background:
-              "linear-gradient(90deg, var(--bg-secondary) 0%, transparent 100%)",
+              "linear-gradient(90deg, var(--bg) 0%, transparent 100%)",
           }}
         />
         <div
           className="pointer-events-none absolute inset-y-0 right-0 z-20 w-24 sm:w-40"
           style={{
             background:
-              "linear-gradient(270deg, var(--bg-secondary) 0%, transparent 100%)",
+              "linear-gradient(270deg, var(--bg) 0%, transparent 100%)",
           }}
         />
 
@@ -270,7 +290,7 @@ const Journal = () => {
               >
                 <img
                   src={p.src.src}
-                  alt={p.place}
+                  alt={p.region}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                   draggable={false}
                 />
@@ -281,11 +301,11 @@ const Journal = () => {
                     {p.tag}
                   </span>
                   <h3 className="mt-1 font-display text-lg font-bold leading-tight text-white">
-                    {p.place}
+                    {p.region}
                   </h3>
                   <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/80">
                     <MapPin size={11} />
-                    {p.region}
+                    Ghana
                   </p>
                 </div>
 
@@ -318,7 +338,7 @@ const Journal = () => {
             <button
               type="button"
               onClick={closeCard}
-              className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur transition-colors hover:bg-black/50"
+              className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-none bg-black/30 text-white backdrop-blur transition-colors hover:bg-black/50"
               aria-label="Close"
             >
               <X size={18} />
@@ -331,7 +351,7 @@ const Journal = () => {
             >
               <img
                 src={active.src.src}
-                alt={active.place}
+                alt={active.region}
                 className="h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-primary-dark/60 via-transparent to-transparent sm:bg-gradient-to-r" />
@@ -345,7 +365,7 @@ const Journal = () => {
                 }}
                 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold"
               >
-                {active.tag} · {active.region}
+                {active.tag}
               </span>
 
               <h3
@@ -354,17 +374,29 @@ const Journal = () => {
                 }}
                 className="font-display text-3xl font-bold leading-[1.05] text-text sm:text-4xl"
               >
-                {active.place}
+                {active.region}
               </h3>
 
-              <p
+              <div
                 ref={(el) => {
                   modalTextRefs.current[2] = el;
                 }}
-                className="text-base leading-relaxed text-text-secondary"
               >
-                {active.blurb}
-              </p>
+                <p className="mb-3 text-sm font-medium text-text-secondary">
+                  Some tourist sites in the region
+                </p>
+                <ul className="space-y-2">
+                  {active.sites.map((site) => (
+                    <li
+                      key={site}
+                      className="flex items-start gap-2 text-base leading-snug text-text"
+                    >
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                      {site}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
               <div
                 ref={(el) => {
@@ -374,7 +406,7 @@ const Journal = () => {
               >
                 <a
                   href="#"
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-teal px-6 py-3 text-sm font-semibold text-primary-foreground glow-teal transition-transform hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-none bg-gradient-teal px-6 py-3 text-sm font-semibold text-primary-foreground glow-teal transition-transform hover:-translate-y-0.5"
                 >
                   See trips here
                   <ArrowUpRight size={15} />

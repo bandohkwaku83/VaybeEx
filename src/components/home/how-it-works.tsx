@@ -85,7 +85,7 @@ const HowItWorks = () => {
   return (
     <section
           ref={stepperRef}
-          className="relative border-t border-border bg-bg-secondary py-24 sm:py-32 overflow-hidden"
+          className="relative border-t border-border bg-bg-secondary py-14 sm:py-32 overflow-hidden"
         >
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <FadeInUp>
@@ -93,7 +93,7 @@ const HowItWorks = () => {
                 <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">
                   How it works
                 </span>
-                <h2 className="mt-3 font-display text-4xl font-bold text-text sm:text-5xl">
+                <h2 className="mt-3 font-display text-3xl font-bold text-text sm:text-5xl">
                   Three steps.{" "}
                   <span className="italic font-light text-gradient-warm">One great trip.</span>
                 </h2>
@@ -101,7 +101,7 @@ const HowItWorks = () => {
             </FadeInUp>
 
             {/* Connecting path + nodes */}
-            <div className="relative mt-20">
+            <div className="relative mt-12 sm:mt-20">
               {/* Desktop wavy path */}
               <svg
                 className="pointer-events-none absolute inset-x-0 top-7 hidden h-24 w-full md:block"

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, MapPin, Users, TrendingUp } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import organizerHero from "@public/images/organizer-hero.png";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -47,9 +48,7 @@ export default function OrganizerHero() {
   const sectionRef    = useRef<HTMLElement>(null);
   const bgImageRef    = useRef<HTMLDivElement>(null);
   const bgOverlayRef  = useRef<HTMLDivElement>(null);
-  const eyebrowRef    = useRef<HTMLParagraphElement>(null);
   const headlineRef   = useRef<HTMLHeadingElement>(null);
-  const bodyRef       = useRef<HTMLParagraphElement>(null);
   const ctaRef        = useRef<HTMLDivElement>(null);
   const statsRef      = useRef<HTMLDivElement>(null);
   const compassRef    = useRef<HTMLDivElement>(null);
@@ -88,14 +87,12 @@ export default function OrganizerHero() {
         });
       }
 
-      /* ── overlay darkens progressively as user scrolls down,
-             keeping the headline readable against the image ── */
       if (bgOverlayRef.current) {
         gsap.fromTo(
           bgOverlayRef.current,
-          { opacity: 0.55 },
+          { opacity: 0.92 },
           {
-            opacity: 0.88,
+            opacity: 1,
             ease: "none",
             scrollTrigger: {
               trigger: sectionRef.current,
@@ -125,19 +122,9 @@ export default function OrganizerHero() {
       /* ── entrance sequence ── */
       const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: 0.3 });
 
-      tl.fromTo(eyebrowRef.current,
-        { opacity: 0, y: 16, letterSpacing: "0.4em" },
-        { opacity: 1, y: 0, letterSpacing: "0.2em", duration: 0.9 }
-      )
-        .fromTo(headlineRef.current,
+      tl.fromTo(headlineRef.current,
           { opacity: 0, y: 40, clipPath: "inset(0 0 100% 0)" },
-          { opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)", duration: 1.1 },
-          "-=0.4"
-        )
-        .fromTo(bodyRef.current,
-          { opacity: 0, y: 20 },
-          { opacity: 1, y: 0, duration: 0.8 },
-          "-=0.5"
+          { opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)", duration: 1.1 }
         )
         .fromTo(ctaRef.current,
           { opacity: 0, y: 20 },
@@ -195,7 +182,7 @@ export default function OrganizerHero() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-[92vh] overflow-hidden"
+      className="relative flex min-h-svh flex-col overflow-hidden"
     >
       {/* ══════════════════════════════════════════════════
           BACKGROUND IMAGE LAYER
@@ -208,43 +195,41 @@ export default function OrganizerHero() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://images.unsplash.com/photo-1489493585363-d69421e0edd3?w=1800&q=85&auto=format&fit=crop"
-            alt="Travelers exploring a scenic Ghanaian landscape at golden hour"
+            src={organizerHero.src}
+            alt="Resort cottages by a calm pond with lush tropical greenery"
             className="h-full w-full object-cover"
           />
         </div>
 
-        {/* scroll-reactive darkening overlay, tinted with brand espresso */}
-        <div
-          ref={bgOverlayRef}
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(42,27,15,0.55) 0%, rgba(42,27,15,0.45) 35%, rgba(42,27,15,0.75) 75%, var(--bg) 100%)",
-          }}
-        />
-
-        {/* warm brand-colour wash for cohesion with the rest of the page */}
-        <div
-          className="absolute inset-0 mix-blend-multiply"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(107,63,29,0.35) 0%, rgba(196,134,76,0.12) 50%, rgba(74,42,18,0.4) 100%)",
-          }}
-        />
+        {/* Overlay — darkens photo for text contrast while keeping the scene visible */}
+        <div ref={bgOverlayRef} className="absolute inset-0">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(105deg, rgba(42,27,15,0.72) 0%, rgba(42,27,15,0.48) 38%, rgba(42,27,15,0.28) 62%, rgba(42,27,15,0.18) 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(42,27,15,0.35) 0%, transparent 32%, transparent 58%, rgba(42,27,15,0.55) 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "rgba(107,63,29,0.12)",
+              mixBlendMode: "multiply",
+            }}
+          />
+        </div>
       </div>
-
-      {/* ── paper grain texture overlay ── */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.1] mix-blend-overlay"
-        style={{
-          backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0 0.1 0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`,
-        }}
-      />
 
       {/* ── decorative route map SVG ── */}
       <svg
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.18]"
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.22]"
         preserveAspectRatio="xMidYMid slice"
         viewBox="0 0 1200 700"
         aria-hidden="true"
@@ -252,11 +237,11 @@ export default function OrganizerHero() {
         {/* Dotted longitude / latitude grid */}
         {[100, 200, 300, 400, 500, 600].map((y) => (
           <line key={y} x1="0" y1={y} x2="1200" y2={y}
-            stroke="#fbf7f1" strokeWidth="0.5" strokeDasharray="3 12" />
+            stroke="var(--primary)" strokeWidth="0.5" strokeDasharray="3 12" opacity="0.2" />
         ))}
         {[150, 350, 550, 750, 950, 1150].map((x) => (
           <line key={x} x1={x} y1="0" x2={x} y2="700"
-            stroke="#fbf7f1" strokeWidth="0.5" strokeDasharray="3 12" />
+            stroke="var(--primary)" strokeWidth="0.5" strokeDasharray="3 12" opacity="0.2" />
         ))}
         {/* Animated journey path: Accra → Kumasi → Tamale → Bolgatanga */}
         <path
@@ -280,7 +265,7 @@ export default function OrganizerHero() {
       {/* ── ambient compass rose (top-right) ── */}
       <div
         ref={compassRef}
-        className="pointer-events-none absolute -right-16 -top-16 h-[420px] w-[420px] text-[#fbf7f1] opacity-[0.12]"
+        className="pointer-events-none absolute -right-16 -top-16 h-[420px] w-[420px] text-primary opacity-[0.1]"
       >
         <CompassRose />
       </div>
@@ -288,50 +273,22 @@ export default function OrganizerHero() {
       {/* ── main content ── */}
       <div
         ref={contentRef}
-        className="relative mx-auto flex min-h-[92vh] max-w-7xl flex-col justify-center px-4 py-24 sm:px-6 lg:px-8"
+        className="relative mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
         style={{ willChange: "transform" }}
       >
         <div className="max-w-3xl">
 
-          {/* eyebrow */}
-          <p
-            ref={eyebrowRef}
-            className="text-xs font-bold uppercase tracking-[0.2em] text-white"
-            style={{ opacity: 0 }}
-          >
-            For trip organizers · West Africa &amp; Beyond
-          </p>
-
           {/* headline */}
           <h1
             ref={headlineRef}
-            className="font-display mt-5 text-5xl font-bold leading-[1.08] tracking-tight text-[#fbf7f1] sm:text-6xl lg:text-7xl"
-            style={{ opacity: 0, textShadow: "0 2px 24px rgba(0,0,0,0.25)" }}
+            className="font-display text-5xl font-bold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl"
+            style={{ opacity: 0, color: "#fbf7f1" }}
           >
             Lead the journey.{" "}
-            <span
-              className="block"
-              style={{
-                background: "linear-gradient(135deg, #f3d8ad 0%, #c4864c 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
+            <span className="block italic font-light text-gradient-warm">
               Fill every seat.
             </span>
           </h1>
-
-          {/* body */}
-          <p
-            ref={bodyRef}
-            className="mt-6 max-w-xl text-lg leading-relaxed text-[rgba(251,247,241,0.88)]"
-            style={{ opacity: 0 }}
-          >
-            VaybeEx is the marketplace built for Ghana&apos;s trip organizers. List weekend
-            getaways, cultural tours, or cross-border expeditions — and let travelers
-            discover, apply, and pay, all in one place.
-          </p>
 
           {/* CTAs */}
           <div
@@ -342,7 +299,7 @@ export default function OrganizerHero() {
             <Button
               size="lg"
               asChild
-              className="border-0 px-7 text-[#fbf7f1] shadow-[var(--glow-gold)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[var(--glow-teal-strong)]"
+              className="border-0 px-7 text-primary-foreground shadow-[var(--glow-gold)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[var(--glow-teal-strong)]"
               style={{ background: "var(--gradient-brand)" }}
             >
               <Link href="/organizer/login?mode=signup&redirect=/organizer/onboarding">
@@ -355,7 +312,12 @@ export default function OrganizerHero() {
               size="lg"
               variant="ghost"
               asChild
-              className="border border-[rgba(251,247,241,0.35)] text-[#fbf7f1] hover:bg-[rgba(251,247,241,0.12)] hover:border-[rgba(251,247,241,0.6)] hover:text-[#fbf7f1]"
+              className="border backdrop-blur"
+              style={{
+                borderColor: "rgba(251,247,241,0.35)",
+                background: "rgba(251,247,241,0.1)",
+                color: "#fbf7f1",
+              }}
             >
               <Link href="/organizer/login?redirect=/organizer/dashboard">
                 Sign in to portal
@@ -366,19 +328,24 @@ export default function OrganizerHero() {
           {/* stats strip */}
           <div
             ref={statsRef}
-            className="mt-16 flex flex-wrap gap-x-10 gap-y-6 border-t border-[rgba(251,247,241,0.18)] pt-8"
+            className="mt-16 flex flex-wrap gap-x-10 gap-y-6 border-t pt-8"
+            style={{ borderColor: "rgba(251,247,241,0.2)" }}
           >
             {STATS.map(({ icon: Icon, value, label }) => (
               <div key={label} className="flex items-center gap-3">
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: "rgba(251,247,241,0.12)" }}
+                  style={{ background: "rgba(196,134,76,0.22)" }}
                 >
-                  <Icon className="h-4 w-4 text-[var(--gold)]" />
+                  <Icon className="h-4 w-4" style={{ color: "var(--gold)" }} />
                 </div>
                 <div>
-                  <p className="font-display text-xl font-bold text-[#fbf7f1]">{value}</p>
-                  <p className="text-xs text-[rgba(251,247,241,0.65)]">{label}</p>
+                  <p className="font-display text-xl font-bold" style={{ color: "#fbf7f1" }}>
+                    {value}
+                  </p>
+                  <p className="text-xs" style={{ color: "rgba(251,247,241,0.65)" }}>
+                    {label}
+                  </p>
                 </div>
               </div>
             ))}
@@ -388,14 +355,17 @@ export default function OrganizerHero() {
 
       {/* ── scroll cue ── */}
       <div className="pointer-events-none absolute bottom-8 left-1/2 z-10 -translate-x-1/2 flex flex-col items-center gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[rgba(251,247,241,0.6)]">
+        <span
+          className="text-[10px] font-semibold uppercase tracking-[0.25em]"
+          style={{ color: "rgba(251,247,241,0.55)" }}
+        >
           Scroll
         </span>
         <div
           className="h-9 w-[1px]"
           style={{
             background:
-              "linear-gradient(to bottom, rgba(251,247,241,0.7), transparent)",
+              "linear-gradient(to bottom, rgba(251,247,241,0.55), transparent)",
           }}
         />
       </div>

@@ -448,7 +448,7 @@ export function ReachSection() {
             >
               Your trips, in front
               <br />of people{" "}
-              <span style={{ background: "var(--gradient-brand)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+              <span style={{ color: "var(--primary)" }}>
                 already looking.
               </span>
             </h2>
@@ -605,7 +605,7 @@ export function ReachSection() {
                 </div>
                 <a
                   href="/organizer/login?mode=signup&redirect=/organizer/onboarding"
-                  className="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-[#fbf7f1] px-5 py-2.5 text-sm font-bold transition-all duration-200 hover:scale-[1.04]"
+                  className="mt-6 inline-flex w-fit items-center gap-2 rounded-none bg-[#fbf7f1] px-5 py-2.5 text-sm font-bold transition-all duration-200 hover:scale-[1.04]"
                   style={{ color: "var(--primary-dark)" }}
                 >
                   Create account

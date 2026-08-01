@@ -1,16 +1,26 @@
 import { FadeInUp } from "../ui/fadeInUp";
-import { Quote, Star, MapPin } from "lucide-react";
+import { Star } from "lucide-react";
 import { useRef, useEffect } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-const ROW_A = [
+type Review = {
+  name: string;
+  city: string;
+  trip: string;
+  rating: number;
+  quote: string;
+  color: string;
+};
+
+const ROW_A: Review[] = [
   {
     name: "Abena Mensah",
     city: "Accra",
     trip: "Wli Waterfalls · 3 days",
     rating: 5,
-    quote: "I cried at the second waterfall. Not even kidding. Our organiser Kojo knew every hidden pool — we swam where no tour bus ever goes.",
+    quote:
+      "I cried at the second waterfall. Not even kidding. Our organiser Kojo knew every hidden pool — we swam where no tour bus ever goes.",
     color: "#6B3F1D",
   },
   {
@@ -18,7 +28,8 @@ const ROW_A = [
     city: "Kumasi",
     trip: "Mole Safari · 5 days",
     rating: 5,
-    quote: "Elephants 20 meters away. The bush walks at sunrise were unreal. Came back with 14 new friends and a thousand photos.",
+    quote:
+      "Elephants 20 meters away. The bush walks at sunrise were unreal. Came back with 14 new friends and a thousand photos.",
     color: "#C4864C",
   },
   {
@@ -26,7 +37,8 @@ const ROW_A = [
     city: "Tema",
     trip: "Cape Coast Heritage · 4 days",
     rating: 5,
-    quote: "The castle tour broke me open. Then jollof on the beach put me back together. Honestly the most meaningful trip I've ever taken.",
+    quote:
+      "The castle tour broke me open. Then jollof on the beach put me back together. Honestly the most meaningful trip I've ever taken.",
     color: "#B5523A",
   },
   {
@@ -34,7 +46,8 @@ const ROW_A = [
     city: "Takoradi",
     trip: "Kakum Canopy Walk · 2 days",
     rating: 5,
-    quote: "Was terrified of heights. Did all seven bridges. The group hyped me up like family. MoMo payment was smooth, escrow felt safe.",
+    quote:
+      "Was terrified of heights. Did all seven bridges. The group hyped me up like family. MoMo payment was smooth, escrow felt safe.",
     color: "#4A2A12",
   },
   {
@@ -42,7 +55,8 @@ const ROW_A = [
     city: "Ho",
     trip: "Volta Region Loop · 6 days",
     rating: 5,
-    quote: "Markets, monkeys, monasteries — somehow all in one week. Our chef sourced fish straight from her uncle. This isn't tourism, it's belonging.",
+    quote:
+      "Markets, monkeys, monasteries — somehow all in one week. Our chef sourced fish straight from her uncle. This isn't tourism, it's belonging.",
     color: "#D08A3C",
   },
   {
@@ -50,18 +64,20 @@ const ROW_A = [
     city: "Ada Foah",
     trip: "Ada River Estuary · 3 days",
     rating: 5,
-    quote: "Sandbar sunsets, kayaking the estuary, drumming circle on night two. VaybeEx delivered exactly what the journal promised.",
+    quote:
+      "Sandbar sunsets, kayaking the estuary, drumming circle on night two. VaybeEx delivered exactly what the journal promised.",
     color: "#6B3F1D",
   },
 ];
 
-const ROW_B = [
+const ROW_B: Review[] = [
   {
     name: "Esi Bonsu",
     city: "Sekondi",
     trip: "Busua Surf Camp · 4 days",
     rating: 5,
-    quote: "First time surfing, ever. The instructor had me standing by day two. Group dinners on the beach every night — I didn't want to leave.",
+    quote:
+      "First time surfing, ever. The instructor had me standing by day two. Group dinners on the beach every night — I didn't want to leave.",
     color: "#C4864C",
   },
   {
@@ -69,7 +85,8 @@ const ROW_B = [
     city: "Koforidua",
     trip: "Boti Falls Day Trip · 1 day",
     rating: 5,
-    quote: "Squeezed a full adventure into one day — twin falls, the umbrella rock, palm wine tapping. Driver was punctual to the minute.",
+    quote:
+      "Squeezed a full adventure into one day — twin falls, the umbrella rock, palm wine tapping. Driver was punctual to the minute.",
     color: "#B5523A",
   },
   {
@@ -77,7 +94,8 @@ const ROW_B = [
     city: "Cape Coast",
     trip: "Elmina Sunset Cruise · 1 day",
     rating: 5,
-    quote: "Watching the fishing boats come in at golden hour while live highlife played on deck. Paid the balance via Vodafone Cash, zero friction.",
+    quote:
+      "Watching the fishing boats come in at golden hour while live highlife played on deck. Paid the balance via Vodafone Cash, zero friction.",
     color: "#4A2A12",
   },
   {
@@ -85,7 +103,8 @@ const ROW_B = [
     city: "Tamale",
     trip: "Mognori Eco Village · 2 days",
     rating: 5,
-    quote: "Slept in a mud-brick guesthouse, learned to shoot a bow with the local hunters. Nothing about it felt staged for tourists.",
+    quote:
+      "Slept in a mud-brick guesthouse, learned to shoot a bow with the local hunters. Nothing about it felt staged for tourists.",
     color: "#D08A3C",
   },
   {
@@ -93,7 +112,8 @@ const ROW_B = [
     city: "Accra",
     trip: "Shai Hills Safari · 1 day",
     rating: 5,
-    quote: "Baboons crossing the road right in front of our van, then a sunset hike up the ridge. Back in Accra by dinner. Perfect weekend trip.",
+    quote:
+      "Baboons crossing the road right in front of our van, then a sunset hike up the ridge. Back in Accra by dinner. Perfect weekend trip.",
     color: "#6B3F1D",
   },
   {
@@ -101,7 +121,8 @@ const ROW_B = [
     city: "Kumasi",
     trip: "Lake Bosomtwe Retreat · 3 days",
     rating: 5,
-    quote: "Kayaked across the crater lake at sunrise, ate fresh tilapia every night. Already planning my next trip with the same organiser.",
+    quote:
+      "Kayaked across the crater lake at sunrise, ate fresh tilapia every night. Already planning my next trip with the same organiser.",
     color: "#C4864C",
   },
 ];
@@ -140,7 +161,7 @@ function MarqueeRow({
   reviews,
   direction,
 }: {
-  reviews: typeof ROW_A;
+  reviews: Review[];
   direction: "left" | "right";
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -202,34 +223,70 @@ function MarqueeRow({
       onMouseEnter={pause}
       onMouseLeave={resume}
     >
-      <div ref={trackRef} className="flex w-max gap-5 will-change-transform">
+      <div ref={trackRef} className="flex w-max gap-6 will-change-transform">
         {doubled.map((r, i) => (
           <article
             key={i}
-            className="review-marquee-card group relative flex h-[230px] w-[360px] shrink-0 flex-col justify-between rounded-[22px] border border-border-strong bg-surface p-6 shadow-[0_24px_50px_-28px_rgba(74,42,18,0.4)] transition-transform duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_-24px_rgba(74,42,18,0.55)]"
+            className="review-marquee-card group relative flex h-[240px] w-[min(300px,82vw)] shrink-0 flex-col justify-between overflow-hidden rounded-lg border border-border px-5 py-5 transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:border-border-strong hover:shadow-[0_28px_56px_-32px_rgba(74,42,18,0.55)] sm:h-[272px] sm:w-[360px] sm:px-7 sm:py-7"
+            style={{
+              backgroundColor: "var(--surface)",
+              boxShadow: "0 18px 40px -28px rgba(74,42,18,0.35)",
+            }}
           >
-            <div className="flex items-start justify-between">
-              <Quote size={28} style={{ color: r.color }} strokeWidth={1.4} className="opacity-30" />
-              <span className="inline-flex items-center gap-1 rounded-full bg-bg-secondary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-text-tertiary">
-                <MapPin size={10} /> {r.city}
-              </span>
+            {/* top accent — trip stamp */}
+            <div className="flex items-start justify-between gap-4">
+              <p
+                className="max-w-[70%] text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary transition-colors duration-300 group-hover:text-text"
+              >
+                {r.trip}
+              </p>
+              <span
+                className="mt-0.5 h-2 w-2 shrink-0 rounded-full transition-transform duration-300 group-hover:scale-125"
+                style={{ backgroundColor: r.color }}
+                aria-hidden
+              />
             </div>
 
-            <p className="font-display text-[15px] leading-snug text-text line-clamp-4">
-              &quot;{r.quote}&quot;
-            </p>
+            <blockquote className="relative mt-5 flex-1">
+              <span
+                className="pointer-events-none absolute -left-1 -top-3 select-none font-display text-5xl leading-none transition-opacity duration-300"
+                style={{ color: r.color, opacity: 0.28 }}
+                aria-hidden
+              >
+                &ldquo;
+              </span>
+              <p className="font-display text-[17px] font-medium italic leading-[1.4] text-text line-clamp-5 pl-1">
+                {r.quote}
+              </p>
+            </blockquote>
 
-            <div className="flex items-center justify-between border-t border-border-subtle pt-3">
-              <div>
-                <div className="font-display text-sm font-bold text-text">{r.name}</div>
-                <div className="text-[11px] text-text-tertiary">{r.trip}</div>
+            <footer className="mt-6 flex items-end justify-between gap-3 border-t border-border-subtle pt-4">
+              <div className="min-w-0">
+                <p className="truncate font-display text-sm font-bold leading-tight text-text">
+                  {r.name}
+                </p>
+                <p className="mt-0.5 text-[11px] text-text-tertiary">{r.city}</p>
               </div>
-              <div className="flex gap-0.5">
+              <div
+                className="flex shrink-0 items-center gap-0.5"
+                aria-label={`${r.rating} out of 5 stars`}
+              >
                 {Array.from({ length: r.rating }).map((_, k) => (
-                  <Star key={k} size={12} className="fill-gold text-gold" />
+                  <Star
+                    key={k}
+                    size={10}
+                    className="fill-gold text-gold opacity-80 transition-opacity duration-300 group-hover:opacity-100"
+                  />
                 ))}
               </div>
-            </div>
+            </footer>
+
+            {/* bottom color sweep on hover */}
+            <span
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] origin-left scale-x-0 transition-transform duration-500 ease-out group-hover:scale-x-100"
+              style={{ backgroundColor: r.color }}
+              aria-hidden
+            />
           </article>
         ))}
       </div>
@@ -256,29 +313,32 @@ const Reviews = () => {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate overflow-hidden border-t border-border bg-bg py-24 sm:py-32"
+      className="relative isolate overflow-hidden border-t border-border bg-bg py-14 sm:py-32"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_15%,rgba(196,134,76,0.16),transparent_70%)]" />
 
-      <div className="mx-auto mb-14 max-w-3xl px-4 text-center sm:px-6">
+      <div className="mx-auto mb-10 max-w-3xl px-4 text-center sm:mb-14 sm:px-6">
         <FadeInUp>
           <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">
             Voices from the road
           </span>
-          <h2 className="mt-3 font-display text-4xl font-bold text-text sm:text-6xl">
+          <h2 className="mt-3 font-display text-3xl font-bold text-text sm:text-6xl">
             Stories{" "}
             <span className="italic font-light text-gradient-warm">
               they brought home.
             </span>
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-text-secondary">
-            Hover a row to pause it, or hover any card to bring it forward.
+          <p className="mx-auto mt-3 max-w-xl text-sm text-text-secondary sm:mt-4 sm:text-base">
+            <span className="sm:hidden">Tap a card to bring it forward.</span>
+            <span className="hidden sm:inline">
+              Hover a row to pause it, or hover any card to bring it forward.
+            </span>
           </p>
         </FadeInUp>
       </div>
 
       {/* ── Two opposing marquee rows ──────────────────────────── */}
-      <div className="reviews-marquee-wrap relative space-y-6">
+      <div className="reviews-marquee-wrap relative space-y-6 overflow-x-clip">
         {/* edge fades, shared across both rows */}
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-bg to-transparent sm:w-32" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-bg to-transparent sm:w-32" />

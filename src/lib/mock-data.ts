@@ -4,6 +4,7 @@ export const organizers: Organizer[] = [
   {
     id: "org-1",
     name: "Kofi Adventures",
+    brandSlug: "kofi-adventures",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
     bio: "Curating unforgettable Ghanaian adventures since 2018. From Volta hikes to coastal escapes.",
     verified: true,
@@ -17,6 +18,7 @@ export const organizers: Organizer[] = [
   {
     id: "org-2",
     name: "Savanna Trails",
+    brandSlug: "savanna-trails",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
     bio: "Wildlife and cultural immersion across West Africa's most breathtaking landscapes.",
     verified: true,
@@ -30,6 +32,7 @@ export const organizers: Organizer[] = [
   {
     id: "org-3",
     name: "Coastal Vibes GH",
+    brandSlug: "coastal-vibes-gh",
     avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
     bio: "Beach retreats, surf camps, and island hopping along Ghana's golden coast.",
     verified: false,
@@ -64,6 +67,12 @@ export const trips: Trip[] = [
     organizerId: "org-1",
     description:
       "A 4-day guided trek through the lush Volta highlands, visiting Wli Falls, hidden swimming holes, and traditional Ewe villages. Perfect for adventure seekers who want authentic cultural encounters.",
+    highlights: [
+      "Swim beneath Wli Falls — West Africa's tallest waterfall",
+      "Camp under the stars on mountain ridges",
+      "Share a welcome ceremony with an Ewe village",
+      "All meals and camping gear handled for you",
+    ],
     included: [
       "Professional guide",
       "All meals",
@@ -79,6 +88,14 @@ export const trips: Trip[] = [
       { day: 3, title: "Mountain Ridge Trail", activities: ["Summit viewpoint", "Photography session", "Traditional drumming"] },
       { day: 4, title: "Return Journey", activities: ["Morning yoga", "Souvenir market", "Arrive Accra by 6pm"] },
     ],
+    difficulty: "challenging",
+    meetingPoint: "Accra Mall — main gate taxi rank",
+    departurePoint: "Accra Mall",
+    departureTime: "06:00",
+    returnTime: "18:00",
+    couplePrice: 3400,
+    groupPrice: 14000,
+    groupSize: 10,
     status: "live",
     rating: 4.9,
     reviewCount: 47,
@@ -117,6 +134,12 @@ export const trips: Trip[] = [
     organizerId: "org-3",
     description:
       "Explore Ghana's rich history at Cape Coast Castle, then unwind on pristine beaches. A perfect blend of culture and relaxation.",
+    highlights: [
+      "Guided tour of Cape Coast Castle & Door of No Return",
+      "Beach resort stay with breakfast & dinner",
+      "Surf lesson on Kokrobite Beach",
+      "Fresh seafood in Elmina fishing village",
+    ],
     included: ["Castle tour", "Beach resort stay", "Breakfast & dinner", "AC bus transport"],
     excluded: ["Lunch", "Personal expenses", "Optional water sports"],
     itinerary: [
@@ -125,6 +148,12 @@ export const trips: Trip[] = [
       { day: 3, title: "Fishing Village", activities: ["Elmina harbor", "Fresh seafood lunch", "Craft workshop"] },
       { day: 4, title: "Departure", activities: ["Morning swim", "Gift shopping", "Return to Accra"] },
     ],
+    difficulty: "easy",
+    meetingPoint: "Kaneshie STC station",
+    departurePoint: "Kaneshie STC",
+    departureTime: "07:30",
+    returnTime: "17:00",
+    couplePrice: 2200,
     status: "live",
     rating: 4.7,
     reviewCount: 31,
@@ -158,6 +187,12 @@ export const trips: Trip[] = [
     organizerId: "org-2",
     description:
       "Witness elephants, antelopes, and over 300 bird species in Ghana's largest wildlife refuge. Expert rangers guide every safari drive.",
+    highlights: [
+      "Dawn and sunset safari drives with expert rangers",
+      "Guided walking safari through the bush",
+      "Full lodge stay with all meals included",
+      "Chance to spot elephants up close",
+    ],
     included: ["Safari drives", "Lodge accommodation", "All meals", "Ranger fees", "Binoculars"],
     excluded: ["Flights to Tamale", "Tips", "Night photography gear"],
     itinerary: [
@@ -166,6 +201,14 @@ export const trips: Trip[] = [
       { day: 3, title: "Walking Safari", activities: ["Guided bush walk", "Bird watching", "Village visit"] },
       { day: 4, title: "Morning Drive & Depart", activities: ["Final elephant spotting", "Brunch", "Transfer out"] },
     ],
+    difficulty: "moderate",
+    meetingPoint: "Tamale Airport arrivals",
+    departurePoint: "Mole Motel lobby",
+    departureTime: "15:30",
+    returnTime: "10:00",
+    couplePrice: 4500,
+    groupPrice: 20000,
+    groupSize: 10,
     status: "live",
     rating: 4.8,
     reviewCount: 22,
@@ -192,11 +235,21 @@ export const trips: Trip[] = [
     minCapacity: 5,
     organizerId: "org-1",
     description: "A culinary journey through Accra's best street food spots, from waakye to kelewele.",
+    highlights: [
+      "Taste Accra's iconic street food with a local guide",
+      "From Jamestown waakye to Labadi kelewele",
+      "All tastings and drinks included",
+    ],
     included: ["All food tastings", "Local guide", "Drinks"],
     excluded: ["Transport to meeting point"],
     itinerary: [
       { day: 1, title: "Food Crawl", activities: ["Osu market", "Jamestown waakye", "Labadi kelewele", "Dessert at Osu"] },
     ],
+    difficulty: "easy",
+    meetingPoint: "Osu Oxford Street — in front of Papaye",
+    departureTime: "11:00",
+    returnTime: "16:00",
+    couplePrice: 600,
     status: "live",
     rating: 4.9,
     reviewCount: 56,
@@ -223,6 +276,12 @@ export const trips: Trip[] = [
     minCapacity: 8,
     organizerId: "org-3",
     description: "Where the Volta River meets the Atlantic — kayaking, bonfires, and stargazing on the estuary.",
+    highlights: [
+      "Kayak where the Volta meets the Atlantic",
+      "Eco-lodge stay with all meals",
+      "Bonfire nights and stargazing on the estuary",
+      "Sunrise beach walks and optional yoga",
+    ],
     included: ["Eco-lodge", "Kayak rental", "All meals", "Bonfire night"],
     excluded: ["Transport", "Jet ski rental"],
     itinerary: [
@@ -231,6 +290,14 @@ export const trips: Trip[] = [
       { day: 3, title: "Relaxation", activities: ["Yoga on beach", "Massage option", "Bonfire & music"] },
       { day: 4, title: "Departure", activities: ["Sunrise walk", "Brunch", "Checkout"] },
     ],
+    difficulty: "easy",
+    meetingPoint: "Ada Foah jetty",
+    departurePoint: "Teshie TST Terminal",
+    departureTime: "08:00",
+    returnTime: "16:30",
+    couplePrice: 3000,
+    groupPrice: 12000,
+    groupSize: 8,
     status: "live",
     rating: 4.5,
     reviewCount: 12,
@@ -258,6 +325,12 @@ export const trips: Trip[] = [
     minCapacity: 6,
     organizerId: "org-2",
     description: "Walk among the treetops at Kakum, then unwind with yoga and meditation in a rainforest retreat.",
+    highlights: [
+      "Walk the famous Kakum canopy bridges",
+      "Daily sunrise yoga in the rainforest",
+      "Guided meditation and sound healing",
+      "Organic meals at a quiet forest retreat",
+    ],
     included: ["Canopy walk entry", "Yoga sessions", "Organic meals", "Meditation guide"],
     excluded: ["Transport", "Spa treatments"],
     itinerary: [
@@ -265,6 +338,12 @@ export const trips: Trip[] = [
       { day: 2, title: "Wellness Day", activities: ["Sunrise yoga", "Nature bath", "Sound healing"] },
       { day: 3, title: "Integration", activities: ["Journaling workshop", "Closing circle", "Departure"] },
     ],
+    difficulty: "moderate",
+    meetingPoint: "Kakum National Park visitor centre",
+    departurePoint: "Cape Coast taxi station",
+    departureTime: "09:00",
+    returnTime: "15:00",
+    couplePrice: 1800,
     status: "scheduled",
     rating: 0,
     reviewCount: 0,
@@ -372,11 +451,13 @@ export function getOrganizerTrips(organizerId: string) {
 }
 
 export function getSpotsLeft(trip: Trip) {
+  if (trip.isUnlimitedCapacity || trip.capacity == null) return null;
   return trip.capacity - trip.booked;
 }
 
 export function getAvailabilityStatus(trip: Trip) {
   const left = getSpotsLeft(trip);
+  if (left == null) return "available" as const;
   if (left === 0) return "full" as const;
   if (left <= 3) return "limited" as const;
   return "available" as const;

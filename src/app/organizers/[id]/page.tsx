@@ -10,8 +10,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { TripCard } from "@/components/trips/trip-card";
+import { VerifiedBadge } from "@/components/trips/verified-badge";
+import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { getOrganizerById, getOrganizerTrips } from "@/lib/mock-data";
 import { formatDate } from "@/lib/utils";
+import { isTripBookable } from "@/lib/trip-capacity";
 
 /* ─── Static sample reviews (replace with real data fetch later) ─── */
 const SAMPLE_REVIEWS = [
@@ -50,8 +53,12 @@ export default async function OrganizerProfilePage({
   if (!organizer) notFound();
 
   const organizerTrips = getOrganizerTrips(id);
-  const upcoming = organizerTrips.filter((t) => new Date(t.endDate) >= new Date());
-  const past     = organizerTrips.filter((t) => new Date(t.endDate) < new Date());
+  const upcoming = organizerTrips.filter(
+    (t) => isTripBookable(t) && new Date(t.endDate) >= new Date()
+  );
+  const past = organizerTrips.filter(
+    (t) => !isTripBookable(t) || new Date(t.endDate) < new Date()
+  );
 
   return (
     <OrganizerProfileClient
@@ -126,15 +133,14 @@ function OrganizerProfileClient({
             className="absolute -top-12 left-6 h-24 w-24 border-4 shadow-lg"
             style={{ borderColor: "var(--surface)" }}
           >
-            <AvatarImage src={organizer.avatar} />
-            <AvatarFallback
-              className="text-2xl font-bold"
-              style={{
-                background: "var(--gradient-brand)",
-                color: "#fbf7f1",
-              }}
-            >
-              {organizer.name.slice(0, 2).toUpperCase()}
+            <AvatarImage src={organizer.avatar || DEFAULT_PROFILE_IMAGE} />
+            <AvatarFallback className="overflow-hidden p-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={DEFAULT_PROFILE_IMAGE}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             </AvatarFallback>
           </Avatar>
 
@@ -149,16 +155,7 @@ function OrganizerProfileClient({
                   {organizer.name}
                 </h1>
                 {organizer.verified ? (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
-                    style={{
-                      background: "rgba(46,125,82,0.09)",
-                      color: "#2e7d52",
-                      borderColor: "rgba(46,125,82,0.22)",
-                    }}
-                  >
-                    <CheckCircle2 className="h-3 w-3" /> Verified
-                  </span>
+                  <VerifiedBadge />
                 ) : (
                   <Badge variant="warning">
                     {organizer.verificationStatus === "in_review"
@@ -192,7 +189,7 @@ function OrganizerProfileClient({
             {/* action buttons */}
             <div className="flex flex-wrap items-center gap-2">
               <button
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-opacity hover:opacity-90 active:scale-95"
+                className="inline-flex items-center gap-2 rounded-none px-4 py-2 text-[13px] font-semibold transition-opacity hover:opacity-90 active:scale-95"
                 style={{
                   background: "var(--gradient-brand)",
                   color: "#fbf7f1",
@@ -203,7 +200,7 @@ function OrganizerProfileClient({
               </button>
 
               <button
-                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-[var(--bg-secondary)] active:scale-95"
+                className="inline-flex items-center gap-2 rounded-none border px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-[var(--bg-secondary)] active:scale-95"
                 style={{
                   borderColor: "var(--border-strong)",
                   color: "var(--text-secondary)",
@@ -227,7 +224,7 @@ function OrganizerProfileClient({
               </button>
 
               <button
-                className="flex h-9 w-9 items-center justify-center rounded-xl border transition-colors hover:bg-[var(--bg-secondary)] active:scale-95"
+                className="flex h-9 w-9 items-center justify-center rounded-none border transition-colors hover:bg-[var(--bg-secondary)] active:scale-95"
                 style={{
                   borderColor: "var(--border-strong)",
                   color: "var(--text-tertiary)",
@@ -252,7 +249,7 @@ function OrganizerProfileClient({
             {[LinkIcon, X, Globe].map((Icon, i) => (
               <button
                 key={i}
-                className="flex h-7 w-7 items-center justify-center rounded-lg border transition-colors hover:bg-[var(--bg-secondary)]"
+                className="flex h-7 w-7 items-center justify-center rounded-none border transition-colors hover:bg-[var(--bg-secondary)]"
                 style={{
                   borderColor: "var(--border)",
                   color: "var(--text-tertiary)",

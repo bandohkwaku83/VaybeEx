@@ -55,7 +55,7 @@ export function NewsletterSection() {
               </div>
               <button
                 type="submit"
-                className="btn-gradient h-12 rounded-full px-8 text-sm font-semibold uppercase tracking-wider text-white shadow-lg transition-transform hover:scale-[1.02]"
+                className="btn-gradient h-12 rounded-none px-8 text-sm font-semibold uppercase tracking-wider text-white shadow-lg transition-transform hover:scale-[1.02]"
               >
                 Subscribe
               </button>

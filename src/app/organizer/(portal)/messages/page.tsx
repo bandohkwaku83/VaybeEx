@@ -1,1259 +1,1487 @@
 "use client";
 
 import {
-  useEffect, useMemo, useRef, useState, useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
 } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Mail, MessageSquare, Users, Sparkles, CheckCircle2,
-  AlertCircle, Calendar, CreditCard, MapPin, PartyPopper,
-  X, Loader2, UserCheck, UserX, ListChecks, Bookmark,
-  ArrowRight, Clock3, ChevronLeft, ChevronRight, BarChart3,
-  Eye, Search, SlidersHorizontal, ArrowUpDown, ArrowUp, ArrowDown,
-  Check,
+  Send,
+  MessageSquare,
+  FileText,
+  CheckCircle2,
+  Calendar,
+  CreditCard,
+  MapPin,
+  PartyPopper,
+  X,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import gsap from "gsap";
-import {
-  useReactTable, getCoreRowModel, getSortedRowModel,
-  getFilteredRowModel, getPaginationRowModel,
-  flexRender, createColumnHelper, type SortingState,
-  type ColumnFiltersState,
-} from "@tanstack/react-table";
+import { ConfigProvider, Table } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { EyeOutlined } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getOrganizerTrips, getTripAttendees } from "@/lib/mock-data";
-import type { TripAttendee } from "@/lib/types";
-import { formatDate, cn } from "@/lib/utils";
+import { OrganizerEmptyState } from "@/components/organizer/empty-state";
+import { OrganizerPortalTabs } from "@/components/organizer/portal-tabs";
+import { listOrganizerTrips } from "@/lib/api/organizer-trips";
+import { ApiError } from "@/lib/api/client";
+import {
+  analyzeSms,
+  createBroadcast,
+  estimateBroadcast,
+  getBroadcast,
+  getBroadcastAudience,
+  listBroadcasts,
+  toAudiencePayload,
+  type AudienceMode,
+  type AudienceRecipient,
+  type BroadcastAudience,
+  type BroadcastEstimate,
+  type BroadcastRecord,
+  type BroadcastStatus,
+  type PaymentFilter,
+} from "@/lib/api/broadcasts";
+import { cn, formatDate } from "@/lib/utils";
 
-const ORGANIZER_ID = "org-1";
+const organizerAntdTheme = {
+  token: {
+    colorPrimary: "#6b3f1d",
+    colorInfo: "#6b3f1d",
+    colorSuccess: "#2e7d52",
+    colorWarning: "#d08a3c",
+    colorError: "#b5523a",
+    colorText: "#2a1b0f",
+    colorTextSecondary: "#6b5544",
+    colorTextTertiary: "#9c8773",
+    colorBorder: "rgba(107, 63, 29, 0.14)",
+    colorBorderSecondary: "rgba(107, 63, 29, 0.07)",
+    colorBgContainer: "#ffffff",
+    colorBgElevated: "#ffffff",
+    colorBgLayout: "#f5f5f5",
+    borderRadius: 10,
+    borderRadiusLG: 12,
+    fontFamily:
+      'var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif',
+    fontSize: 13,
+  },
+  components: {
+    Table: {
+      headerBg: "#f2eada",
+      headerColor: "#6b5544",
+      headerSplitColor: "rgba(107, 63, 29, 0.14)",
+      rowHoverBg: "#fbf7f1",
+      borderColor: "rgba(107, 63, 29, 0.14)",
+      cellPaddingBlock: 14,
+      cellPaddingInline: 16,
+      headerBorderRadius: 12,
+    },
+    Pagination: {
+      itemActiveBg: "#6b3f1d",
+      borderRadius: 8,
+    },
+    Button: {
+      borderRadius: 0,
+    },
+  },
+} as const;
 
-type AudienceGroup  = "paid" | "partial" | "pending";
-type QuickAudience  = "all" | "paid" | "not-checked-in" | "custom";
-type SendStage      = "idle" | "sending" | "delivered";
+type SendStage = "idle" | "sending" | "delivered";
 
-const audienceMeta: Record<AudienceGroup, { label: string; color: string; bg: string }> = {
-  paid:    { label: "Paid in full",    color: "var(--gold)",  bg: "var(--gold-dim)"         },
-  partial: { label: "Partial payment", color: "var(--amber)", bg: "rgba(208,138,60,0.14)"   },
-  pending: { label: "Pending payment", color: "var(--coral)", bg: "rgba(181,82,58,0.1)"     },
+type TripOption = {
+  id: string;
+  title: string;
+  booked: number;
 };
 
-/* ─── Templates ─────────────────────────────────────────────────── */
 interface Template {
-  id: string; label: string; icon: React.ElementType;
-  subject: (t: string) => string;
+  id: string;
+  label: string;
+  icon: React.ElementType;
   body: (t: string) => string;
 }
+
 const TEMPLATES: Template[] = [
   {
-    id: "payment-reminder", label: "Payment reminder", icon: CreditCard,
-    subject: (t) => `Action needed: balance due for ${t}`,
-    body:    (t) => `Hi {FirstName}! Just a friendly reminder that your balance for ${t} is still outstanding. Please complete your payment to secure your spot. Reach out if you have any questions!`,
+    id: "payment-reminder",
+    label: "Payment reminder",
+    icon: CreditCard,
+    body: (t) =>
+      `Hi {FirstName}! Reminder: your balance for ${t} is still outstanding. Please complete payment to secure your spot.`,
   },
   {
-    id: "departure-info", label: "Departure details", icon: MapPin,
-    subject: (t) => `Your departure details for ${t}`,
-    body:    (t) => `Excited for ${t}, {FirstName}! Here are your departure details: meeting point, time, and what to bring. See the full itinerary in your booking confirmation.`,
+    id: "departure-info",
+    label: "Departure details",
+    icon: MapPin,
+    body: (t) =>
+      `Excited for ${t}, {FirstName}! Meeting point, time & what to bring are in your booking. See you soon!`,
   },
   {
-    id: "itinerary-update", label: "Itinerary update", icon: Calendar,
-    subject: (t) => `Schedule update for ${t}`,
-    body:    (t) => `Hi {FirstName} — quick update on ${t}. We've made a small change to the itinerary. Please review the updated schedule before departure.`,
+    id: "itinerary-update",
+    label: "Itinerary update",
+    icon: Calendar,
+    body: (t) =>
+      `Hi {FirstName} — quick update on ${t}. We've made a small itinerary change. Please review before departure.`,
   },
   {
-    id: "trip-confirmed", label: "Trip confirmed 🎉", icon: PartyPopper,
-    subject: (t) => `${t} is officially confirmed!`,
-    body:    (t) => `Great news, {FirstName} — ${t} has hit minimum capacity and is officially confirmed to run! Get ready for an amazing experience.`,
+    id: "trip-confirmed",
+    label: "Trip confirmed",
+    icon: PartyPopper,
+    body: (t) =>
+      `Great news, {FirstName} — ${t} is confirmed to run! Get ready for an amazing experience.`,
   },
 ];
 
-const SMS_SEGMENT = 160;
-const SMS_COST    = 0.05;
-
-/* ─── Broadcast history row type ────────────────────────────────── */
-interface BroadcastRecord {
-  id: string;
-  date: string;
-  tripTitle: string;
-  subject: string;
-  snippet: string;
-  channels: ("email" | "sms")[];
-  recipients: number;
-  status: "sent" | "pending" | "failed";
-  audience: string;
-  messageBody: string;
+function statusMeta(status: BroadcastStatus) {
+  if (status === "sent") {
+    return {
+      label: "Sent",
+      color: "#2e7d52",
+      bg: "rgba(46,125,82,0.14)",
+    };
+  }
+  if (status === "pending") {
+    return {
+      label: "Pending",
+      color: "#d08a3c",
+      bg: "rgba(208,138,60,0.14)",
+    };
+  }
+  return {
+    label: "Failed",
+    color: "#b5523a",
+    bg: "rgba(181,82,58,0.12)",
+  };
 }
 
-const myTrips = getOrganizerTrips(ORGANIZER_ID).filter((t) => t.booked > 0);
-
-const SEED_HISTORY: BroadcastRecord[] = [
-  {
-    id: "b1",
-    date: new Date(Date.now() - 86400000 * 2).toISOString(),
-    tripTitle: myTrips[0]?.title ?? "Cape Coast Cultural Tour",
-    subject: "Final itinerary and packing list",
-    snippet: "Final itinerary and packing list for your upcoming trip...",
-    messageBody: "Hi {FirstName}! Please find your final itinerary and packing list for the trip. Make sure you arrive at the meeting point 15 minutes early. See you soon!",
-    channels: ["email", "sms"],
-    recipients: 142,
-    status: "sent",
-    audience: "All participants",
-  },
-  {
-    id: "b2",
-    date: new Date(Date.now() - 86400000 * 4).toISOString(),
-    tripTitle: myTrips[1]?.title ?? "Mole Safari",
-    subject: "Reminder: yellow fever vaccination",
-    snippet: "Reminder: yellow fever vaccination required before departure...",
-    messageBody: "Hi {FirstName}! This is a reminder that a yellow fever vaccination certificate is required before departure. Please bring your card on the day.",
-    channels: ["email"],
-    recipients: 48,
-    status: "sent",
-    audience: "Paid only",
-  },
-  {
-    id: "b3",
-    date: new Date(Date.now() - 86400000 * 6).toISOString(),
-    tripTitle: myTrips[2]?.title ?? "Akosombo Retreat",
-    subject: "Join the pre-trip WhatsApp group",
-    snippet: "Join our pre-trip WhatsApp group for last-minute updates...",
-    messageBody: "Hi {FirstName}! We've set up a WhatsApp group for last-minute updates. Please join using the link below. See you on the trip!",
-    channels: ["sms"],
-    recipients: 65,
-    status: "pending",
-    audience: "All participants",
-  },
-  {
-    id: "b4",
-    date: new Date(Date.now() - 86400000 * 9).toISOString(),
-    tripTitle: myTrips[0]?.title ?? "Cape Coast Cultural Tour",
-    subject: "Balance payment reminder",
-    snippet: "Your trip balance is due this Friday. Please complete...",
-    messageBody: "Hi {FirstName}! Your trip balance is due this Friday. Please log in to VaybeEx and complete your payment. Spots are limited — don't miss out!",
-    channels: ["email", "sms"],
-    recipients: 23,
-    status: "sent",
-    audience: "Not paid",
-  },
-  {
-    id: "b5",
-    date: new Date(Date.now() - 86400000 * 14).toISOString(),
-    tripTitle: myTrips[1]?.title ?? "Mole Safari",
-    subject: "Trip confirmed — you're going!",
-    snippet: "Great news — Mole Safari has hit minimum capacity...",
-    messageBody: "Great news, {FirstName}! Your trip is confirmed and ready to run. We're so excited to have you on this adventure. Full details coming soon.",
-    channels: ["email"],
-    recipients: 48,
-    status: "sent",
-    audience: "All participants",
-  },
-];
-
-/* ─── Helpers ────────────────────────────────────────────────────── */
-function statusMeta(status: BroadcastRecord["status"]) {
-  if (status === "sent")    return { label: "Sent",    color: "var(--gold)",  bg: "var(--gold-dim)",         Icon: CheckCircle2 };
-  if (status === "pending") return { label: "Pending", color: "var(--amber)", bg: "rgba(208,138,60,0.14)",   Icon: Clock3       };
-  return                           { label: "Failed",  color: "var(--coral)", bg: "rgba(181,82,58,0.1)",     Icon: AlertCircle  };
+function StatusBadge({ status }: { status: BroadcastStatus }) {
+  const meta = statusMeta(status);
+  return (
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-[12px] font-semibold"
+      style={{
+        color: meta.color,
+        background: meta.bg,
+      }}
+    >
+      {meta.label}
+    </span>
+  );
 }
-const TRIP_PALETTE  = ["var(--gold)", "var(--primary)", "var(--coral)", "var(--amber)"];
+
 const AVATAR_PALETTE = ["var(--primary)", "var(--gold)", "var(--coral)", "var(--amber)"];
 const hash = (s: string) => s.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-const tripTagColor   = (t: string) => TRIP_PALETTE[hash(t) % TRIP_PALETTE.length];
 const avatarColorFor = (n: string) => AVATAR_PALETTE[hash(n) % AVATAR_PALETTE.length];
-const initialsFor    = (n: string) => n.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+const initialsFor = (n: string) =>
+  n
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
-/* ─── Broadcast detail drawer ────────────────────────────────────── */
+function errorMessage(err: unknown, fallback: string) {
+  if (err instanceof ApiError) return err.message || fallback;
+  if (err instanceof Error) return err.message || fallback;
+  return fallback;
+}
+
 function BroadcastDrawer({
   record,
+  loading,
   onClose,
 }: {
   record: BroadcastRecord | null;
+  loading: boolean;
   onClose: () => void;
 }) {
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!record) return;
-    const ctx = gsap.context(() => {
-      gsap.fromTo(backdropRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 });
-      gsap.fromTo(
-        drawerRef.current,
-        { x: "100%" },
-        { x: "0%", duration: 0.38, ease: "power3.out" }
-      );
-    });
-    return () => ctx.revert();
-  }, [record]);
-
-  const handleClose = useCallback(() => {
-    gsap.to(drawerRef.current, {
-      x: "100%", duration: 0.28, ease: "power3.in",
-      onComplete: onClose,
-    });
-    gsap.to(backdropRef.current, { opacity: 0, duration: 0.2 });
-  }, [onClose]);
-
-  if (!record) return null;
-
-  const meta = statusMeta(record.status);
-
   return (
-    <>
-      {/* backdrop */}
-      <div
-        ref={backdropRef}
-        className="fixed inset-0 z-40"
-        style={{ background: "rgba(42,27,15,0.45)", opacity: 0 }}
-        onClick={handleClose}
-      />
-
-      {/* drawer */}
-      <div
-        ref={drawerRef}
-        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col shadow-2xl"
-        style={{
-          background: "var(--surface)",
-          borderLeft: "1px solid var(--border)",
-          transform: "translateX(100%)",
-        }}
-      >
-        {/* header */}
-        <div
-          className="flex items-start justify-between gap-3 border-b px-6 py-5"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <div className="min-w-0">
-            <p className="font-display text-base font-bold leading-snug" style={{ color: "var(--text)" }}>
-              {record.subject}
-            </p>
-            <p className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
-              {formatDate(record.date)}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--bg-secondary)]"
-            style={{ color: "var(--text-tertiary)" }}
+    <AnimatePresence>
+      {record && (
+        <>
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40"
+            style={{ background: "rgba(42,27,15,0.45)" }}
+            onClick={onClose}
+          />
+          <motion.aside
+            key="drawer"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 280 }}
+            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col"
+            style={{
+              background: "var(--surface)",
+              borderLeft: "1px solid var(--border)",
+            }}
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* meta row */}
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Trip", value: record.tripTitle },
-              { label: "Audience", value: record.audience },
-              { label: "Recipients", value: String(record.recipients) },
-              {
-                label: "Channels",
-                value: record.channels.map((c) => c === "email" ? "Email" : "SMS").join(" + "),
-              },
-            ].map(({ label, value }) => (
-              <div
-                key={label}
-                className="rounded-xl border p-3"
-                style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                  {label}
-                </p>
-                <p className="mt-1 text-sm font-medium" style={{ color: "var(--text)" }}>{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* status */}
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-              Status
-            </p>
-            <span
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold"
-              style={{ background: meta.bg, color: meta.color }}
-            >
-              <meta.Icon className="h-4 w-4" />
-              {meta.label}
-            </span>
-          </div>
-
-          {/* message preview */}
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-              Message body
-            </p>
             <div
-              className="rounded-xl border p-4 text-sm leading-relaxed"
-              style={{ borderColor: "var(--border)", background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+              className="flex items-start justify-between gap-3 border-b px-6 py-5"
+              style={{ borderColor: "var(--border)" }}
             >
-              {record.messageBody}
+              <div className="min-w-0">
+                <p
+                  className="font-display text-base font-bold leading-snug"
+                  style={{ color: "var(--text)" }}
+                >
+                  {record.preview}
+                </p>
+                <p className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
+                  {formatDate(record.date)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none transition-colors hover:bg-[var(--bg-secondary)]"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          </div>
 
-          {/* channel icons */}
-          <div className="flex items-center gap-3">
-            {record.channels.includes("email") && (
-              <div
-                className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium"
-                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              {loading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2
+                    className="h-6 w-6 animate-spin"
+                    style={{ color: "var(--primary)" }}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Trip", value: record.tripTitle },
+                      { label: "Audience", value: record.audience },
+                      { label: "Recipients", value: String(record.recipients) },
+                      { label: "Channel", value: "SMS" },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p
+                          className="text-[10px] font-semibold uppercase tracking-wider"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          {label}
+                        </p>
+                        <p
+                          className="mt-1 text-sm font-medium"
+                          style={{ color: "var(--text)" }}
+                        >
+                          {value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <p
+                      className="mb-2 text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Status
+                    </p>
+                    <StatusBadge status={record.status} />
+                  </div>
+
+                  {record.deliveryStats && (
+                    <div>
+                      <p
+                        className="mb-2 text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Delivery
+                      </p>
+                      <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                        {record.deliveryStats.sent} sent
+                        {record.deliveryStats.failed
+                          ? ` · ${record.deliveryStats.failed} failed`
+                          : ""}
+                        {record.deliveryStats.skipped
+                          ? ` · ${record.deliveryStats.skipped} skipped`
+                          : ""}
+                        {record.deliveryStats.queued
+                          ? ` · ${record.deliveryStats.queued} queued`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  {record.errorMessage && (
+                    <div>
+                      <p
+                        className="mb-2 text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Error
+                      </p>
+                      <p className="text-sm" style={{ color: "#b5523a" }}>
+                        {record.errorMessage}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <p
+                      className="mb-2 text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Message
+                    </p>
+                    <p
+                      className="text-sm leading-relaxed"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {record.messageBody}
+                    </p>
+                  </div>
+
+                  {record.estimatedCostGhs > 0 && (
+                    <div>
+                      <p
+                        className="mb-2 text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Estimated cost
+                      </p>
+                      <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                        GH₵{record.estimatedCostGhs.toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="border-t px-6 py-4" style={{ borderColor: "var(--border)" }}>
+              <Button
+                className="w-full"
+                style={{ background: "var(--primary)", color: "#fbf7f1" }}
+                onClick={onClose}
               >
-                <Mail className="h-3.5 w-3.5" /> Email
-              </div>
-            )}
-            {record.channels.includes("sms") && (
-              <div
-                className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium"
-                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-              >
-                <MessageSquare className="h-3.5 w-3.5" /> SMS
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* footer */}
-        <div
-          className="border-t px-6 py-4"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <Button
-            className="w-full rounded-xl"
-            style={{ background: "var(--gradient-brand)", color: "#fbf7f1" }}
-            onClick={handleClose}
-          >
-            Close
-          </Button>
-        </div>
-      </div>
-    </>
+                Close
+              </Button>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
 
-/* ─── TanStack column helper — module-level ─────────────────────── */
-const colHelper = createColumnHelper<BroadcastRecord>();
-
-const HISTORY_COLUMNS = [
-  colHelper.accessor("date", {
-    header: "Date",
-    cell: (info) => (
-      <span className="text-xs whitespace-nowrap" style={{ color: "var(--text-tertiary)" }}>
-        {formatDate(info.getValue())}
-      </span>
-    ),
-    sortingFn: (a, b) =>
-      new Date(a.original.date).getTime() - new Date(b.original.date).getTime(),
-  }),
-  colHelper.accessor("tripTitle", {
-    header: "Trip",
-    cell: (info) => {
-      const title = info.getValue();
-      return (
-        <span
-          className="inline-block rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap"
-          style={{
-            background: `${tripTagColor(title)}20`,
-            color: tripTagColor(title),
-          }}
-        >
-          {title}
-        </span>
-      );
-    },
-    filterFn: "includesString",
-  }),
-  colHelper.accessor("subject", {
-    header: "Subject",
-    cell: (info) => (
-      <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
-        {info.getValue()}
-      </span>
-    ),
-  }),
-  colHelper.accessor("channels", {
-    header: "Via",
-    enableSorting: false,
-    cell: (info) => (
-      <div className="flex items-center gap-1.5">
-        {info.getValue().includes("email") && (
-          <Mail className="h-3.5 w-3.5" style={{ color: "var(--text-tertiary)" }} />
-        )}
-        {info.getValue().includes("sms") && (
-          <MessageSquare className="h-3.5 w-3.5" style={{ color: "var(--text-tertiary)" }} />
-        )}
-      </div>
-    ),
-  }),
-  colHelper.accessor("recipients", {
-    header: "Recipients",
-    cell: (info) => (
-      <span className="font-mono text-sm font-semibold" style={{ color: "var(--text)" }}>
-        {info.getValue()}
-      </span>
-    ),
-  }),
-  colHelper.accessor("status", {
-    header: "Status",
-    cell: (info) => {
-      const meta = statusMeta(info.getValue());
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-          style={{ background: meta.bg, color: meta.color }}
-        >
-          <meta.Icon className="h-3 w-3" />
-          {meta.label}
-        </span>
-      );
-    },
-    filterFn: (row, _id, value: string) =>
-      value === "all" ? true : row.original.status === value,
-  }),
-  colHelper.display({
-    id: "actions",
-    header: "",
-    cell: () => (
-      <button
-        type="button"
-        className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-secondary)]"
-        style={{ color: "var(--primary)" }}
-      >
-        <Eye className="h-3.5 w-3.5" />
-        View
-      </button>
-    ),
-  }),
-];
-
-/* ─── Audience pill ──────────────────────────────────────────────── */
-function AudiencePill({
-  active, icon: Icon, label, count, onClick,
-}: {
-  active: boolean; icon: React.ElementType; label: string;
-  count: number; onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
-      style={{
-        borderColor: active ? "var(--gold)" : "var(--border)",
-        background:  active ? "var(--gold-dim)" : "transparent",
-        color:       active ? "var(--gold)" : "var(--text-secondary)",
-      }}
-    >
-      <Icon className="h-3 w-3" />
-      {label}
-      <span style={{ opacity: 0.7 }}>({count})</span>
-      {active && <Check className="h-3 w-3" />}
-    </button>
-  );
-}
-
-/* ─── Channel checkbox ───────────────────────────────────────────── */
-function ChannelCheck({
-  checked, onChange, label, note,
-}: {
-  checked: boolean; onChange: (v: boolean) => void; label: string; note: string;
-}) {
-  return (
-    <label className="flex cursor-pointer items-start gap-2">
-      <Checkbox checked={checked} onCheckedChange={(c) => onChange(!!c)} className="mt-0.5" />
-      <div>
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{label}</p>
-        <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{note}</p>
-      </div>
-    </label>
-  );
-}
-
-/* ─── Sort icon helper ───────────────────────────────────────────── */
-function SortIcon({ dir }: { dir: false | "asc" | "desc" }) {
-  if (dir === "asc")  return <ArrowUp   className="h-3 w-3" />;
-  if (dir === "desc") return <ArrowDown className="h-3 w-3" />;
-  return <ArrowUpDown className="h-3 w-3 opacity-35" />;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   PAGE
-═══════════════════════════════════════════════════════════════════ */
 export default function CommunicationPage() {
   const searchParams = useSearchParams();
-  const tripFromUrl  = searchParams.get("trip");
-  const defaultTrip  =
-    tripFromUrl && myTrips.some((t) => t.id === tripFromUrl)
-      ? tripFromUrl
-      : myTrips[0]?.id ?? "";
+  const tripFromUrl = searchParams.get("trip");
 
-  /* ── Compose state ── */
-  const [message,       setMessage]       = useState("");
-  const [subject,       setSubject]       = useState("");
-  const [tripIdOvr,     setTripIdOvr]     = useState<string | null>(null);
-  const tripId = tripIdOvr ?? defaultTrip;
-  const [emailOn,       setEmailOn]       = useState(true);
-  const [smsOn,         setSmsOn]         = useState(false);
-  const [quickAud,      setQuickAud]      = useState<QuickAudience>("all");
-  const [showPicker,    setShowPicker]    = useState(false);
-  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
-  const [activeTpl,     setActiveTpl]     = useState<string | null>(null);
-  const [sendStage,     setSendStage]     = useState<SendStage>("idle");
-  const [showConfirm,   setShowConfirm]   = useState(false);
-  const [draftSaved,    setDraftSaved]    = useState(false);
+  const [trips, setTrips] = useState<TripOption[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(true);
+  const [tripId, setTripId] = useState("");
+  const [audienceMode, setAudienceMode] = useState<AudienceMode>("everyone");
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("paid");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [audience, setAudience] = useState<BroadcastAudience | null>(null);
+  const [audienceLoading, setAudienceLoading] = useState(false);
 
-  /* ── History / table state ── */
-  const [history,       setHistory]       = useState<BroadcastRecord[]>(SEED_HISTORY);
-  const [globalSearch,  setGlobalSearch]  = useState("");
-  const [sorting,       setSorting]       = useState<SortingState>([{ id: "date", desc: true }]);
-  const [colFilters,    setColFilters]    = useState<ColumnFiltersState>([]);
-  const [statusFilter,  setStatusFilter]  = useState("all");
-  const [drawerRecord,  setDrawerRecord]  = useState<BroadcastRecord | null>(null);
+  const [message, setMessage] = useState("");
+  const [activeTpl, setActiveTpl] = useState<string | null>(null);
 
-  /* ── Derived ── */
-  const selectedTrip = myTrips.find((t) => t.id === tripId);
-  const attendees    = tripId ? getTripAttendees(tripId) : [];
+  const [sendStage, setSendStage] = useState<SendStage>("idle");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [estimate, setEstimate] = useState<BroadcastEstimate | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
 
-  const counts = useMemo(() => ({
-    paid:    attendees.filter((a) => a.paymentStatus === "paid").length,
-    partial: attendees.filter((a) => a.paymentStatus === "partial").length,
-    pending: attendees.filter((a) => a.paymentStatus === "pending").length,
-  }), [attendees]);
+  const [history, setHistory] = useState<BroadcastRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
+  const [tripAttendeeCount, setTripAttendeeCount] = useState<number | undefined>();
+  const [statusFilter, setStatusFilter] = useState<"all" | BroadcastStatus>("all");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
 
-  const recipients = useMemo(() => {
-    if (showPicker) return attendees.filter((a) => selectedIds.has(a.id));
-    switch (quickAud) {
-      case "paid":           return attendees.filter((a) => a.paymentStatus === "paid");
-      case "not-checked-in": return attendees.filter((a) => a.paymentStatus !== "paid");
-      default:               return attendees;
+  const [drawerRecord, setDrawerRecord] = useState<BroadcastRecord | null>(null);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
+
+  const selectedTrip = trips.find((t) => t.id === tripId);
+
+  const smsMeta = useMemo(() => analyzeSms(message), [message]);
+  const charsInSegment =
+    message.length === 0
+      ? 0
+      : message.length % smsMeta.charsPerSms || smsMeta.charsPerSms;
+
+  const sendableCount = useMemo(() => {
+    if (!audience) return 0;
+    if (audienceMode === "specific") {
+      return audience.recipients.filter(
+        (r) => selectedIds.has(r.id) && r.hasValidPhone
+      ).length;
     }
-  }, [attendees, quickAud, showPicker, selectedIds]);
+    return audience.counts.sendable;
+  }, [audience, audienceMode, selectedIds]);
 
-  const smsSegments = Math.max(1, Math.ceil(message.length / SMS_SEGMENT));
-  const smsCost     = smsOn ? recipients.length * SMS_COST * smsSegments : 0;
+  const audienceHelper = useMemo(() => {
+    if (audience?.audienceLabel) return audience.audienceLabel;
+    if (audienceMode === "everyone") {
+      return `All participants on ${selectedTrip?.title ?? "this trip"}.`;
+    }
+    if (audienceMode === "filter") {
+      return paymentFilter === "paid"
+        ? "Participants who have paid in full."
+        : "Participants with outstanding balance.";
+    }
+    return selectedIds.size === 0
+      ? "Select people from the list below."
+      : `${selectedIds.size} hand-picked participant${selectedIds.size === 1 ? "" : "s"}.`;
+  }, [audience, audienceMode, paymentFilter, selectedIds, selectedTrip?.title]);
 
-  /* ── TanStack table ── */
-  const tableData = useMemo(() => {
-    /* apply status filter (outside tanstack filterFn for simpler UX) */
-    return statusFilter === "all"
-      ? history
-      : history.filter((h) => h.status === statusFilter);
-  }, [history, statusFilter]);
+  const canSend = Boolean(message.trim()) && sendableCount > 0;
 
-  const table = useReactTable({
-    data: tableData,
-    columns: HISTORY_COLUMNS,
-    state: { sorting, globalFilter: globalSearch, columnFilters: colFilters },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalSearch,
-    onColumnFiltersChange: setColFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: (row, _colId, value) => {
-      const q = (value as string).toLowerCase();
-      return (
-        row.original.subject.toLowerCase().includes(q) ||
-        row.original.tripTitle.toLowerCase().includes(q) ||
-        row.original.snippet.toLowerCase().includes(q) ||
-        row.original.audience.toLowerCase().includes(q)
-      );
-    },
-    initialState: { pagination: { pageSize: 5 } },
-  });
-
-  const rows = table.getRowModel().rows;
-
-  /* ── Refs ── */
-  const pageRef        = useRef<HTMLDivElement>(null);
-  const memberListRef  = useRef<HTMLDivElement>(null);
-  const overlayRef     = useRef<HTMLDivElement>(null);
-  const sendingIconRef = useRef<HTMLDivElement>(null);
-  const deliveredRef   = useRef<HTMLDivElement>(null);
-  const progressRef    = useRef<HTMLDivElement>(null);
-  const draftBadgeRef  = useRef<HTMLSpanElement>(null);
-  const tableBodyRef   = useRef<HTMLTableSectionElement>(null);
-
-  /* ── Entrance animation ── */
+  // Load trips with bookings
   useEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        ".comm-entrance",
-        { y: 18, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.5, stagger: 0.07, ease: "power2.out" }
-      );
-    }, pageRef);
-    return () => ctx.revert();
+    let cancelled = false;
+    (async () => {
+      setTripsLoading(true);
+      try {
+        const res = await listOrganizerTrips({ limit: 50 });
+        if (cancelled) return;
+        const options = (res.data?.trips ?? [])
+          .filter((t) => (t.booked ?? 0) > 0)
+          .map((t) => ({
+            id: t.id,
+            title: t.title,
+            booked: t.booked ?? 0,
+          }));
+        setTrips(options);
+
+        const preferred =
+          tripFromUrl && options.some((t) => t.id === tripFromUrl)
+            ? tripFromUrl
+            : options[0]?.id ?? "";
+        setTripId((prev) => prev || preferred);
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(errorMessage(err, "Could not load trips"));
+        }
+      } finally {
+        if (!cancelled) setTripsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripFromUrl]);
+
+  // Load audience when trip/mode/filter changes
+  useEffect(() => {
+    if (!tripId) {
+      setAudience(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setAudienceLoading(true);
+      try {
+        const data = await getBroadcastAudience(tripId, {
+          mode: audienceMode,
+          filter: audienceMode === "filter" ? paymentFilter : undefined,
+        });
+        if (cancelled) return;
+        setAudience(data);
+      } catch (err) {
+        if (!cancelled) {
+          setAudience(null);
+          toast.error(errorMessage(err, "Could not load audience"));
+        }
+      } finally {
+        if (!cancelled) setAudienceLoading(false);
+      }
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [tripId, audienceMode, paymentFilter]);
+
+  const loadHistory = useCallback(async (page = 1) => {
+    setHistoryLoading(true);
+    try {
+      const data = await listBroadcasts({
+        status: statusFilter,
+        tripId: tripId || undefined,
+        page,
+        limit: 8,
+      });
+      setHistory(data.broadcasts);
+      setSentCount(data.summary.sentCount);
+      setTripAttendeeCount(data.summary.tripAttendeeCount);
+      setHistoryPage(data.pagination.page);
+      setHistoryTotal(data.pagination.total);
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not load broadcasts"));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [statusFilter, tripId]);
+
+  // Keep header sent count fresh; full table loads on history tab
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await listBroadcasts({
+          tripId: tripId || undefined,
+          page: 1,
+          limit: 1,
+        });
+        if (cancelled) return;
+        setSentCount(data.summary.sentCount);
+        setTripAttendeeCount(data.summary.tripAttendeeCount);
+        setHistoryTotal(data.pagination.total);
+      } catch {
+        /* header is best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  useEffect(() => {
+    if (activeTab !== "history") return;
+    void loadHistory(1);
+  }, [activeTab, loadHistory]);
+
+  const openDrawer = useCallback(async (id: string, seed?: BroadcastRecord) => {
+    if (seed) setDrawerRecord(seed);
+    setDrawerLoading(true);
+    try {
+      const detail = await getBroadcast(id);
+      setDrawerRecord(detail.broadcast);
+      return detail.broadcast;
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not load broadcast"));
+      return seed ?? null;
+    } finally {
+      setDrawerLoading(false);
+    }
   }, []);
 
-  /* ── Member picker rows entrance ── */
+  // Poll pending broadcast in drawer
   useEffect(() => {
-    if (!showPicker || !memberListRef.current) return;
-    gsap.fromTo(
-      memberListRef.current.querySelectorAll(".member-row"),
-      { opacity: 0, x: -8 },
-      { opacity: 1, x: 0, duration: 0.22, stagger: 0.018, ease: "power2.out" }
-    );
-  }, [showPicker, tripId]);
+    if (!drawerRecord || drawerRecord.status !== "pending") return;
 
-  /* ── Table rows entrance on data change ── */
-  useEffect(() => {
-    if (!tableBodyRef.current) return;
-    gsap.fromTo(
-      tableBodyRef.current.querySelectorAll("tr"),
-      { opacity: 0, y: 8 },
-      { opacity: 1, y: 0, duration: 0.3, stagger: 0.04, ease: "power2.out" }
-    );
-  }, [rows.length, table.getState().pagination.pageIndex]);
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 20;
 
-  /* ── Draft auto-save ── */
-  useEffect(() => {
-    if (!subject && !message) return;
-    const t = setTimeout(() => {
-      setDraftSaved(true);
-      if (draftBadgeRef.current) {
-        gsap.fromTo(
-          draftBadgeRef.current,
-          { scale: 0.85, opacity: 0.6 },
-          { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(2)" }
+    const tick = async () => {
+      attempts += 1;
+      try {
+        const detail = await getBroadcast(drawerRecord.id);
+        if (cancelled) return;
+        setDrawerRecord(detail.broadcast);
+        setHistory((prev) =>
+          prev.map((b) => (b.id === detail.broadcast.id ? detail.broadcast : b))
         );
-      }
-    }, 600);
-    return () => clearTimeout(t);
-  }, [subject, message, quickAud]);
-
-  /* ── Send sequence ── */
-  const runSend = useCallback(() => {
-    setShowConfirm(false);
-    setSendStage("sending");
-
-    requestAnimationFrame(() => {
-      gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 });
-      gsap.fromTo(
-        sendingIconRef.current,
-        { scale: 0.6, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2)" }
-      );
-      gsap.to(sendingIconRef.current, { rotate: 360, duration: 1.1, repeat: -1, ease: "none" });
-      gsap.fromTo(
-        progressRef.current,
-        { width: "0%" },
-        {
-          width: "100%",
-          duration: 1.7,
-          ease: "power2.inOut",
-          onComplete: () => {
-            setSendStage("delivered");
-            const ch = [emailOn && "email", smsOn && "SMS"].filter(Boolean).join(" & ");
-            toast.success(`Delivered to ${recipients.length} member${recipients.length === 1 ? "" : "s"} via ${ch}`);
-            const newRecord: BroadcastRecord = {
-              id: `b${Date.now()}`,
-              date: new Date().toISOString(),
-              tripTitle: selectedTrip?.title ?? "Trip",
-              subject: subject || "(No subject)",
-              snippet: message.slice(0, 60) + (message.length > 60 ? "..." : ""),
-              messageBody: message,
-              channels: [emailOn && "email", smsOn && "sms"].filter(Boolean) as ("email" | "sms")[],
-              recipients: recipients.length,
-              status: "sent",
-              audience:
-                showPicker ? "Custom selection"
-                : quickAud === "paid" ? "Paid only"
-                : quickAud === "not-checked-in" ? "Not paid"
-                : "All participants",
-            };
-            setHistory((prev) => [newRecord, ...prev]);
-          },
+        if (detail.broadcast.status === "pending" && attempts < maxAttempts) {
+          window.setTimeout(tick, 1500);
+        } else if (detail.broadcast.status !== "pending") {
+          void loadHistory(historyPage);
         }
-      );
-    });
-  }, [emailOn, smsOn, recipients, selectedTrip, subject, message, showPicker, quickAud]);
+      } catch {
+        if (!cancelled && attempts < maxAttempts) {
+          window.setTimeout(tick, 2000);
+        }
+      }
+    };
 
-  /* ── Delivered → dismiss ── */
+    const timer = window.setTimeout(tick, 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [drawerRecord?.id, drawerRecord?.status, historyPage, loadHistory]);
+
   useEffect(() => {
     if (sendStage !== "delivered") return;
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        deliveredRef.current,
-        { scale: 0, opacity: 0, rotate: -45 },
-        { scale: 1, opacity: 1, rotate: 0, duration: 0.5, ease: "back.out(2.5)" }
-      );
-    });
-    const timer = setTimeout(() => {
-      gsap.to(overlayRef.current, {
-        opacity: 0, duration: 0.3,
-        onComplete: () => {
-          setSendStage("idle");
-          setMessage(""); setSubject("");
-          setActiveTpl(null); setDraftSaved(false);
-        },
-      });
-    }, 1900);
-    return () => { clearTimeout(timer); ctx.revert(); };
+    const timer = window.setTimeout(() => {
+      setSendStage("idle");
+      setMessage("");
+      setActiveTpl(null);
+      setEstimate(null);
+      idempotencyKeyRef.current = null;
+    }, 1600);
+    return () => window.clearTimeout(timer);
   }, [sendStage]);
 
-  const validate = (): string | null => {
-    if (!message.trim()) return "Please write a message";
-    if (recipients.length === 0) return "Select at least one recipient";
-    if (!emailOn && !smsOn) return "Select at least one delivery channel";
-    if (emailOn && !subject.trim()) return "Add an email subject";
-    return null;
-  };
-
-  const handleSendClick = () => {
-    const err = validate();
-    if (err) { toast.error(err); return; }
-    setShowConfirm(true);
+  const handleTripChange = (id: string) => {
+    setTripId(id);
+    setSelectedIds(new Set());
   };
 
   const applyTemplate = (tpl: Template) => {
     setActiveTpl(tpl.id);
-    setSubject(tpl.subject(selectedTrip?.title ?? "your trip"));
     setMessage(tpl.body(selectedTrip?.title ?? "your trip"));
   };
 
-  return (
-    <div ref={pageRef} className="w-full p-6 lg:p-8" style={{ background: "var(--bg)" }}>
+  const handleSendClick = async () => {
+    if (!message.trim()) {
+      toast.error("Please write a message");
+      return;
+    }
+    if (sendableCount < 1) {
+      toast.error("Select at least one recipient with a valid phone");
+      return;
+    }
+    if (!tripId) {
+      toast.error("Choose a trip");
+      return;
+    }
 
-      {/* ── Page heading ─────────────────────────────────────────── */}
-      <div className="comm-entrance mb-6">
-        <h1 className="font-display text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Messages &amp; Broadcasts
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-          Send trip updates and reminders to your participants.
-        </p>
-      </div>
+    setEstimating(true);
+    try {
+      const audiencePayload = toAudiencePayload({
+        mode: audienceMode,
+        filter: paymentFilter,
+        attendeeIds: Array.from(selectedIds),
+      });
+      const est = await estimateBroadcast({
+        tripId,
+        message,
+        audience: audiencePayload,
+      });
+      if (est.recipientCount < 1) {
+        toast.error("No recipients have a valid phone number");
+        return;
+      }
+      setEstimate(est);
+      idempotencyKeyRef.current = crypto.randomUUID();
+      setShowConfirm(true);
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not estimate cost"));
+    } finally {
+      setEstimating(false);
+    }
+  };
 
-      {/* ── Composer card ────────────────────────────────────────── */}
-      <Card
-        className="comm-entrance border shadow-none"
-        style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-      >
-        <div className="h-1 rounded-t-2xl" style={{ background: "var(--gradient-brand)" }} />
-        <CardContent className="space-y-5 p-6">
+  const runSend = async () => {
+    if (!tripId || !estimate) return;
+    const key = idempotencyKeyRef.current ?? crypto.randomUUID();
+    idempotencyKeyRef.current = key;
 
-          {/* header row */}
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-2 font-display text-sm font-bold" style={{ color: "var(--text)" }}>
-              <Send className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              New Broadcast
+    setShowConfirm(false);
+    setSendStage("sending");
+
+    requestAnimationFrame(() => {
+      if (progressRef.current) {
+        progressRef.current.style.width = "0%";
+        requestAnimationFrame(() => {
+          if (progressRef.current) progressRef.current.style.width = "100%";
+        });
+      }
+    });
+
+    try {
+      const audiencePayload = toAudiencePayload({
+        mode: audienceMode,
+        filter: paymentFilter,
+        attendeeIds: Array.from(selectedIds),
+      });
+      const { broadcast } = await createBroadcast(
+        {
+          tripId,
+          channel: "sms",
+          message,
+          audience: audiencePayload,
+        },
+        key
+      );
+
+      setSendStage("delivered");
+      toast.success(
+        broadcast.status === "pending"
+          ? "Broadcast queued"
+          : `SMS delivered to ${broadcast.recipients} member${broadcast.recipients === 1 ? "" : "s"}`
+      );
+      setActiveTab("history");
+      await loadHistory(1);
+      await openDrawer(broadcast.id, broadcast);
+    } catch (err) {
+      setSendStage("idle");
+      toast.error(errorMessage(err, "Could not send broadcast"));
+    }
+  };
+
+  const historyColumns: ColumnsType<BroadcastRecord> = useMemo(
+    () => [
+      {
+        title: "Date",
+        dataIndex: "date",
+        key: "date",
+        width: 120,
+        sorter: (a, b) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime(),
+        defaultSortOrder: "descend",
+        render: (date: string) => (
+          <span style={{ color: "var(--text-tertiary)", whiteSpace: "nowrap" }}>
+            {formatDate(date)}
+          </span>
+        ),
+      },
+      {
+        title: "Message",
+        key: "message",
+        ellipsis: true,
+        render: (_, record) => (
+          <div className="min-w-0">
+            <p
+              className="truncate text-[13px] font-semibold"
+              style={{ color: "var(--text)" }}
+            >
+              {record.preview}
             </p>
-            {draftSaved && (
-              <span
-                ref={draftBadgeRef}
-                className="rounded-full px-2.5 py-1 text-xs font-medium"
-                style={{ background: "var(--bg-secondary)", color: "var(--text-tertiary)" }}
-              >
-                Draft auto-saved
-              </span>
-            )}
-          </div>
-
-          {/* two-column grid */}
-          <div className="grid gap-5 sm:grid-cols-2">
-
-            {/* LEFT — trip select + templates */}
-            <div>
-              <Label style={{ color: "var(--text)" }} className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                <Calendar className="h-3.5 w-3.5" /> Select trip
-              </Label>
-              <Select
-                value={tripId}
-                onValueChange={(v) => {
-                  setTripIdOvr(v);
-                  setSelectedIds(new Set());
-                  setShowPicker(false);
-                }}
-              >
-                <SelectTrigger className="rounded-xl" style={{ borderColor: "var(--border-strong)" }}>
-                  <SelectValue placeholder="Choose a trip" />
-                </SelectTrigger>
-                <SelectContent>
-                  {myTrips.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.title} ({t.booked} booked)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="mt-4">
-                <Label style={{ color: "var(--text)" }} className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                  <Sparkles className="h-3.5 w-3.5" style={{ color: "var(--gold)" }} /> Quick templates
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {TEMPLATES.map((tpl) => {
-                    const active = activeTpl === tpl.id;
-                    return (
-                      <button
-                        key={tpl.id}
-                        type="button"
-                        onClick={() => applyTemplate(tpl)}
-                        className="flex items-center gap-2 rounded-xl border p-2.5 text-left text-xs font-medium transition-all"
-                        style={{
-                          borderColor: active ? "var(--primary)" : "var(--border)",
-                          background:  active ? "var(--primary-dim)" : "transparent",
-                          color:       active ? "var(--primary)" : "var(--text-secondary)",
-                        }}
-                      >
-                        <tpl.icon className="h-3.5 w-3.5 shrink-0" />
-                        {tpl.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT — recipients */}
-            <div>
-              <Label style={{ color: "var(--text)" }} className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
-                <Users className="h-3.5 w-3.5" /> Recipients
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                <AudiencePill active={!showPicker && quickAud === "all"}           icon={Users}    label="All"       count={attendees.length}               onClick={() => { setQuickAud("all");           setShowPicker(false); }} />
-                <AudiencePill active={!showPicker && quickAud === "paid"}          icon={UserCheck} label="Paid"     count={counts.paid}                    onClick={() => { setQuickAud("paid");          setShowPicker(false); }} />
-                <AudiencePill active={!showPicker && quickAud === "not-checked-in"} icon={UserX}   label="Not paid" count={counts.partial + counts.pending} onClick={() => { setQuickAud("not-checked-in"); setShowPicker(false); }} />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowPicker((v) => !v)}
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors"
-                style={{
-                  borderColor: showPicker ? "var(--primary)" : "var(--border)",
-                  background:  showPicker ? "var(--primary-dim)" : "transparent",
-                  color:       showPicker ? "var(--primary)" : "var(--text-secondary)",
-                }}
-              >
-                <ListChecks className="h-3.5 w-3.5" />
-                Select Individual Members
-              </button>
-
-              {showPicker && (
-                <div
-                  ref={memberListRef}
-                  className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-xl p-2"
-                  style={{ background: "var(--bg-secondary)" }}
-                >
-                  <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                    Select members
-                  </p>
-                  {attendees.map((a: TripAttendee) => (
-                    <label
-                      key={a.id}
-                      className="member-row flex cursor-pointer items-center gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-[var(--surface)]"
-                    >
-                      <div
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        style={{ background: avatarColorFor(a.name) }}
-                      >
-                        {initialsFor(a.name)}
-                      </div>
-                      <span className="flex-1 truncate text-sm" style={{ color: "var(--text)" }}>{a.name}</span>
-                      <Checkbox
-                        checked={selectedIds.has(a.id)}
-                        onCheckedChange={(c) => {
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev);
-                            if (!!c) next.add(a.id); else next.delete(a.id);
-                            return next;
-                          });
-                        }}
-                      />
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              <div
-                className="mt-3 flex items-center justify-between rounded-xl px-3 py-2"
-                style={{ background: "var(--gold-dim)" }}
-              >
-                <span className="text-xs font-medium" style={{ color: "var(--gold)" }}>
-                  {recipients.length} recipient{recipients.length !== 1 ? "s" : ""} selected
-                </span>
-                <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "var(--gold)" }} />
-              </div>
-            </div>
-          </div>
-
-          {/* email subject */}
-          {emailOn && (
-            <div>
-              <Label style={{ color: "var(--text)" }} className="text-xs uppercase tracking-wide">
-                Email subject
-              </Label>
-              <Input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="e.g. Important update: your trip begins soon!"
-                className="mt-1.5 rounded-xl"
-                style={{ borderColor: "var(--border-strong)" }}
-              />
-            </div>
-          )}
-
-          {/* message body */}
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <Label style={{ color: "var(--text)" }} className="text-xs uppercase tracking-wide">
-                Message body
-              </Label>
-              {smsOn && message.length > 0 && (
-                <span
-                  className="flex items-center gap-1 text-xs"
-                  style={{ color: smsSegments > 1 ? "var(--amber)" : "var(--text-tertiary)" }}
-                >
-                  {smsSegments > 1 && <AlertCircle className="h-3 w-3" />}
-                  {message.length} chars · {smsSegments} SMS segment{smsSegments !== 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
-            <Textarea
-              className="min-h-[120px] rounded-xl"
-              style={{ borderColor: "var(--border-strong)" }}
-              placeholder="Write your message… use {FirstName} to personalise."
-              value={message}
-              onChange={(e) => { setMessage(e.target.value); setActiveTpl(null); }}
-            />
-            <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-              Tip: <code style={{ color: "var(--primary)" }}>{"{FirstName}"}</code> is replaced with each recipient&apos;s name.
+            <p
+              className="mt-0.5 truncate text-[12px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {record.snippet}
             </p>
           </div>
-
-          {/* channels + actions */}
-          <div
-            className="flex flex-wrap items-center justify-between gap-4 border-t pt-4"
-            style={{ borderColor: "var(--border)" }}
-          >
-            <div className="flex flex-wrap gap-5">
-              <ChannelCheck checked={emailOn} onChange={setEmailOn} label="Send as Email" note="No extra cost · High reach" />
-              <ChannelCheck checked={smsOn}   onChange={setSmsOn}   label="Send as SMS"   note={`GHS ${SMS_COST.toFixed(2)} per recipient`} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="rounded-xl"
-                style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
-                onClick={() => {
-                  if (!message.trim()) { toast.error("Write a message first"); return; }
-                  toast.success("Saved as template");
-                }}
-              >
-                <Bookmark className="h-3.5 w-3.5" />
-                Save Template
-              </Button>
-              <Button
-                className="rounded-xl text-sm font-semibold"
-                onClick={handleSendClick}
-                disabled={recipients.length === 0}
-                style={{
-                  background: recipients.length === 0 ? "var(--border)" : "var(--gradient-brand)",
-                  color:      recipients.length === 0 ? "var(--text-tertiary)" : "#fbf7f1",
-                  boxShadow:  recipients.length === 0 ? "none" : "var(--glow-gold)",
-                  border: "none",
-                }}
-              >
-                <Send className="h-3.5 w-3.5" />
-                Send Broadcast
-              </Button>
-            </div>
-          </div>
-
-          {smsOn && smsCost > 0 && (
-            <p className="text-right text-xs" style={{ color: "var(--text-tertiary)" }}>
-              Estimated SMS cost: <span style={{ color: "var(--amber)" }}>GHS {smsCost.toFixed(2)}</span>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Broadcast history ────────────────────────────────────── */}
-      <div className="comm-entrance mt-10">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold" style={{ color: "var(--text)" }}>
-            Recent Broadcasts
-          </h2>
+        ),
+      },
+      {
+        title: "Trip",
+        dataIndex: "tripTitle",
+        key: "tripTitle",
+        ellipsis: true,
+        width: 180,
+        render: (title: string) => (
+          <span style={{ color: "var(--text-secondary)" }}>{title}</span>
+        ),
+      },
+      {
+        title: "Audience",
+        dataIndex: "audience",
+        key: "audience",
+        width: 140,
+        render: (value: string) => (
+          <span style={{ color: "var(--text-secondary)" }}>{value}</span>
+        ),
+      },
+      {
+        title: "Recipients",
+        dataIndex: "recipients",
+        key: "recipients",
+        width: 110,
+        align: "right",
+        sorter: (a, b) => a.recipients - b.recipients,
+        render: (n: number) => (
+          <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+            {n}
+          </span>
+        ),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        width: 110,
+        render: (status: BroadcastStatus) => <StatusBadge status={status} />,
+      },
+      {
+        title: "",
+        key: "actions",
+        width: 88,
+        align: "right",
+        render: (_, record) => (
           <button
             type="button"
-            className="flex items-center gap-1 text-sm font-medium"
+            className="inline-flex items-center gap-1 rounded-none px-2 py-1 text-[12px] font-medium transition-colors hover:bg-[var(--bg-secondary)]"
             style={{ color: "var(--primary)" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              void openDrawer(record.id, record);
+            }}
           >
-            <BarChart3 className="h-3.5 w-3.5" />
-            Analytics
-            <ArrowRight className="h-3.5 w-3.5" />
+            <EyeOutlined />
+            View
           </button>
+        ),
+      },
+    ],
+    [openDrawer]
+  );
+
+  const tabs = [
+    {
+      value: "compose" as const,
+      label: "New broadcast",
+      icon: Send,
+    },
+    {
+      value: "history" as const,
+      label: "Recent broadcasts",
+      icon: MessageSquare,
+      count: historyTotal || history.length,
+    },
+  ];
+
+  const recipients = audience?.recipients ?? [];
+  const counts = audience?.counts ?? {
+    total: 0,
+    paid: 0,
+    unpaid: 0,
+    withPhone: 0,
+    selected: 0,
+    sendable: 0,
+    skipped: 0,
+  };
+
+  return (
+    <div className="w-full p-6 lg:p-8" style={{ background: "#f5f5f5" }}>
+      <div className="mb-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1
+            className="font-display text-2xl font-bold tracking-tight"
+            style={{ color: "var(--text)" }}
+          >
+            Messages &amp; Broadcasts
+          </h1>
+          <p
+            className="mt-1 text-[13px]"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Send trip updates and reminders to your participants by SMS.
+          </p>
         </div>
-
-        {/* ── Table controls: search + status filter ── */}
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-              style={{ color: "var(--text-tertiary)" }}
-            />
-            <Input
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Search broadcasts…"
-              className="h-9 w-52 rounded-xl pl-9 text-sm"
-              style={{ borderColor: "var(--border-strong)" }}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-3.5 w-3.5" style={{ color: "var(--text-tertiary)" }} />
-            {(["all", "sent", "pending", "failed"] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
-                style={{
-                  background: statusFilter === s ? "var(--gradient-brand)" : "var(--bg-secondary)",
-                  color:      statusFilter === s ? "#fbf7f1" : "var(--text-secondary)",
-                  border:     statusFilter === s ? "1px solid transparent" : "1px solid var(--border)",
-                }}
-              >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-4 text-[13px]">
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+              {sentCount}
+            </span>{" "}
+            sent
+          </span>
+          {(tripAttendeeCount != null || audience?.counts.total != null) && (
+            <>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span style={{ color: "var(--text-tertiary)" }}>
+                <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+                  {tripAttendeeCount ?? audience?.counts.total ?? 0}
+                </span>{" "}
+                on trip
+              </span>
+            </>
+          )}
         </div>
-
-        <Card
-          className="border shadow-none"
-          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-        >
-          <CardContent className="p-0">
-            {rows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Search className="mb-3 h-8 w-8" style={{ color: "var(--text-tertiary)" }} />
-                <p className="font-medium" style={{ color: "var(--text-secondary)" }}>
-                  {globalSearch ? `No results for "${globalSearch}"` : "No broadcasts yet"}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto px-4 pt-4 pb-2">
-                  <table className="w-full text-sm">
-                    <thead>
-                      {table.getHeaderGroups().map((hg) => (
-                        <tr key={hg.id} className="border-b" style={{ borderColor: "var(--border)" }}>
-                          {hg.headers.map((header) => (
-                            <th
-                              key={header.id}
-                              className={cn(
-                                "py-3 pl-3 pr-4 text-left text-xs font-semibold uppercase tracking-wider select-none",
-                                header.column.getCanSort() && "cursor-pointer"
-                              )}
-                              style={{ color: "var(--text-tertiary)" }}
-                              onClick={header.column.getToggleSortingHandler()}
-                            >
-                              <span className="inline-flex items-center gap-1">
-                                {flexRender(header.column.columnDef.header, header.getContext())}
-                                {header.column.getCanSort() && (
-                                  <SortIcon dir={header.column.getIsSorted()} />
-                                )}
-                              </span>
-                            </th>
-                          ))}
-                        </tr>
-                      ))}
-                    </thead>
-
-                    <tbody ref={tableBodyRef}>
-                      {rows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="group border-b transition-colors last:border-0 hover:bg-[var(--bg-secondary)] cursor-pointer"
-                          style={{ borderColor: "var(--border-subtle)" }}
-                          onClick={() => setDrawerRecord(row.original)}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <td
-                              key={cell.id}
-                              className="py-3.5 pl-3 pr-4 align-top"
-                              onClick={
-                                cell.column.id === "actions"
-                                  ? (e) => { e.stopPropagation(); setDrawerRecord(row.original); }
-                                  : undefined
-                              }
-                            >
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* pagination */}
-                {table.getPageCount() > 1 && (
-                  <div
-                    className="flex items-center justify-between border-t px-6 py-3"
-                    style={{ borderColor: "var(--border)" }}
-                  >
-                    <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()} ·{" "}
-                      {table.getFilteredRowModel().rows.length} results
-                    </span>
-                    <div className="flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border transition-colors hover:bg-[var(--bg-secondary)] disabled:opacity-40"
-                        style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border transition-colors hover:bg-[var(--bg-secondary)] disabled:opacity-40"
-                        style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
-                      >
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
-      {/* ── Broadcast detail drawer ───────────────────────────────── */}
+      <OrganizerPortalTabs
+        className="mb-6"
+        aria-label="Messages sections"
+        tabs={tabs}
+        value={activeTab}
+        onChange={setActiveTab}
+      />
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+        >
+          {activeTab === "compose" && (
+            <div className="grid gap-8 lg:grid-cols-2">
+              <section>
+                <h2
+                  className="mb-3 text-[15px] font-semibold"
+                  style={{ color: "var(--text)" }}
+                >
+                  Audience
+                </h2>
+
+                <div
+                  className="rounded-2xl border p-5"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--surface)",
+                  }}
+                >
+                  <div className="mb-5">
+                    <p
+                      className="mb-1.5 text-[12px] font-medium"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      Trip
+                    </p>
+                    <Select
+                      value={tripId || undefined}
+                      onValueChange={handleTripChange}
+                      disabled={tripsLoading || trips.length === 0}
+                    >
+                      <SelectTrigger
+                        className="rounded-xl"
+                        style={{
+                          borderColor: "var(--border)",
+                          background: "var(--surface)",
+                        }}
+                      >
+                        <SelectValue
+                          placeholder={
+                            tripsLoading
+                              ? "Loading trips…"
+                              : trips.length === 0
+                                ? "No trips with bookings"
+                                : "Choose a trip"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {trips.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.title} ({t.booked} booked)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <p
+                      className="text-[13px] font-semibold"
+                      style={{ color: "var(--text)" }}
+                    >
+                      Audience
+                    </p>
+                    <p
+                      className="text-[13px] font-semibold tabular-nums"
+                      style={{ color: "#2e7d52" }}
+                    >
+                      {audienceLoading ? "…" : `${sendableCount} recipient${sendableCount !== 1 ? "s" : ""}`}
+                    </p>
+                  </div>
+                  <p
+                    className="mb-4 text-[13px]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    Pick who receives this message.
+                  </p>
+
+                  <div
+                    className="flex flex-wrap gap-2"
+                    role="group"
+                    aria-label="Audience mode"
+                  >
+                    {(
+                      [
+                        { id: "everyone" as const, label: "Everyone" },
+                        { id: "filter" as const, label: "By filter" },
+                        { id: "specific" as const, label: "Specific people" },
+                      ] as const
+                    ).map((opt) => {
+                      const active = audienceMode === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className="soft-chip px-4 py-2 text-[13px] font-medium transition-all duration-200"
+                          onClick={() => setAudienceMode(opt.id)}
+                          style={{
+                            background: active
+                              ? "var(--primary)"
+                              : "var(--bg-secondary)",
+                            color: active ? "#fbf7f1" : "var(--text-secondary)",
+                            boxShadow: active
+                              ? "0 6px 16px -8px rgba(86,47,24,0.45)"
+                              : "none",
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {audienceMode === "filter" && (
+                      <motion.div
+                        key="filter"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div
+                          className="mt-3 flex flex-wrap gap-2"
+                          role="group"
+                          aria-label="Payment filter"
+                        >
+                          {(
+                            [
+                              {
+                                id: "paid" as const,
+                                label: "Paid",
+                                count: counts.paid,
+                              },
+                              {
+                                id: "unpaid" as const,
+                                label: "Not paid",
+                                count: counts.unpaid,
+                              },
+                            ] as const
+                          ).map((f) => {
+                            const active = paymentFilter === f.id;
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                className="soft-chip inline-flex items-center gap-2 px-4 py-2 text-[13px] font-medium transition-all duration-200"
+                                onClick={() => setPaymentFilter(f.id)}
+                                style={{
+                                  background: active
+                                    ? "var(--primary-dim)"
+                                    : "var(--bg-secondary)",
+                                  color: active
+                                    ? "var(--primary)"
+                                    : "var(--text-secondary)",
+                                  boxShadow: active
+                                    ? "inset 0 0 0 1px rgba(107,63,29,0.22)"
+                                    : "none",
+                                }}
+                              >
+                                {f.label}
+                                <span
+                                  className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums"
+                                  style={{
+                                    background: active
+                                      ? "rgba(107,63,29,0.12)"
+                                      : "rgba(107,63,29,0.08)",
+                                    color: active
+                                      ? "var(--primary)"
+                                      : "var(--text-tertiary)",
+                                  }}
+                                >
+                                  {f.count}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {audienceMode === "specific" && (
+                      <motion.div
+                        key="specific"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div
+                          className="mt-3 max-h-52 space-y-0.5 overflow-y-auto rounded-xl border p-2"
+                          style={{ borderColor: "var(--border)" }}
+                        >
+                          {audienceLoading ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                style={{ color: "var(--primary)" }}
+                              />
+                            </div>
+                          ) : recipients.length === 0 ? (
+                            <p
+                              className="px-2 py-4 text-center text-[12px]"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              No participants on this trip yet.
+                            </p>
+                          ) : (
+                            recipients.map((a: AudienceRecipient) => (
+                              <label
+                                key={a.id}
+                                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--bg-secondary)]"
+                                style={{
+                                  opacity: a.hasValidPhone ? 1 : 0.55,
+                                }}
+                              >
+                                <div
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                                  style={{ background: avatarColorFor(a.name) }}
+                                >
+                                  {initialsFor(a.name)}
+                                </div>
+                                <span
+                                  className="min-w-0 flex-1 truncate text-[13px]"
+                                  style={{ color: "var(--text)" }}
+                                >
+                                  {a.name}
+                                  {!a.hasValidPhone && (
+                                    <span
+                                      className="ml-1.5 text-[11px]"
+                                      style={{ color: "var(--text-tertiary)" }}
+                                    >
+                                      no phone
+                                    </span>
+                                  )}
+                                </span>
+                                <Checkbox
+                                  checked={selectedIds.has(a.id)}
+                                  disabled={!a.hasValidPhone}
+                                  onCheckedChange={(c) => {
+                                    if (!a.hasValidPhone) return;
+                                    setSelectedIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (!!c) next.add(a.id);
+                                      else next.delete(a.id);
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <p
+                    className="mt-4 text-[12px] leading-relaxed"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    {audienceHelper}
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h2
+                  className="mb-3 text-[15px] font-semibold"
+                  style={{ color: "var(--text)" }}
+                >
+                  Message
+                </h2>
+
+                <div
+                  className="rounded-2xl border p-5"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--surface)",
+                  }}
+                >
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <p
+                      className="inline-flex items-center gap-1.5 text-[12px] font-medium"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      SMS
+                    </p>
+
+                    <Select
+                      value={activeTpl ?? undefined}
+                      onValueChange={(id) => {
+                        const tpl = TEMPLATES.find((t) => t.id === id);
+                        if (tpl) applyTemplate(tpl);
+                      }}
+                    >
+                      <SelectTrigger
+                        aria-label="Use template"
+                        className="h-8 w-auto gap-1.5 rounded-lg border-0 px-2 text-[12px] font-medium shadow-none"
+                        style={{
+                          color: activeTpl ? "var(--primary)" : "var(--text-tertiary)",
+                          background: "transparent",
+                        }}
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span>Template</span>
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        {TEMPLATES.map((tpl) => (
+                          <SelectItem key={tpl.id} value={tpl.id}>
+                            {tpl.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Textarea
+                    className="min-h-[160px] resize-y rounded-xl text-[14px] leading-relaxed"
+                    style={{ borderColor: "var(--border)" }}
+                    placeholder="Hi {FirstName}, write your update here…"
+                    value={message}
+                    onChange={(e) => {
+                      setMessage(e.target.value);
+                      setActiveTpl(null);
+                    }}
+                  />
+
+                  <div
+                    className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    <span className="tabular-nums">
+                      {smsMeta.segments} SMS · {charsInSegment} / {smsMeta.charsPerSms} chars
+                    </span>
+                    <span>
+                      {smsMeta.encoding} · {smsMeta.charsPerSms} chars/SMS
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    className="px-5 text-[13px] font-semibold"
+                    onClick={() => void handleSendClick()}
+                    disabled={!canSend || estimating}
+                    style={{
+                      background: !canSend || estimating ? "var(--border)" : "var(--primary)",
+                      color: !canSend || estimating ? "var(--text-tertiary)" : "#fbf7f1",
+                      border: "none",
+                    }}
+                  >
+                    {estimating ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                    Send SMS
+                  </Button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === "history" && (
+            <section>
+              <OrganizerPortalTabs
+                className="mb-4"
+                aria-label="Filter by status"
+                fullWidth={false}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                tabs={(
+                  [
+                    { value: "all" as const, label: "All" },
+                    { value: "sent" as const, label: "Sent" },
+                    { value: "pending" as const, label: "Pending" },
+                    { value: "failed" as const, label: "Failed" },
+                  ]
+                )}
+              />
+
+              <ConfigProvider theme={organizerAntdTheme}>
+                <Table<BroadcastRecord>
+                  className="organizer-antd-table"
+                  rowKey="id"
+                  columns={historyColumns}
+                  dataSource={history}
+                  loading={historyLoading}
+                  scroll={{ x: 800 }}
+                  pagination={{
+                    current: historyPage,
+                    pageSize: 8,
+                    total: historyTotal,
+                    showSizeChanger: false,
+                    hideOnSinglePage: true,
+                    onChange: (page) => void loadHistory(page),
+                  }}
+                  locale={{
+                    emptyText: (
+                      <OrganizerEmptyState
+                        icon={MessageSquare}
+                        title="No broadcasts yet"
+                        description="Your sent messages will show up here."
+                        action={{
+                          label: "Create a broadcast",
+                          onClick: () => setActiveTab("compose"),
+                        }}
+                        framed={false}
+                        className="py-10"
+                      />
+                    ),
+                  }}
+                  onRow={(record) => ({
+                    style: { cursor: "pointer" },
+                    onClick: () => void openDrawer(record.id, record),
+                  })}
+                />
+              </ConfigProvider>
+            </section>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
       <BroadcastDrawer
         record={drawerRecord}
+        loading={drawerLoading}
         onClose={() => setDrawerRecord(null)}
       />
 
-      {/* ── Confirmation dialog ───────────────────────────────────── */}
-      {showConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(42,27,15,0.5)" }}
-          onClick={() => setShowConfirm(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border p-6"
-            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {showConfirm && estimate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(42,27,15,0.5)" }}
+            onClick={() => setShowConfirm(false)}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--gold-dim)" }}>
-                <Send className="h-4 w-4" style={{ color: "var(--gold)" }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-sm rounded-2xl border p-6"
+              style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{ background: "var(--primary-dim)" }}
+              >
+                <Send className="h-4 w-4" style={{ color: "var(--primary)" }} />
               </div>
-              <button type="button" onClick={() => setShowConfirm(false)} style={{ color: "var(--text-tertiary)" }}>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <h3 className="font-display mt-3 text-lg font-bold" style={{ color: "var(--text)" }}>
-              Send to {recipients.length} member{recipients.length !== 1 ? "s" : ""}?
-            </h3>
-            <p className="mt-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
-              Delivered via{" "}
-              {[emailOn && "email", smsOn && "SMS"].filter(Boolean).join(" & ")}.
-              {smsOn && ` Estimated SMS cost: GHS ${smsCost.toFixed(2)}.`}{" "}
-              This can&apos;t be undone.
-            </p>
-            <div className="mt-5 flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl"
-                style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
-                onClick={() => setShowConfirm(false)}
+              <h3
+                className="font-display mt-4 text-lg font-bold"
+                style={{ color: "var(--text)" }}
               >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 rounded-xl"
-                style={{ background: "var(--gradient-brand)", color: "#fbf7f1", border: "none" }}
-                onClick={runSend}
+                Send to {estimate.recipientCount} recipient
+                {estimate.recipientCount !== 1 ? "s" : ""}?
+              </h3>
+              <p
+                className="mt-1.5 text-[13px]"
+                style={{ color: "var(--text-secondary)" }}
               >
-                Confirm &amp; Send
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+                Via SMS · Est. GH₵{estimate.estimatedCostGhs.toFixed(2)}. This
+                can&apos;t be undone.
+                {estimate.skippedCount > 0
+                  ? ` ${estimate.skippedCount} without a valid phone will be skipped.`
+                  : ""}
+              </p>
+              <div className="mt-5 flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
+                  onClick={() => setShowConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  style={{ background: "var(--primary)", color: "#fbf7f1", border: "none" }}
+                  onClick={() => void runSend()}
+                >
+                  Confirm &amp; send
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ── Send → delivered overlay ──────────────────────────────── */}
-      {sendStage !== "idle" && (
-        <div
-          ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(42,27,15,0.55)", opacity: 0 }}
-        >
-          <div
-            className="w-full max-w-xs rounded-2xl border p-8 text-center"
-            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+      <AnimatePresence>
+        {sendStage !== "idle" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(42,27,15,0.55)" }}
           >
-            {sendStage === "sending" && (
-              <>
-                <div
-                  ref={sendingIconRef}
-                  className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
-                  style={{ background: "var(--gradient-brand)" }}
-                >
-                  <Loader2 className="h-6 w-6" style={{ color: "#fbf7f1" }} />
-                </div>
-                <p className="font-display font-bold" style={{ color: "var(--text)" }}>
-                  Sending message…
-                </p>
-                <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                  Reaching {recipients.length} member{recipients.length !== 1 ? "s" : ""}
-                </p>
-                <div
-                  className="mt-4 h-1.5 overflow-hidden rounded-full"
-                  style={{ background: "var(--border)" }}
-                >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-xs rounded-2xl border p-8 text-center"
+              style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+            >
+              {sendStage === "sending" && (
+                <>
                   <div
-                    ref={progressRef}
-                    className="h-full rounded-full"
-                    style={{ width: "0%", background: "var(--gradient-brand)" }}
-                  />
-                </div>
-              </>
-            )}
-            {sendStage === "delivered" && (
-              <>
-                <div
-                  ref={deliveredRef}
-                  className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
-                  style={{ background: "var(--gold-dim)" }}
-                >
-                  <CheckCircle2 className="h-7 w-7" style={{ color: "var(--gold)" }} />
-                </div>
-                <p className="font-display font-bold" style={{ color: "var(--text)" }}>
-                  Delivered!
-                </p>
-                <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                  Your message is on its way to {recipients.length} member{recipients.length !== 1 ? "s" : ""}.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+                    className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+                    style={{ background: "var(--primary)" }}
+                  >
+                    <Loader2
+                      className="h-6 w-6 animate-spin"
+                      style={{ color: "#fbf7f1" }}
+                    />
+                  </div>
+                  <p
+                    className="font-display font-bold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    Sending…
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
+                    Reaching {estimate?.recipientCount ?? sendableCount} recipient
+                    {(estimate?.recipientCount ?? sendableCount) !== 1 ? "s" : ""}
+                  </p>
+                  <div
+                    className="mt-4 h-1.5 overflow-hidden rounded-full"
+                    style={{ background: "var(--border)" }}
+                  >
+                    <div
+                      ref={progressRef}
+                      className="h-full rounded-full transition-[width] duration-[1700ms] ease-in-out"
+                      style={{ width: "0%", background: "var(--primary)" }}
+                    />
+                  </div>
+                </>
+              )}
+              {sendStage === "delivered" && (
+                <>
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", damping: 14, stiffness: 220 }}
+                    className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+                    style={{ background: "rgba(46,125,82,0.1)" }}
+                  >
+                    <CheckCircle2 className="h-7 w-7" style={{ color: "#2e7d52" }} />
+                  </motion.div>
+                  <p
+                    className="font-display font-bold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    Queued
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
+                    On its way to {estimate?.recipientCount ?? sendableCount} recipient
+                    {(estimate?.recipientCount ?? sendableCount) !== 1 ? "s" : ""}.
+                  </p>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

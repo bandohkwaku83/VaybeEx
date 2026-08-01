@@ -44,4 +44,7 @@ export const tripTypeLabel: Record<string, string> = {
   camping: "Camping",
   weekend_getaway: "Weekend",
   international: "International",
+  wildlife: "Wildlife",
+  city: "City",
+  wellness: "Wellness",
 };

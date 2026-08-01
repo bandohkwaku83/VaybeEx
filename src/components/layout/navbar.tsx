@@ -6,6 +6,10 @@ import { Compass, Heart, LogIn, LogOut, Menu, Phone, Search, User, X } from "luc
 import { useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  getBrandFromHost,
+  getRootAbsoluteUrl,
+} from "@/lib/tenant-host";
 import { cn } from "@/lib/utils";
 
 const publicNavLinks = [
@@ -18,17 +22,33 @@ const authNavLinks = [
   { href: "/wishlist", label: "Wishlist" },
 ];
 
+/** On organizer subdomains, send platform links to the apex host. */
+function useApexHref() {
+  const [onTenant, setOnTenant] = useState(false);
+
+  useEffect(() => {
+    setOnTenant(Boolean(getBrandFromHost(window.location.host)));
+  }, []);
+
+  return (path: string) =>
+    onTenant ? getRootAbsoluteUrl(path) : path;
+}
+
 export function Navbar() {
   const pathname = usePathname();
+  const apexHref = useApexHref();
   const { isAuthenticated, user, logout } = useAuth();
-  const navLinks = isAuthenticated
+  const isTraveler = user?.role === "traveler";
+  const navLinks = isAuthenticated && isTraveler
     ? [...publicNavLinks, ...authNavLinks]
     : publicNavLinks;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const isOrganizer = pathname.startsWith("/organizer");
+  const isOrganizerLanding = pathname === "/organizer";
   const isHome = pathname === "/";
-  const overlay = isHome && !scrolled;
+  const overlay = (isHome || isOrganizerLanding) && !scrolled;
+  const lightOverlay = isOrganizerLanding && !scrolled;
+  const overlayFg = lightOverlay ? "#fbf7f1" : "#000000";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -37,7 +57,9 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  if (isOrganizer) return null;
+  if (pathname.startsWith("/organizer") && !isOrganizerLanding) return null;
+  if (pathname.startsWith("/admin-portal") || pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/login")) return null;
 
   return (
     <header
@@ -58,7 +80,7 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
         {/* ── Logo ── */}
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href={apexHref("/")} className="flex items-center gap-2 group">
           <div
             className="flex h-9 w-9 items-center justify-center text-white"
             style={{
@@ -81,21 +103,14 @@ export function Navbar() {
           <span
             className="font-display"
             style={{
-              color: "var(--text)",
+              color: lightOverlay ? "#fbf7f1" : "var(--text)",
               fontWeight: 700,
               letterSpacing: "-0.03em",
               fontSize: "1.2rem",
             }}
           >
             Vaybe
-            <span
-              style={{
-                background: "var(--gradient-warm)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
+            <span style={{ color: "var(--gold)" }}>
               Ex
             </span>
           </span>
@@ -105,7 +120,7 @@ export function Navbar() {
         <nav
           className="hidden items-center lg:flex"
           style={{
-            background: "var(--surface-raised)",
+            background: "#ffffff",
             border: "0.5px solid var(--border)",
             borderRadius: "9999px",
             padding: "4px 6px",
@@ -119,7 +134,7 @@ export function Navbar() {
             return (
               <Link
                 key={link.href}
-                href={link.href}
+                href={apexHref(link.href)}
                 className="relative flex items-center transition-colors"
                 style={{
                   color: isActive ? "var(--text)" : "var(--text-secondary)",
@@ -168,24 +183,24 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* ── Right side ── */}
-        <div className="hidden items-center md:flex">
+        {/* ── Right side (lg+; tablet/mobile use the hamburger menu) ── */}
+        <div className="hidden items-center lg:flex">
           {overlay && (
             <>
               <div
                 className="flex items-center gap-1 px-4"
                 style={{
-                  borderRight: "1px solid var(--border)",
-                  color: "var(--text-secondary)",
+                  borderRight: `1px solid ${lightOverlay ? "rgba(251,247,241,0.25)" : "var(--border)"}`,
+                  color: overlayFg,
                   fontSize: "0.875rem",
                   cursor: "pointer",
                   transition: "color 0.2s ease",
                 }}
                 onMouseEnter={(e) =>
-                  ((e.currentTarget as HTMLDivElement).style.color = "var(--primary)")
+                  ((e.currentTarget as HTMLDivElement).style.color = lightOverlay ? "#ffffff" : "#333333")
                 }
                 onMouseLeave={(e) =>
-                  ((e.currentTarget as HTMLDivElement).style.color = "var(--text-secondary)")
+                  ((e.currentTarget as HTMLDivElement).style.color = overlayFg)
                 }
               >
                 <Search className="h-4 w-4" />
@@ -193,31 +208,31 @@ export function Navbar() {
               <div
                 className="flex items-center gap-2 px-4"
                 style={{
-                  borderRight: "1px solid var(--border)",
-                  color: "var(--text-secondary)",
+                  borderRight: `1px solid ${lightOverlay ? "rgba(251,247,241,0.25)" : "var(--border)"}`,
+                  color: overlayFg,
                   fontSize: "0.8rem",
                   letterSpacing: "0.02em",
                 }}
               >
-                <Phone className="h-3.5 w-3.5" style={{ color: "var(--primary)" }} />
+                <Phone className="h-3.5 w-3.5" style={{ color: overlayFg }} />
                 <span className="hidden lg:inline">+233 20 123 4567</span>
               </div>
             </>
           )}
 
           <div className={cn("flex items-center gap-2", overlay && "pl-4")}>
-            {isAuthenticated && (
+            {isAuthenticated && isTraveler && (
               <Button
                 variant="ghost"
                 size="icon"
                 style={{
-                  color: "var(--text-secondary)",
+                  color: "#000000",
                   transition: "all 0.2s ease",
                 }}
-                className="hover:!text-[var(--coral)] hover:!bg-[rgba(181,82,58,0.1)]"
+                className="hover:!text-[#333333] hover:!bg-[rgba(0,0,0,0.06)]"
                 asChild
               >
-                <Link href="/wishlist">
+                <Link href={apexHref("/wishlist")}>
                   <Heart className="h-4 w-4" />
                 </Link>
               </Button>
@@ -231,8 +246,8 @@ export function Navbar() {
                     background:
                       "linear-gradient(135deg, rgba(107,63,29,0.12), rgba(196,134,76,0.1))",
                     border: "0.5px solid var(--border-strong)",
-                    color: "var(--text)",
-                    borderRadius: "9999px",
+                    color: "#000000",
+                    borderRadius: "0",
                     transition: "all 0.2s ease",
                   }}
                   onMouseEnter={(e) =>
@@ -248,8 +263,8 @@ export function Navbar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  style={{ color: "var(--text-secondary)", transition: "all 0.2s ease" }}
-                  className="hover:!text-[var(--text)] hover:!bg-[rgba(107,63,29,0.06)]"
+                  style={{ color: "#000000", transition: "all 0.2s ease" }}
+                  className="hover:!text-[#333333] hover:!bg-[rgba(0,0,0,0.06)]"
                   onClick={logout}
                   title="Sign out"
                 >
@@ -257,66 +272,97 @@ export function Navbar() {
                 </Button>
               </>
             ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                style={{
-                  background: "var(--gradient-teal)",
-                  color: "#fbf7f1",
-                  border: "none",
-                  borderRadius: "9999px",
-                  fontWeight: 600,
-                  boxShadow: "var(--glow-teal)",
-                  fontSize: "0.8125rem",
-                  letterSpacing: "0.01em",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLButtonElement;
-                  el.style.opacity = "0.9";
-                  el.style.boxShadow = "var(--glow-teal-strong)";
-                  el.style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLButtonElement;
-                  el.style.opacity = "1";
-                  el.style.boxShadow = "var(--glow-teal)";
-                  el.style.transform = "translateY(0)";
-                }}
-                onMouseDown={(e) =>
-                  ((e.currentTarget as HTMLButtonElement).style.transform = "scale(0.97)")
-                }
-                onMouseUp={(e) =>
-                  ((e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)")
-                }
-                asChild
-              >
-                <Link href={`/login?redirect=${encodeURIComponent(pathname)}`}>
-                  <LogIn className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sign in</span>
-                </Link>
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  style={{
+                    background: "transparent",
+                    color: "#000000",
+                    border: "0.5px solid var(--border-strong)",
+                    borderRadius: "0",
+                    fontWeight: 600,
+                    fontSize: "0.8125rem",
+                    letterSpacing: "0.01em",
+                  }}
+                  asChild
+                >
+                  <Link
+                    href={apexHref(
+                      `/login?mode=signup&redirect=${encodeURIComponent(pathname)}`
+                    )}
+                  >
+                    <span className="hidden sm:inline">Create account</span>
+                    <span className="sm:hidden">Join</span>
+                  </Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  style={{
+                    background: "var(--gradient-teal)",
+                    color: "#fbf7f1",
+                    border: "none",
+                    borderRadius: "0",
+                    fontWeight: 600,
+                    boxShadow: "var(--glow-teal)",
+                    fontSize: "0.8125rem",
+                    letterSpacing: "0.01em",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                  onMouseEnter={(e) => {
+                    const el = e.currentTarget as HTMLButtonElement;
+                    el.style.opacity = "0.9";
+                    el.style.boxShadow = "var(--glow-teal-strong)";
+                    el.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    const el = e.currentTarget as HTMLButtonElement;
+                    el.style.opacity = "1";
+                    el.style.boxShadow = "var(--glow-teal)";
+                    el.style.transform = "translateY(0)";
+                  }}
+                  onMouseDown={(e) =>
+                    ((e.currentTarget as HTMLButtonElement).style.transform = "scale(0.97)")
+                  }
+                  onMouseUp={(e) =>
+                    ((e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)")
+                  }
+                  asChild
+                >
+                  <Link
+                    href={apexHref(
+                      `/login?redirect=${encodeURIComponent(pathname)}`
+                    )}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span className="hidden sm:inline">Sign in</span>
+                  </Link>
+                </Button>
+              </>
             )}
           </div>
         </div>
 
-        {/* ── Mobile hamburger ── */}
+        {/* ── Mobile / tablet hamburger (below lg) ── */}
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="lg:hidden"
           style={{
-            color: "var(--text-secondary)",
+            color: lightOverlay ? "#fbf7f1" : "#000000",
             transition: "all 0.2s ease",
           }}
           onMouseEnter={(e) => {
             const el = e.currentTarget as HTMLButtonElement;
-            el.style.color = "var(--primary)";
-            el.style.background = "rgba(107, 63, 29, 0.08)";
+            el.style.color = lightOverlay ? "#ffffff" : "#333333";
+            el.style.background = lightOverlay
+              ? "rgba(251, 247, 241, 0.12)"
+              : "rgba(0, 0, 0, 0.06)";
           }}
           onMouseLeave={(e) => {
             const el = e.currentTarget as HTMLButtonElement;
-            el.style.color = "var(--text-secondary)";
+            el.style.color = lightOverlay ? "#fbf7f1" : "#000000";
             el.style.background = "transparent";
           }}
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -325,10 +371,10 @@ export function Navbar() {
         </Button>
       </div>
 
-      {/* ── Mobile dropdown ── */}
+      {/* ── Mobile / tablet dropdown ── */}
       {mobileOpen && (
         <div
-          className="px-4 py-4 space-y-1 md:hidden"
+          className="px-4 py-4 space-y-1 lg:hidden"
           style={{
             background: "rgba(251, 247, 241, 0.98)",
             backdropFilter: "blur(24px) saturate(160%)",
@@ -342,9 +388,9 @@ export function Navbar() {
             return (
               <Link
                 key={link.href}
-                href={link.href}
+                href={apexHref(link.href)}
                 onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm font-medium transition-colors"
+                className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
                 style={{
                   color: isActive ? "var(--primary)" : "var(--text-secondary)",
                   background: isActive ? "rgba(107, 63, 29, 0.1)" : "transparent",
@@ -364,22 +410,36 @@ export function Navbar() {
                 logout();
                 setMobileOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm font-medium transition-colors"
+              className="flex w-full items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
               style={{ color: "var(--text-secondary)" }}
             >
               <LogOut className="h-4 w-4" />
               Sign out
             </button>
           ) : (
-            <Link
-              href={`/login?redirect=${encodeURIComponent(pathname)}`}
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm font-medium transition-colors"
-              style={{ color: "var(--primary)", fontWeight: 500 }}
-            >
-              <LogIn className="h-4 w-4" />
-              Sign in
-            </Link>
+            <>
+              <Link
+                href={apexHref(
+                  `/login?mode=signup&redirect=${encodeURIComponent(pathname)}`
+                )}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Create account
+              </Link>
+              <Link
+                href={apexHref(
+                  `/login?redirect=${encodeURIComponent(pathname)}`
+                )}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
+                style={{ color: "var(--primary)", fontWeight: 500 }}
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in
+              </Link>
+            </>
           )}
         </div>
       )}

@@ -26,6 +26,21 @@ export function formatDate(date: string) {
   }).format(parsed);
 }
 
+export function formatDateTime(date: string) {
+  if (!date) return "—";
+
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
 export function formatDateRange(start: string, end: string) {
   if (!start && !end) return "Dates TBD";
   if (!start) return formatDate(end);

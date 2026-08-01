@@ -2,7 +2,7 @@ import { useRef, useEffect } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-import compassMap from "@public/images/compass-map.jpg";
+import { GhanaLocalMap } from "@/components/home/ghana-local-map";
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -28,18 +28,6 @@ const ParallaxBlock = () => {
             scrollTrigger: { trigger: el, start: "top 85%" },
           },
         );
-      });
-
-      // Compass-map block parallax
-      gsap.to(".parallax-img", {
-        yPercent: -15,
-        ease: "none",
-        scrollTrigger: {
-          trigger: parallaxRef.current,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
       });
 
       // Numbers count up
@@ -70,32 +58,25 @@ const ParallaxBlock = () => {
       ref={parallaxRef}
       className="relative overflow-hidden border-y border-border bg-surface-raised"
     >
-      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-24 sm:px-6 sm:py-32 lg:grid-cols-2">
-        <div className="relative h-[420px] overflow-hidden rounded-3xl shadow-xl sm:h-[520px]">
-          <img
-            src={compassMap.src}
-            alt="Planning your trip"
-            className="parallax-img h-[130%] w-full object-cover"
-          />
-        </div>
+      <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-14 sm:gap-12 sm:px-6 sm:py-32 lg:grid-cols-2">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">
             Plotted by locals
           </span>
-          <h2 className="mt-3 font-display text-4xl font-bold text-text sm:text-5xl">
+          <h2 className="mt-3 font-display text-3xl font-bold text-text sm:text-5xl">
             Every trip{" "}
             <span className="italic font-light text-gradient-warm">
               handcrafted
             </span>
             , never templated.
           </h2>
-          <p className="mt-5 max-w-lg text-text-secondary">
+          <p className="mt-4 max-w-lg text-sm leading-relaxed text-text-secondary sm:mt-5 sm:text-base">
             Our organisers are Ghana-grown — drivers who know which road floods
             in August, chefs who source from their cousin&apos;s farm, guides
             who can read the bush. You get the real story, not a glossy
             brochure.
           </p>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-5">
             {[
               { k: "Verified organisers", v: 38, s: "+" },
               { k: "Departures this month", v: 24, s: "" },
@@ -104,7 +85,7 @@ const ParallaxBlock = () => {
             ].map((s) => (
               <div
                 key={s.k}
-                className="rounded-2xl border border-border bg-surface p-5"
+                className="rounded-2xl border border-border bg-surface p-3.5 sm:p-5"
               >
                 <div
                   className="font-display text-3xl font-bold text-primary"
@@ -117,6 +98,9 @@ const ParallaxBlock = () => {
               </div>
             ))}
           </div>
+        </div>
+        <div className="relative mx-auto h-[300px] w-full max-w-md sm:mx-0 sm:h-[520px] sm:max-w-none lg:order-first">
+          <GhanaLocalMap />
         </div>
       </div>
     </section>

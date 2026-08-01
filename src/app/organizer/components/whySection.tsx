@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { Globe, Users, Shield, TrendingUp } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import cityFromHigh from "@public/images/city-from-high.jpg";
+import highShot from "@public/images/high-shot.jpg";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -12,23 +14,59 @@ const WHY_BENEFITS = [
     icon: Globe,
     title: "Built for West Africa",
     desc: "Mobile money, local payment methods, and travelers who actively book group trips across Ghana and the region.",
+    tag: "Local-first",
+    theme: {
+      mesh: "radial-gradient(ellipse 90% 70% at 100% 0%, rgba(196,134,76,0.28), transparent 65%)",
+      iconGradient: "linear-gradient(145deg, #e0a86a 0%, #a0622e 100%)",
+      glow: "rgba(196, 134, 76, 0.22)",
+      tagBg: "rgba(196, 134, 76, 0.16)",
+      tagColor: "#8b5a2b",
+      accent: "#c4864c",
+    },
   },
   {
     icon: Users,
     title: "Fill your trips faster",
     desc: "List on a marketplace where travelers search by destination, dates, and budget — and find you.",
+    tag: "Discovery",
+    theme: {
+      mesh: "radial-gradient(ellipse 90% 70% at 0% 0%, rgba(107,63,29,0.2), transparent 65%)",
+      iconGradient: "linear-gradient(145deg, #8b5a2b 0%, #4a2a12 100%)",
+      glow: "rgba(107, 63, 29, 0.18)",
+      tagBg: "rgba(107, 63, 29, 0.1)",
+      tagColor: "#6b3f1d",
+      accent: "#6b3f1d",
+    },
   },
   {
     icon: Shield,
     title: "Trust that converts",
     desc: "Verified organizer badges, authentic reviews, and transparent seat counts help travelers book with confidence.",
+    tag: "Verified",
+    theme: {
+      mesh: "radial-gradient(ellipse 90% 70% at 100% 100%, rgba(46,125,82,0.16), transparent 65%)",
+      iconGradient: "linear-gradient(145deg, #3d9a6a 0%, #1f5c3a 100%)",
+      glow: "rgba(46, 125, 82, 0.16)",
+      tagBg: "rgba(46, 125, 82, 0.12)",
+      tagColor: "#2e7d52",
+      accent: "#2e7d52",
+    },
   },
   {
     icon: TrendingUp,
     title: "Grow repeat business",
     desc: "Build a profile travelers return to. Past guests can review, rebook, and recommend your trips.",
+    tag: "Retention",
+    theme: {
+      mesh: "radial-gradient(ellipse 90% 70% at 0% 100%, rgba(196,134,76,0.22), transparent 65%)",
+      iconGradient: "linear-gradient(145deg, #f0b872 0%, #c4864c 100%)",
+      glow: "rgba(196, 134, 76, 0.2)",
+      tagBg: "rgba(196, 134, 76, 0.14)",
+      tagColor: "#8b5a2b",
+      accent: "#c4864c",
+    },
   },
-];
+] as const;
 
 export function WhySection() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -65,20 +103,21 @@ export function WhySection() {
         }
       );
 
-      /* ── benefit cells stagger up with 3-D flip ── */
-      gsap.fromTo(
-        cellRefs.current.filter(Boolean),
-        { y: 48, opacity: 0, rotateX: 12, transformPerspective: 900 },
-        {
-          y: 0,
-          opacity: 1,
-          rotateX: 0,
-          duration: 0.75,
-          ease: "power3.out",
-          stagger: 0.12,
-          scrollTrigger: { trigger: sectionRef.current, start: "top 65%", once: true },
-        }
-      );
+      /* ── benefit cells stagger in ── */
+      const cells = cellRefs.current.filter(Boolean);
+      gsap.from(cells, {
+        y: 56,
+        opacity: 0,
+        scale: 0.96,
+        duration: 0.8,
+        ease: "power3.out",
+        stagger: 0.1,
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: "top 70%",
+          once: true,
+        },
+      });
 
       /* ── image parallax on scroll ── */
       gsap.to(imageRef.current, {
@@ -96,37 +135,24 @@ export function WhySection() {
     return () => ctx.revert();
   }, []);
 
-  /* ── card magnetic hover ── */
+  useEffect(() => {
+    ScrollTrigger.refresh();
+  }, []);
+
+  /* ── card hover: lift + glow ── */
   useEffect(() => {
     const cards = cellRefs.current.filter(Boolean) as HTMLDivElement[];
     const cleanup: (() => void)[] = [];
 
     cards.forEach((card) => {
-      const onMove = (e: MouseEvent) => {
-        const r = card.getBoundingClientRect();
-        const x = ((e.clientX - r.left) / r.width - 0.5) * 14;
-        const y = ((e.clientY - r.top) / r.height - 0.5) * -14;
-        gsap.to(card, {
-          rotateY: x,
-          rotateX: y,
-          scale: 1.02,
-          duration: 0.35,
-          ease: "power2.out",
-          transformPerspective: 800,
-        });
-      };
+      const onEnter = () =>
+        gsap.to(card, { y: -6, scale: 1.015, duration: 0.4, ease: "power2.out" });
       const onLeave = () =>
-        gsap.to(card, {
-          rotateY: 0,
-          rotateX: 0,
-          scale: 1,
-          duration: 0.6,
-          ease: "elastic.out(1, 0.7)",
-        });
-      card.addEventListener("mousemove", onMove);
+        gsap.to(card, { y: 0, scale: 1, duration: 0.5, ease: "power2.out" });
+      card.addEventListener("mouseenter", onEnter);
       card.addEventListener("mouseleave", onLeave);
       cleanup.push(() => {
-        card.removeEventListener("mousemove", onMove);
+        card.removeEventListener("mouseenter", onEnter);
         card.removeEventListener("mouseleave", onLeave);
       });
     });
@@ -147,20 +173,15 @@ export function WhySection() {
         [ benefit-3 ][ cta-band ──────────]
       */}
       <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: "1fr 1.35fr 1fr",
-          gridTemplateRows: "auto auto auto",
-        }}
+        id="why-bento"
+        className="grid gap-3 max-md:grid-cols-1 md:max-lg:grid-cols-2 lg:grid-cols-[1fr_1.35fr_1fr]"
       >
         {/* ── A: BIG HEADLINE PANEL (top-left, spans 1 col × 1 row) ── */}
         <div
           ref={headlineRef}
-          className="relative flex flex-col justify-between overflow-hidden rounded-3xl p-8 lg:p-10"
+          className="bento-headline-panel relative flex flex-col justify-between overflow-hidden rounded-[20px] p-8 lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:p-10 max-lg:col-span-full"
           style={{
             background: "var(--primary-dark)",
-            gridColumn: "1",
-            gridRow: "1 / 3",
             minHeight: 340,
             opacity: 0,
           }}
@@ -211,63 +232,25 @@ export function WhySection() {
 
         {/* ── B: IMAGE PANEL (center, spans 1 col × 2 rows) ── */}
         <div
-          className="relative overflow-hidden rounded-3xl"
-          style={{ gridColumn: "2", gridRow: "1 / 3", minHeight: 480 }}
+          className="bento-image-panel relative overflow-hidden rounded-[20px] lg:col-start-2 lg:row-start-1 lg:row-span-2 max-lg:col-span-full"
+          style={{ minHeight: 480 }}
         >
           <div
             ref={imageRef}
             className="absolute inset-0"
             style={{ opacity: 0 }}
           >
-            {/* Ghana/adventure landscape illustration using CSS + SVG */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cityFromHigh.src}
+              alt="Aerial view of a Ghanaian city nestled in a valley with mountains beyond"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
             <div
               className="absolute inset-0"
               style={{
-                background: "linear-gradient(160deg, #2a1b0f 0%, #4a2a12 40%, #6b3f1d 70%, #c4864c 100%)",
-              }}
-            />
-            {/* Decorative SVG landscape silhouette */}
-            <svg
-              className="absolute bottom-0 left-0 right-0 w-full"
-              viewBox="0 0 600 300"
-              preserveAspectRatio="xMidYMax slice"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* distant mountains */}
-              <path
-                d="M0 220 L60 160 L120 200 L180 140 L240 180 L300 120 L360 170 L420 130 L480 165 L540 145 L600 160 L600 300 L0 300Z"
-                fill="rgba(74,42,18,0.6)"
-              />
-              {/* mid mountains */}
-              <path
-                d="M0 260 L80 200 L160 240 L240 190 L320 230 L400 185 L480 215 L560 200 L600 210 L600 300 L0 300Z"
-                fill="rgba(42,27,15,0.8)"
-              />
-              {/* baobab silhouette */}
-              <rect x="88" y="195" width="8" height="65" fill="rgba(21,13,7,0.9)" rx="2" />
-              <ellipse cx="92" cy="190" rx="24" ry="16" fill="rgba(21,13,7,0.9)" />
-              <rect x="268" y="185" width="6" height="75" fill="rgba(21,13,7,0.85)" rx="2" />
-              <ellipse cx="271" cy="180" rx="18" ry="13" fill="rgba(21,13,7,0.85)" />
-              {/* foreground ground */}
-              <path
-                d="M0 280 Q150 270 300 278 Q450 286 600 274 L600 300 L0 300Z"
-                fill="rgba(21,13,7,0.95)"
-              />
-            </svg>
-
-            {/* golden sun */}
-            <div
-              className="absolute"
-              style={{
-                top: "18%",
-                left: "50%",
-                transform: "translateX(-50%)",
-                width: 72,
-                height: 72,
-                borderRadius: "50%",
-                background: "radial-gradient(circle, #f5c069 0%, #c4864c 60%, transparent 100%)",
-                boxShadow: "0 0 80px 30px rgba(196,134,76,0.3)",
+                background:
+                  "linear-gradient(180deg, rgba(42,27,15,0.15) 0%, rgba(42,27,15,0.35) 55%, rgba(42,27,15,0.72) 100%)",
               }}
             />
 
@@ -297,46 +280,49 @@ export function WhySection() {
           benefit={WHY_BENEFITS[0]}
           index={0}
           cellRef={(el) => { cellRefs.current[0] = el; }}
-          gridStyle={{ gridColumn: "3", gridRow: "1" }}
-          dark={false}
+          className="lg:col-start-3 lg:row-start-1"
         />
 
-        {/* Benefit 1 — middle left (below headline) */}
         <BentoCell
           benefit={WHY_BENEFITS[1]}
           index={1}
           cellRef={(el) => { cellRefs.current[1] = el; }}
-          gridStyle={{ gridColumn: "1", gridRow: "3" }}
-          dark={true}
+          className="lg:col-start-1 lg:row-start-3"
         />
 
-        {/* Benefit 2 — middle right */}
         <BentoCell
           benefit={WHY_BENEFITS[2]}
           index={2}
           cellRef={(el) => { cellRefs.current[2] = el; }}
-          gridStyle={{ gridColumn: "3", gridRow: "2" }}
-          dark={false}
+          className="lg:col-start-3 lg:row-start-2"
         />
 
         {/* ── D: BOTTOM BAND — image col + right col ── */}
         {/* Bottom center: stat band */}
         <div
-          className="flex items-center justify-around rounded-3xl px-8 py-6"
-          style={{
-            gridColumn: "2",
-            gridRow: "3",
-            background: "var(--gold)",
-          }}
+          className="bento-stat-band relative flex items-center justify-around overflow-hidden rounded-[20px] px-8 py-7 lg:col-start-2 lg:row-start-3 max-lg:col-span-full"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={highShot.src}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div
+            className="absolute inset-0 bg-black/60"
+            aria-hidden
+          />
           {[
             { v: "120+", l: "Destinations" },
             { v: "4.8k+", l: "Travelers" },
             { v: "GHS 2M+", l: "Paid out" },
           ].map(({ v, l }) => (
-            <div key={l} className="text-center">
-              <p className="font-display text-2xl font-black" style={{ color: "var(--primary-dark)" }}>{v}</p>
-              <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(42,27,15,0.65)" }}>{l}</p>
+            <div key={l} className="relative z-10 text-center">
+              <p className="font-display text-2xl font-black text-[#fbf7f1] sm:text-3xl">{v}</p>
+              <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-[rgba(251,247,241,0.75)]">
+                {l}
+              </p>
             </div>
           ))}
         </div>
@@ -346,120 +332,159 @@ export function WhySection() {
           benefit={WHY_BENEFITS[3]}
           index={3}
           cellRef={(el) => { cellRefs.current[3] = el; }}
-          gridStyle={{ gridColumn: "3", gridRow: "3" }}
-          dark={false}
+          className="lg:col-start-3 lg:row-start-3"
         />
       </div>
 
-      {/* ── Mobile fallback: simple 2-col grid ── */}
+      {/* ── Mobile: single-column stack ── */}
       <style>{`
-        @media (max-width: 768px) {
-          #why-bento {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            grid-template-rows: auto !important;
-          }
+        @media (max-width: 1023px) {
           #why-bento > * {
-            grid-column: auto !important;
+            grid-column: 1 / -1 !important;
             grid-row: auto !important;
           }
           #why-bento .bento-image-panel {
-            grid-column: 1 / -1 !important;
-            min-height: 240px !important;
+            min-height: 280px !important;
           }
-          #why-bento .bento-headline-panel {
-            grid-column: 1 / -1 !important;
-          }
-          #why-bento .bento-stat-band {
-            grid-column: 1 / -1 !important;
-          }
+        }
+        @keyframes why-card-shimmer {
+          0% { background-position: 200% center; }
+          100% { background-position: -200% center; }
+        }
+        .why-bento-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          padding: 1px;
+          background: linear-gradient(
+            105deg,
+            transparent 30%,
+            rgba(196, 134, 76, 0.55) 50%,
+            transparent 70%
+          );
+          background-size: 200% 100%;
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          opacity: 0;
+          transition: opacity 0.35s ease;
+          pointer-events: none;
+        }
+        .why-bento-card:hover::before {
+          opacity: 1;
+          animation: why-card-shimmer 2.2s linear infinite;
         }
       `}</style>
     </section>
   );
 }
 
-/* ─── BENTO CELL COMPONENT ──────────────────────────────────── */
+/* ─── BENTO CELL ─────────────────────────────────────────────── */
 function BentoCell({
   benefit,
   index,
   cellRef,
-  gridStyle,
-  dark,
+  className,
 }: {
-  benefit: (typeof WHY_BENEFITS)[0];
+  benefit: (typeof WHY_BENEFITS)[number];
   index: number;
   cellRef: (el: HTMLDivElement | null) => void;
-  gridStyle: React.CSSProperties;
-  dark: boolean;
+  className?: string;
 }) {
   const Icon = benefit.icon;
+  const { theme } = benefit;
+  const spotRef = useRef<HTMLDivElement>(null);
+
+  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!spotRef.current) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    spotRef.current.style.background = `radial-gradient(320px circle at ${x}px ${y}px, ${theme.glow}, transparent 72%)`;
+    spotRef.current.style.opacity = "1";
+  };
+
+  const handleLeave = () => {
+    if (!spotRef.current) return;
+    spotRef.current.style.opacity = "0";
+  };
 
   return (
     <div
       ref={cellRef}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-3xl p-7"
+      className={`why-bento-card group relative flex flex-col overflow-hidden rounded-[22px] border border-[var(--border-subtle)] bg-[var(--surface)] p-5 sm:p-6 ${className ?? ""}`}
       style={{
-        ...gridStyle,
-        background: dark ? "var(--text)" : "var(--surface)",
-        border: dark ? "none" : "1px solid var(--border)",
-        minHeight: 200,
-        opacity: 0,
+        boxShadow:
+          "0 2px 8px rgba(86, 47, 24, 0.05), 0 12px 32px rgba(86, 47, 24, 0.07)",
         willChange: "transform",
       }}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
     >
-      {/* hover shimmer */}
+      {/* cursor spotlight */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background: dark
-            ? "radial-gradient(circle at 30% 30%, rgba(196,134,76,0.08) 0%, transparent 60%)"
-            : "radial-gradient(circle at 30% 30%, rgba(107,63,29,0.04) 0%, transparent 60%)",
-        }}
+        ref={spotRef}
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300"
+        aria-hidden
       />
 
-      {/* top: index label + icon */}
-      <div className="relative flex items-start justify-between">
+      {/* gradient mesh */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: theme.mesh }}
+        aria-hidden
+      />
+
+      {/* watermark icon */}
+      <Icon
+        className="pointer-events-none absolute -bottom-4 -right-4 h-28 w-28 opacity-[0.06]"
+        style={{ color: theme.accent }}
+        strokeWidth={1}
+        aria-hidden
+      />
+
+      {/* top row: index + icon */}
+      <div className="relative flex items-start justify-between gap-3">
         <span
-          className="font-display text-xs font-bold"
-          style={{ color: dark ? "rgba(251,247,241,0.25)" : "var(--text-tertiary)" }}
+          className="font-display text-[11px] font-bold tabular-nums tracking-[0.16em]"
+          style={{ color: "var(--text-tertiary)" }}
         >
           0{index + 1}
         </span>
         <div
-          className="flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-md transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3"
           style={{
-            background: dark ? "rgba(196,134,76,0.15)" : "var(--gold-dim)",
+            background: theme.iconGradient,
+            boxShadow: `0 8px 24px -6px ${theme.glow}`,
           }}
         >
-          <Icon
-            className="h-5 w-5"
-            style={{ color: dark ? "var(--gold)" : "var(--gold)" }}
-          />
+          <Icon className="h-5 w-5 text-[#fbf7f1]" strokeWidth={2} />
         </div>
       </div>
 
-      {/* bottom: text */}
-      <div className="relative mt-6">
+      <span
+        className="relative mt-2.5 inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]"
+        style={{ background: theme.tagBg, color: theme.tagColor }}
+      >
+        {benefit.tag}
+      </span>
+
+      {/* copy */}
+      <div className="relative mt-3 flex flex-col">
         <h3
-          className="font-display text-base font-bold leading-snug"
-          style={{ color: dark ? "#fbf7f1" : "var(--text)" }}
+          className="font-display text-lg font-bold leading-tight tracking-tight"
+          style={{ color: "var(--text)" }}
         >
           {benefit.title}
         </h3>
         <p
-          className="mt-2 text-sm leading-relaxed"
-          style={{ color: dark ? "rgba(251,247,241,0.55)" : "var(--text-secondary)" }}
+          className="mt-2 text-sm leading-[1.65]"
+          style={{ color: "var(--text-secondary)" }}
         >
           {benefit.desc}
         </p>
       </div>
-
-      {/* bottom accent line */}
-      <div
-        className="absolute bottom-0 left-0 h-0.5 w-0 transition-all duration-500 group-hover:w-full"
-        style={{ background: "var(--gradient-brand)" }}
-      />
     </div>
   );
 }

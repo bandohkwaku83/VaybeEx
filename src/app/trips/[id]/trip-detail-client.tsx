@@ -6,743 +6,1342 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
-  ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Clock,
-  Compass, Heart, MapPin, Mountain, Palmtree, Share2, Shield,
-  Sparkles, Star, Users, X, Binoculars, Building2, Landmark,
-  Utensils, Bus, Tent, Camera,
+  ArrowLeft,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Heart,
+  HeartHandshake,
+  MapPin,
+  Share2,
+  Shield,
+  Star,
+  Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VerifiedBadge } from "@/components/trips/verified-badge";
-import { SeatCounter } from "@/components/trips/seat-counter";
 import { StarRating } from "@/components/trips/star-rating";
 import { useAuth } from "@/hooks/use-auth";
 import { useWishlist } from "@/hooks/use-wishlist";
+import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { cn, formatCurrency, formatDateRange } from "@/lib/utils";
-import { getSpotsLeft } from "@/lib/mock-data";
+import { trackTripEvent } from "@/lib/api/public-trips";
 import { formatRefundPolicyLabel } from "@/lib/refund-utils";
-import type { Organizer, Trip, TripCategory } from "@/lib/types";
-
-gsap.registerPlugin(ScrollTrigger);
+import {
+  formatSpotsLeftLabel,
+  getSpotsLeft,
+  isTripBookable,
+  isTripFull,
+} from "@/lib/trip-capacity";
+import {
+  getTenantBrandHomeUrl,
+  getTripPublicSlug,
+} from "@/lib/tenant";
+import { getBrandFromHost } from "@/lib/tenant-host";
+import { tripSpecialtyLabel } from "@/lib/trip-specialties";
+import type { Organizer, Trip } from "@/lib/types";
 
 interface TripDetailClientProps {
   trip: Trip;
   organizer: Organizer;
 }
 
-const CATEGORY_META: Record<TripCategory, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  adventure: { label: "Adventure", icon: Mountain },
-  beach: { label: "Beach", icon: Palmtree },
-  cultural: { label: "Cultural", icon: Landmark },
-  wildlife: { label: "Wildlife", icon: Binoculars },
-  city: { label: "City", icon: Building2 },
-  wellness: { label: "Wellness", icon: Sparkles },
-};
-
-const INCLUDED_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  guide: Compass, meal: Utensils, transport: Bus, camp: Tent, insurance: Shield, photo: Camera,
-};
-function getIncludedIcon(item: string) {
-  const lower = item.toLowerCase();
-  for (const [key, Icon] of Object.entries(INCLUDED_ICONS)) {
-    if (lower.includes(key)) return Icon;
-  }
-  return Check;
+function formatClock(time?: string) {
+  if (!time) return null;
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h)) return time;
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
 }
 
-function getTripDuration(start: string, end: string) {
-  return Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)) + 1;
-}
-
-/* ════════════════════════════════════════════════════════════════
-   LIGHTBOX — full-screen image viewer with prev/next navigation
-   and keyboard support. Mounted at document root via a portal-like
-   pattern (rendered at the top of the component tree but absolutely
-   positioned over everything).
-════════════════════════════════════════════════════════════════ */
-function Lightbox({ images, startIndex, onClose }: { images: string[]; startIndex: number; onClose: () => void }) {
+function Lightbox({
+  images,
+  startIndex,
+  onClose,
+}: {
+  images: string[];
+  startIndex: number;
+  onClose: () => void;
+}) {
   const [index, setIndex] = useState(startIndex);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const imgWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" });
-    gsap.fromTo(imgWrapRef.current, { scale: 0.93, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: "power3.out" });
+    gsap.fromTo(
+      overlayRef.current,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.2, ease: "power2.out" }
+    );
   }, []);
-
-  const goTo = (next: number) => {
-    const el = imgWrapRef.current;
-    if (!el) return;
-    const dir = next > index ? 1 : -1;
-    gsap.fromTo(el, { x: dir * 40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.25, ease: "power2.out" });
-    setIndex(((next % images.length) + images.length) % images.length);
-  };
-
-  const close = () => {
-    gsap.to(overlayRef.current, {
-      opacity: 0,
-      duration: 0.2,
-      onComplete: onClose,
-    });
-  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-      if (e.key === "ArrowRight") goTo(index + 1);
-      if (e.key === "ArrowLeft") goTo(index - 1);
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight")
+        setIndex((i) => (i + 1) % images.length);
+      if (e.key === "ArrowLeft")
+        setIndex((i) => (i - 1 + images.length) % images.length);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index]);
+  }, [images.length, onClose]);
 
   return (
     <div
       ref={overlayRef}
       className="fixed inset-0 z-[100] flex flex-col"
-      style={{ background: "rgba(10,6,3,0.95)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(10,6,3,0.94)" }}
     >
-      {/* Header */}
       <div className="flex shrink-0 items-center justify-between px-5 py-4">
-        <p className="text-sm font-medium" style={{ color: "rgba(251,247,241,0.7)" }}>
+        <p className="text-sm" style={{ color: "rgba(251,247,241,0.7)" }}>
           {index + 1} / {images.length}
         </p>
         <button
           type="button"
-          onClick={close}
-          className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
-          style={{ background: "rgba(251,247,241,0.1)", color: "#fbf7f1" }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(251,247,241,0.2)")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(251,247,241,0.1)")}
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-none"
+          style={{ background: "rgba(251,247,241,0.12)", color: "#fbf7f1" }}
         >
           <X className="h-4 w-4" />
         </button>
       </div>
-
-      {/* Image stage */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-14">
-        <div ref={imgWrapRef} className="relative h-full max-h-[75vh] w-full max-w-5xl">
+      <div className="relative flex flex-1 items-center justify-center px-12">
+        <div className="relative h-full max-h-[78vh] w-full max-w-5xl">
           <Image
             key={images[index]}
             src={images[index]}
-            alt={`Photo ${index + 1}`}
+            alt=""
             fill
             className="object-contain"
             priority
           />
         </div>
-
         <button
           type="button"
-          onClick={() => goTo(index - 1)}
-          className="absolute left-3 flex h-11 w-11 items-center justify-center rounded-full transition-colors"
+          onClick={() =>
+            setIndex((i) => (i - 1 + images.length) % images.length)
+          }
+          className="absolute left-3 flex h-10 w-10 items-center justify-center rounded-full"
           style={{ background: "rgba(251,247,241,0.12)", color: "#fbf7f1" }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(251,247,241,0.22)")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(251,247,241,0.12)")}
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <button
           type="button"
-          onClick={() => goTo(index + 1)}
-          className="absolute right-3 flex h-11 w-11 items-center justify-center rounded-full transition-colors"
+          onClick={() => setIndex((i) => (i + 1) % images.length)}
+          className="absolute right-3 flex h-10 w-10 items-center justify-center rounded-full"
           style={{ background: "rgba(251,247,241,0.12)", color: "#fbf7f1" }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(251,247,241,0.22)")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(251,247,241,0.12)")}
         >
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
-
-      {/* Thumbnail strip */}
-      <div className="shrink-0 overflow-x-auto px-5 pb-5 pt-4">
-        <div className="flex gap-2 justify-center">
-          {images.map((src, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => goTo(i)}
-              className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition-all"
-              style={{ borderColor: i === index ? "var(--gold)" : "transparent" }}
-            >
-              <Image src={src} alt="" fill className="object-cover" />
-              {i !== index && <div className="absolute inset-0 bg-black/40" />}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
 
-
-function HeroMosaic({ images, onOpen }: { images: string[]; onOpen: (i: number) => void }) {
-  const focalRef = useRef<HTMLImageElement>(null);
-
-  useEffect(() => {
-    if (!focalRef.current) return;
-    gsap.fromTo(
-      focalRef.current,
-      { scale: 1.0 },
-      { scale: 1.06, duration: 9, ease: "none", yoyo: true, repeat: -1 }
-    );
-  }, []);
-
-  const count = images.length;
-
-  const MosaicCell = ({ src, index, className }: { src: string; index: number; className?: string }) => (
-    <button
-      type="button"
-      onClick={() => onOpen(index)}
-      className={cn(
-        "group relative block overflow-hidden",
-        className
-      )}
-    >
-      <Image
-        src={src}
-        alt={`Photo ${index + 1}`}
-        fill
-        className="object-cover transition-transform duration-700 group-hover:scale-105"
-        ref={index === 0 ? focalRef : undefined}
-        priority={index === 0}
-        sizes="(max-width: 768px) 100vw, 60vw"
-      />
-      <div
-        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{ background: "rgba(196,134,76,0.18)" }}
-      />
-    </button>
-  );
+/** Airbnb-style photo grid — inset, rounded, show-all control */
+function PhotoGallery({
+  images,
+  onOpen,
+}: {
+  images: string[];
+  onOpen: (i: number) => void;
+}) {
+  const pics = images.length ? images : ["/images/cta-image.jpg"];
+  const count = pics.length;
 
   if (count === 1) {
     return (
-      <div className="relative h-[55vh] w-full overflow-hidden">
-        <MosaicCell src={images[0]} index={0} className="absolute inset-0" />
-      </div>
+      <button
+        type="button"
+        onClick={() => onOpen(0)}
+        className="relative block h-[42vh] min-h-[280px] w-full overflow-hidden rounded-2xl sm:h-[52vh]"
+      >
+        <Image
+          src={pics[0]}
+          alt=""
+          fill
+          className="object-cover"
+          priority
+          sizes="100vw"
+        />
+      </button>
     );
   }
-
-  if (count === 2) {
-    return (
-      <div className="grid h-[65vh] grid-cols-[62%_38%] gap-1.5">
-        <MosaicCell src={images[0]} index={0} className="relative" />
-        <MosaicCell src={images[1]} index={1} className="relative" />
-      </div>
-    );
-  }
-
-  if (count === 3) {
-    return (
-      <div className="grid h-[65vh] grid-cols-[62%_38%] gap-1.5">
-        <MosaicCell src={images[0]} index={0} className="relative row-span-2" />
-        <MosaicCell src={images[1]} index={1} className="relative" />
-        <MosaicCell src={images[2]} index={2} className="relative" />
-      </div>
-    );
-  }
-
-  // 4+ images: large focal left, 2×2 right (last cell shows +N overflow badge)
-  const rightImages = images.slice(1, 5);
-  const overflow = Math.max(0, count - 5);
 
   return (
-    <div className="grid h-[70vh] min-h-[460px] grid-cols-[62%_38%] gap-1.5">
-      <MosaicCell src={images[0]} index={0} className="relative" />
-      <div className="grid grid-rows-2 gap-1.5">
-        <div className="grid grid-cols-2 gap-1.5">
-          {rightImages.slice(0, 2).map((src, i) => (
-            <MosaicCell key={i} src={src} index={i + 1} className="relative" />
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {rightImages.slice(2, 4).map((src, i) => {
-            const globalIdx = i + 3;
-            const isLast = i === 1 && overflow > 0;
-            return (
+    <div className="relative overflow-hidden rounded-2xl">
+      <div
+        className={cn(
+          "grid gap-1.5",
+          count === 2
+            ? "grid-cols-2"
+            : "grid-cols-1 sm:grid-cols-[1.4fr_1fr]"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(0)}
+          className="relative h-[280px] overflow-hidden sm:h-[420px]"
+        >
+          <Image
+            src={pics[0]}
+            alt=""
+            fill
+            className="object-cover transition-transform duration-500 hover:scale-[1.02]"
+            priority
+            sizes="(max-width: 640px) 100vw, 60vw"
+          />
+        </button>
+
+        {count >= 3 ? (
+          <div className="hidden grid-cols-2 grid-rows-2 gap-1.5 sm:grid">
+            {pics.slice(1, 5).map((src, i) => (
               <button
-                key={i}
+                key={src + i}
                 type="button"
-                onClick={() => onOpen(globalIdx)}
-                className="group relative overflow-hidden"
+                onClick={() => onOpen(i + 1)}
+                className="relative overflow-hidden"
               >
-                <Image src={src} alt="" fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
-                {isLast && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1" style={{ background: "rgba(42,27,15,0.72)" }}>
-                    <Camera className="h-5 w-5" style={{ color: "#fbf7f1" }} />
-                    <span className="font-display text-lg font-bold" style={{ color: "#fbf7f1" }}>+{overflow + 1}</span>
-                    <span className="text-xs" style={{ color: "rgba(251,247,241,0.7)" }}>more photos</span>
-                  </div>
-                )}
+                <Image
+                  src={src}
+                  alt=""
+                  fill
+                  className="object-cover transition-transform duration-500 hover:scale-[1.03]"
+                  sizes="25vw"
+                />
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpen(1)}
+            className="relative hidden h-[420px] overflow-hidden sm:block"
+          >
+            <Image
+              src={pics[1]}
+              alt=""
+              fill
+              className="object-cover transition-transform duration-500 hover:scale-[1.02]"
+              sizes="40vw"
+            />
+          </button>
+        )}
       </div>
+
+      {count > 1 && (
+        <button
+          type="button"
+          onClick={() => onOpen(0)}
+          className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm backdrop-blur-md"
+          style={{
+            background: "rgba(255,255,255,0.92)",
+            borderColor: "var(--border-strong)",
+            color: "var(--text)",
+          }}
+        >
+          <Camera className="h-3.5 w-3.5" />
+          Show all {count} photos
+        </button>
+      )}
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════════
-   BOOKING CARD — themed to match the project's brown/cream palette
-════════════════════════════════════════════════════════════════ */
-function BookingCard({
-  trip, isFull, onBook, onSave, onShare, wishlisted, className,
-}: { trip: Trip; isFull: boolean; onBook: () => void; onSave: () => void; onShare: () => void; wishlisted: boolean; className?: string }) {
-  const fillPct = Math.round((trip.booked / trip.capacity) * 100);
+function BookingPanel({
+  trip,
+  isFull,
+  onBook,
+  onSave,
+  onShare,
+  wishlisted,
+}: {
+  trip: Trip;
+  isFull: boolean;
+  onBook: () => void;
+  onSave: () => void;
+  onShare: () => void;
+  wishlisted: boolean;
+}) {
+  const bookable = isTripBookable(trip);
+  const spots = getSpotsLeft(trip);
+  const showCouple =
+    trip.offerCouplePrice !== false && trip.couplePrice != null;
+  const showGroup =
+    trip.offerGroupPrice !== false && trip.groupPrice != null;
+
   return (
-    <Card className={cn("overflow-hidden border shadow-2xl", className)} style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <div className="h-1" style={{ background: "var(--gradient-brand)" }} />
-      <CardContent className="p-6">
-        <div className="flex items-end justify-between gap-3">
+    <aside className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_30px_rgba(42,27,15,0.1)] ring-1 ring-black/[0.06]">
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>From</p>
-            <div className="flex items-baseline gap-1">
-              <span className="font-display text-3xl font-bold" style={{ color: "var(--text)" }}>{formatCurrency(trip.price)}</span>
-              <span style={{ color: "var(--text-tertiary)" }}>/ person</span>
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className="font-display text-[1.75rem] font-bold leading-none tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                {formatCurrency(trip.price)}
+              </span>
+              <span
+                className="text-sm"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                person
+              </span>
             </div>
+            <p
+              className="mt-2 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {bookable
+                ? `${formatCurrency(trip.depositAmount)} due today to reserve`
+                : trip.status === "completed"
+                  ? "This trip has already been completed"
+                  : "Booking is not available for this trip"}
+            </p>
           </div>
           {trip.rating > 0 && (
-            <div className="flex items-center gap-1 rounded-full px-2.5 py-1 text-sm" style={{ background: "var(--gold-dim)" }}>
-              <Star className="h-3.5 w-3.5 fill-current" style={{ color: "var(--gold)" }} />
-              <span className="font-semibold" style={{ color: "var(--primary)" }}>{trip.rating}</span>
-            </div>
+            <span
+              className="inline-flex items-center gap-1 text-sm font-semibold"
+              style={{ color: "var(--text)" }}
+            >
+              <Star
+                className="h-3.5 w-3.5 fill-current"
+                style={{ color: "var(--gold)" }}
+              />
+              {trip.rating}
+            </span>
           )}
         </div>
-        <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-          {formatCurrency(trip.depositAmount)} deposit to secure your spot
+
+        <div
+          className="mt-5 flex items-center gap-2 rounded-xl border px-3.5 py-3"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <Users
+            className="h-4 w-4 shrink-0"
+            style={{
+              color:
+                spots === 0
+                  ? "var(--coral)"
+                  : spots != null && spots <= 5
+                    ? "var(--amber)"
+                    : "#2e7d52",
+            }}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-[11px] font-medium uppercase tracking-wide"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Spots left
+            </p>
+            <p
+              className="truncate text-sm font-semibold"
+              style={{
+                color:
+                  spots === 0
+                    ? "var(--coral)"
+                    : spots != null && spots <= 5
+                      ? "var(--amber)"
+                      : "var(--text)",
+              }}
+            >
+              {formatSpotsLeftLabel(trip)}
+            </p>
+          </div>
+        </div>
+
+        {(showCouple || showGroup) && (
+          <div className="mt-5">
+            <p
+              className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Pricing options
+            </p>
+            <div
+              className="overflow-hidden rounded-xl border"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div
+                className="flex items-center justify-between px-3.5 py-2.5 text-sm"
+                style={{ background: "var(--bg-secondary)" }}
+              >
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Per person
+                </span>
+                <span className="font-semibold" style={{ color: "var(--text)" }}>
+                  {formatCurrency(trip.price)}
+                </span>
+              </div>
+              {showCouple && (
+                <div
+                  className="flex items-center justify-between border-t px-3.5 py-2.5 text-sm"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <span
+                    className="inline-flex items-center gap-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <HeartHandshake
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--gold)" }}
+                    />
+                    Couple
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {formatCurrency(trip.couplePrice!)}
+                  </span>
+                </div>
+              )}
+              {showGroup && (
+                <div
+                  className="flex items-center justify-between border-t px-3.5 py-2.5 text-sm"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <span
+                    className="inline-flex items-center gap-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <Users
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--gold)" }}
+                    />
+                    Group of {trip.groupSize ?? "—"}
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {formatCurrency(trip.groupPrice!)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onBook}
+          disabled={!bookable}
+          className="mt-5 flex h-12 w-full items-center justify-center rounded-none text-sm font-semibold text-white transition-opacity hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ background: "var(--primary)" }}
+        >
+          {!bookable
+            ? trip.status === "completed"
+              ? "Completed"
+              : "Unavailable"
+            : isFull
+              ? "Join waitlist"
+              : "Reserve"}
+        </button>
+
+        <p
+          className="mt-2.5 text-center text-xs"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          {bookable
+            ? "You won't be charged the full amount yet"
+            : "Booking is closed for this trip"}
         </p>
 
-        <Separator className="my-5" style={{ background: "var(--border)" }} />
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span style={{ color: "var(--text-secondary)" }}>Availability</span>
-            <span className="font-medium" style={{ color: "var(--text)" }}>{trip.booked}/{trip.capacity} booked</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--border)" }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${fillPct}%`, background: "var(--gradient-brand)" }} />
-          </div>
-          <SeatCounter trip={trip} live className="w-full justify-center" />
-        </div>
-
-        <div className="mt-5 space-y-2.5">
-          <Button
-            className="w-full rounded-xl text-sm font-semibold"
-            size="lg"
-            onClick={onBook}
-            style={{ background: "var(--gradient-brand)", color: "#fbf7f1", boxShadow: "var(--glow-gold)" }}
+        <div className="mt-4 flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={onSave}
+            className="inline-flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04]"
+            style={{ color: wishlisted ? "var(--coral)" : "var(--text)" }}
           >
-            {isFull ? "Join Waitlist" : "Book Now"}
-          </Button>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
-              onClick={onSave}
-            >
-              <Heart className={cn("h-4 w-4", wishlisted && "fill-current")} style={{ color: wishlisted ? "var(--coral)" : undefined }} />
-              Save
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
-              onClick={onShare}
-            >
-              <Share2 className="h-4 w-4" /> Share
-            </Button>
-          </div>
+            <Heart
+              className={cn("h-4 w-4", wishlisted && "fill-current")}
+              strokeWidth={1.75}
+            />
+            <span className="underline decoration-[1.5px] underline-offset-2">
+              {wishlisted ? "Saved" : "Save"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onShare}
+            className="inline-flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04]"
+            style={{ color: "var(--text)" }}
+          >
+            <Share2 className="h-4 w-4" strokeWidth={1.75} />
+            <span className="underline decoration-[1.5px] underline-offset-2">
+              Share
+            </span>
+          </button>
         </div>
+      </div>
 
-        <div className="mt-5 space-y-2.5 rounded-xl p-4" style={{ background: "var(--bg-secondary)" }}>
-          <div className="flex items-start gap-2.5 text-sm" style={{ color: "var(--text-secondary)" }}>
-            <Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
-            <span>{formatRefundPolicyLabel(trip)}</span>
-          </div>
-          <div className="flex items-start gap-2.5 text-sm" style={{ color: "var(--text-secondary)" }}>
-            <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--gold)" }} />
-            <span>No payment today — pay deposit to confirm</span>
-          </div>
-        </div>
+      <div
+        className="border-t px-6 py-4"
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--bg-secondary)",
+        }}
+      >
+        <p
+          className="flex items-start gap-2.5 text-sm leading-snug"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          <Shield
+            className="mt-0.5 h-4 w-4 shrink-0"
+            style={{ color: "var(--primary)" }}
+          />
+          {formatRefundPolicyLabel(trip)}
+        </p>
 
         {trip.addOns.length > 0 && (
-          <div className="mt-5">
-            <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>Optional add-ons</p>
-            <ul className="mt-2 space-y-1.5">
-              {trip.addOns.slice(0, 3).map((addon) => (
-                <li key={addon.id} className="flex items-center justify-between text-sm" style={{ color: "var(--text-secondary)" }}>
-                  <span>{addon.name}</span>
-                  <span className="font-medium" style={{ color: "var(--text)" }}>+{formatCurrency(addon.price)}</span>
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+            <p
+              className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Add-ons
+            </p>
+            <ul className="space-y-2">
+              {trip.addOns.map((addon) => (
+                <li
+                  key={addon.id}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {addon.name}
+                    <span
+                      className="ml-1 text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      · {addon.perPerson === false ? "booking" : "person"}
+                    </span>
+                  </span>
+                  <span
+                    className="font-semibold tabular-nums"
+                    style={{ color: "var(--text)" }}
+                  >
+                    +{formatCurrency(addon.price)}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </aside>
   );
 }
 
 export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
   const router = useRouter();
-  const { requireAuth } = useAuth();
+  const { requireTravelerAuth } = useAuth();
   const { toggle, isWishlisted } = useWishlist();
   const [descExpanded, setDescExpanded] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
-  const spotsLeft = getSpotsLeft(trip);
-  const isFull = spotsLeft === 0;
-  const bookHref = `/trips/${trip.id}/book${isFull ? "?waitlist=true" : ""}`;
-  const duration = getTripDuration(trip.startDate, trip.endDate);
-  const CategoryIcon = CATEGORY_META[trip.category].icon;
-  const wishlisted = isWishlisted(trip.id);
+  const isFull = isTripFull(trip);
+  const bookable = isTripBookable(trip);
+  const organizerHomeHref = organizer.brandSlug
+    ? getTenantBrandHomeUrl(organizer.brandSlug)
+    : `/organizers/${organizer.id}`;
+  const wishlisted = isWishlisted(trip.id, trip.isFavorited === true);
+  const highlights = trip.highlights?.length
+    ? trip.highlights
+    : trip.included.slice(0, 4);
+  const hasLogistics = Boolean(
+    trip.meetingPoint ||
+      trip.departurePoint ||
+      trip.departureTime ||
+      trip.returnTime
+  );
 
-  const handleBook = () => requireAuth(() => router.push(bookHref), bookHref);
-  const handleSave = () => requireAuth(() => {
-    toggle(trip.id);
-    toast.success(wishlisted ? "Removed from wishlist" : "Saved to wishlist");
-  });
-  const handleShare = () => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied!"); };
+  const handleBook = () => {
+    const onTenant =
+      typeof window !== "undefined" &&
+      Boolean(getBrandFromHost(window.location.host));
+    // Always same-origin: Next's router.push strips host from absolute tenant URLs
+    // (e.g. http://brand.localhost/slug/book → /slug/book on apex → 404).
+    const dest = onTenant
+      ? `/${getTripPublicSlug(trip)}/book${isFull ? "?waitlist=true" : ""}`
+      : `/trips/${trip.id}/book${isFull ? "?waitlist=true" : ""}`;
+
+    requireTravelerAuth(() => {
+      void trackTripEvent(trip.id, "book_click").catch(() => {});
+      router.push(dest);
+    }, dest);
+  };
+
+
+  const handleSave = () =>
+    requireTravelerAuth(() => {
+      void (async () => {
+        const wasSaved = wishlisted;
+        try {
+          await toggle(trip.id);
+          toast.success(
+            wasSaved ? "Removed from wishlist" : "Saved to wishlist"
+          );
+        } catch {
+          /* hook toast */
+        }
+      })();
+    });
+
+  const handleShare = () => {
+    void navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied!");
+  };
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.fromTo(".trip-content-block", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, stagger: 0.09, ease: "power3.out", scrollTrigger: { trigger: pageRef.current, start: "top 70%", once: true } });
+      gsap.fromTo(
+        ".td-reveal",
+        { y: 18, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.55,
+          stagger: 0.06,
+          ease: "power3.out",
+        }
+      );
     }, pageRef);
     return () => ctx.revert();
   }, []);
 
   return (
     <>
- 
-      <div className="relative  w-full">
-        <HeroMosaic images={trip.images} onOpen={(i) => setLightboxIndex(i)} />
+      <div
+        ref={pageRef}
+        className="mx-auto max-w-6xl px-4 pb-28 pt-24 sm:px-6 sm:pt-28 lg:px-8 lg:pb-16"
+      >
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="td-reveal mb-5 inline-flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
 
-       
-
-        {/* "Show all photos" pill, bottom-right */}
-        {trip.images.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setLightboxIndex(0)}
-            className="absolute bottom-4 right-4 flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-md backdrop-blur-md sm:bottom-5 sm:right-5"
-            style={{ background: "rgba(251,247,241,0.9)", color: "var(--primary)" }}
-          >
-            <Camera className="h-4 w-4" />
-            All {trip.images.length} photos
-          </button>
-        )}
-      </div>
-
-      {/* ════════════════════════════════════════════════════════
-          Main content — padded back in below the mosaic
-      ════════════════════════════════════════════════════════ */}
-      <div ref={pageRef} className="mx-auto w-full px-4 pb-28 pt-8 sm:px-6 lg:px-8 lg:pb-12">
-        <div className="grid gap-10 lg:grid-cols-[1fr_380px] lg:gap-12">
-          <div>
-            {/* Header strip */}
-            <div className="trip-content-block flex flex-wrap items-center gap-2">
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium capitalize"
-                style={{ background: "var(--primary-dim)", color: "var(--primary)" }}
+        {/* Title block — identity before media; Share/Save on the right */}
+        <header className="td-reveal mb-5">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+            <div className="min-w-0 max-w-3xl">
+              <h1
+                className="font-display text-3xl font-bold tracking-tight sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]"
+                style={{ color: "var(--text)" }}
               >
-                <CategoryIcon className="h-3 w-3" />
-                {CATEGORY_META[trip.category].label}
-              </span>
-              {organizer.verified && <VerifiedBadge />}
-              <SeatCounter trip={trip} live />
-            </div>
-
-            <h1 className="trip-content-block font-display mt-3 text-3xl font-bold tracking-tight sm:text-4xl" style={{ color: "var(--text)" }}>
-              {trip.title}
-            </h1>
-
-            <div className="trip-content-block mt-3 flex flex-wrap items-center gap-x-4 gap-y-1" style={{ color: "var(--text-secondary)" }}>
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4" style={{ color: "var(--primary)" }} />
-                {trip.destination}
-              </span>
-              {trip.rating > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Star className="h-4 w-4 fill-current" style={{ color: "var(--gold)" }} />
-                  <span className="font-medium" style={{ color: "var(--text)" }}>{trip.rating}</span>
-                  <span>({trip.reviewCount} reviews)</span>
+                {trip.title}
+              </h1>
+              <div
+                className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <MapPin className="h-3.5 w-3.5" style={{ color: "var(--gold)" }} />
+                  {trip.destination}
                 </span>
-              )}
+                <span style={{ color: "var(--border-strong)" }}>·</span>
+                <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
+                {organizer.verified && (
+                  <>
+                    <span style={{ color: "var(--border-strong)" }}>·</span>
+                    <VerifiedBadge />
+                  </>
+                )}
+                {trip.rating > 0 && (
+                  <>
+                    <span style={{ color: "var(--border-strong)" }}>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Star
+                        className="h-3.5 w-3.5 fill-current"
+                        style={{ color: "var(--gold)" }}
+                      />
+                      <span className="font-medium" style={{ color: "var(--text)" }}>
+                        {trip.rating}
+                      </span>
+                      <span>({trip.reviewCount})</span>
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Quick info cards */}
-            <div className="trip-content-block mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { icon: Calendar, label: "Dates", value: formatDateRange(trip.startDate, trip.endDate) },
-                { icon: Clock, label: "Duration", value: `${duration} day${duration === 1 ? "" : "s"}` },
-                { icon: Users, label: "Group size", value: `Up to ${trip.capacity}` },
-                { icon: CategoryIcon, label: "Style", value: CATEGORY_META[trip.category].label },
-              ].map(({ icon: Icon, label, value }) => (
-                <div key={label} className="rounded-xl border p-3.5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                  <Icon className="h-4 w-4" style={{ color: "var(--primary)" }} />
-                  <p className="mt-2 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-tertiary)" }}>{label}</p>
-                  <p className="mt-0.5 text-sm font-medium" style={{ color: "var(--text)" }}>{value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Organizer link */}
-            <Link
-              href={`/organizers/${organizer.id}`}
-              className="trip-content-block mt-6 flex items-center gap-3 rounded-xl border p-4 transition-all"
-              style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border-strong)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)")}
+            <div
+              className="flex shrink-0 items-center gap-1 pt-1.5"
+              role="group"
+              aria-label="Trip actions"
             >
-              <Avatar className="h-11 w-11 ring-2" style={{ "--ring-color": "var(--primary-dim)" } as React.CSSProperties}>
-                <AvatarImage src={organizer.avatar} />
-                <AvatarFallback>{organizer.name[0]}</AvatarFallback>
+              <button
+                type="button"
+                onClick={handleShare}
+                aria-label="Share trip"
+                className="inline-flex items-center gap-2 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
+                style={{ color: "var(--text)" }}
+              >
+                <Share2 className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                <span className="underline decoration-[1.5px] underline-offset-[3px]">
+                  Share
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                aria-label={wishlisted ? "Remove from wishlist" : "Save trip"}
+                aria-pressed={wishlisted}
+                className="inline-flex items-center gap-2 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
+                style={{ color: "var(--text)" }}
+              >
+                <Heart
+                  className={cn(
+                    "h-[18px] w-[18px]",
+                    wishlisted && "fill-[var(--coral)] text-[var(--coral)]"
+                  )}
+                  strokeWidth={1.5}
+                />
+                <span className="underline decoration-[1.5px] underline-offset-[3px]">
+                  {wishlisted ? "Saved" : "Save"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div className="td-reveal mb-10">
+          <PhotoGallery
+            images={trip.images}
+            onOpen={(i) => setLightboxIndex(i)}
+          />
+        </div>
+
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
+          <div className="min-w-0">
+            {/* Host strip */}
+            <Link
+              href={organizerHomeHref}
+              className="td-reveal flex items-center gap-3 border-b pb-6"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <Avatar className="h-12 w-12">
+                <AvatarImage src={organizer.avatar || DEFAULT_PROFILE_IMAGE} />
+                <AvatarFallback className="overflow-hidden p-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={DEFAULT_PROFILE_IMAGE}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium" style={{ color: "var(--text)" }}>Hosted by {organizer.name}</span>
-                  {organizer.verified && <VerifiedBadge />}
-                </div>
-                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{organizer.tripCount} trips · {organizer.rating} rating</p>
+                <p className="font-medium" style={{ color: "var(--text)" }}>
+                  Hosted by {organizer.name}
+                </p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {[
+                    organizer.location,
+                    formatSpotsLeftLabel(trip),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
               </div>
-              <ChevronRight className="h-5 w-5 shrink-0" style={{ color: "var(--text-tertiary)" }} />
+              <ChevronRight
+                className="h-5 w-5 shrink-0"
+                style={{ color: "var(--text-tertiary)" }}
+              />
             </Link>
 
+            {/* Highlights — open list, not boxed cards */}
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                What you&apos;ll experience
+              </h2>
+              <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+                {highlights.map((item, i) => (
+                  <li
+                    key={`${item}-${i}`}
+                    className="flex items-start gap-3 text-sm leading-snug"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <Check
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      style={{ color: "var(--gold)" }}
+                    />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
             {/* About */}
-            <section className="trip-content-block mt-8">
-              <h2 className="font-display text-lg font-semibold" style={{ color: "var(--text)" }}>About this trip</h2>
-              <p className={cn("mt-3 leading-relaxed", !descExpanded && "line-clamp-3")} style={{ color: "var(--text-secondary)" }}>
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                About this trip
+              </h2>
+              <p
+                className={cn(
+                  "mt-4 text-[15px] leading-relaxed",
+                  !descExpanded && "line-clamp-5"
+                )}
+                style={{ color: "var(--text-secondary)" }}
+              >
                 {trip.description}
               </p>
-              {trip.description.length > 180 && (
-                <button type="button" onClick={() => setDescExpanded((v) => !v)} className="mt-2 text-sm font-medium" style={{ color: "var(--primary)" }}>
-                  {descExpanded ? "Show less" : "Read more"}
+              {trip.description.length > 220 && (
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded((v) => !v)}
+                  className="mt-3 text-sm font-semibold underline underline-offset-4"
+                  style={{ color: "var(--text)" }}
+                >
+                  {descExpanded ? "Show less" : "Show more"}
                 </button>
               )}
             </section>
 
-            {/* Highlights */}
-            <section className="trip-content-block mt-8">
-              <h2 className="font-display text-lg font-semibold" style={{ color: "var(--text)" }}>Trip highlights</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {trip.included.slice(0, 6).map((item) => {
-                  const Icon = getIncludedIcon(item);
-                  return (
-                    <div key={item} className="flex items-center gap-2.5 rounded-xl px-3.5 py-3 text-sm" style={{ background: "var(--bg-secondary)" }}>
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--surface)" }}>
-                        <Icon className="h-4 w-4" style={{ color: "var(--primary)" }} />
+            {/* Itinerary timeline */}
+            {trip.itinerary.length > 0 && (
+              <section
+                className="td-reveal border-b py-8"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <h2
+                  className="font-display text-xl font-semibold tracking-tight"
+                  style={{ color: "var(--text)" }}
+                >
+                  Itinerary
+                </h2>
+                <p className="mt-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {trip.itinerary.length} day
+                  {trip.itinerary.length === 1 ? "" : "s"} planned with your host
+                </p>
+
+                <ol className="relative mt-8 space-y-0">
+                  {trip.itinerary.map((day, idx) => (
+                    <li key={day.day} className="relative flex gap-4 pb-8 last:pb-0">
+                      {idx < trip.itinerary.length - 1 && (
+                        <span
+                          className="absolute left-[15px] top-8 bottom-0 w-px"
+                          style={{ background: "var(--border-strong)" }}
+                        />
+                      )}
+                      <span
+                        className="relative z-[1] flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                        style={{
+                          background: "var(--primary)",
+                          color: "#fbf7f1",
+                        }}
+                      >
+                        {day.day}
+                      </span>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <h3
+                          className="font-medium"
+                          style={{ color: "var(--text)" }}
+                        >
+                          {day.title}
+                        </h3>
+                        <ul className="mt-2 space-y-1.5">
+                          {day.activities.map((activity, i) => (
+                            <li
+                              key={i}
+                              className="flex items-start gap-2 text-sm"
+                              style={{ color: "var(--text-secondary)" }}
+                            >
+                              <Clock
+                                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                                style={{ color: "var(--gold)" }}
+                              />
+                              {activity}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <span className="leading-snug" style={{ color: "var(--text)" }}>{item}</span>
-                    </div>
-                  );
-                })}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
+
+            {/* Included */}
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                What&apos;s included
+              </h2>
+              <div className="mt-5 grid gap-8 sm:grid-cols-2">
+                <div>
+                  <p
+                    className="mb-3 text-xs font-semibold uppercase tracking-[0.14em]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    Included
+                  </p>
+                  <ul className="space-y-2.5">
+                    {trip.included.map((item) => (
+                      <li
+                        key={item}
+                        className="flex items-start gap-2.5 text-sm"
+                        style={{ color: "var(--text)" }}
+                      >
+                        <Check
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                          style={{ color: "var(--gold)" }}
+                        />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {trip.excluded.length > 0 && (
+                  <div>
+                    <p
+                      className="mb-3 text-xs font-semibold uppercase tracking-[0.14em]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Not included
+                    </p>
+                    <ul className="space-y-2.5">
+                      {trip.excluded.map((item) => (
+                        <li
+                          key={item}
+                          className="flex items-start gap-2.5 text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          <X
+                            className="mt-0.5 h-4 w-4 shrink-0"
+                            style={{ color: "var(--coral)" }}
+                          />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </section>
 
-            {/* Tabs */}
-            <div className="trip-content-block mt-10">
-              <Tabs defaultValue="itinerary">
-                <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl p-1" style={{ background: "var(--bg-secondary)" }}>
-                  {(["itinerary", "included", "reviews", "organizer"] as const).map((tab) => (
-                    <TabsTrigger key={tab} value={tab} className="rounded-lg capitalize data-[state=active]:shadow-sm">
-                      {tab}
-                      {tab === "reviews" && trip.reviewCount > 0 && (
-                        <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-xs tabular-nums" style={{ background: "var(--border)", color: "var(--text-secondary)" }}>
-                          {trip.reviewCount}
+            {/* Logistics */}
+            {hasLogistics && (
+              <section
+                className="td-reveal border-b py-8"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <h2
+                  className="font-display text-xl font-semibold tracking-tight"
+                  style={{ color: "var(--text)" }}
+                >
+                  Where to meet
+                </h2>
+                <dl className="mt-5 grid gap-5 sm:grid-cols-2">
+                  {trip.meetingPoint && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Meeting point
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium leading-snug"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {trip.meetingPoint}
+                      </dd>
+                    </div>
+                  )}
+                  {trip.departurePoint && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Departure
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium leading-snug"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {trip.departurePoint}
+                      </dd>
+                    </div>
+                  )}
+                  {trip.departureTime && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Departs
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {formatClock(trip.departureTime)}
+                      </dd>
+                    </div>
+                  )}
+                  {trip.returnTime && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Returns
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {formatClock(trip.returnTime)}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            )}
+
+            {/* Reviews */}
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                {trip.reviews.length > 0
+                  ? `${trip.rating} · ${trip.reviewCount} reviews`
+                  : "Reviews"}
+              </h2>
+              {trip.reviews.length === 0 ? (
+                <p className="mt-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  No reviews yet — be among the first travelers on this trip.
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  {trip.reviews.map((review) => (
+                    <article key={review.id}>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={review.avatar} />
+                          <AvatarFallback>{review.author[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p
+                            className="text-sm font-medium"
+                            style={{ color: "var(--text)" }}
+                          >
+                            {review.author}
+                          </p>
+                          <p
+                            className="text-xs"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            {review.date}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <StarRating rating={review.rating} size="sm" />
+                      </div>
+                      <p
+                        className="mt-2 text-sm leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {review.comment}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Host — editorial portrait panel */}
+            <section className="td-reveal py-8">
+              <p
+                className="text-[11px] font-semibold uppercase tracking-[0.2em]"
+                style={{ color: "var(--gold)" }}
+              >
+                Your host
+              </p>
+              <h2
+                className="mt-2 font-display text-2xl font-bold tracking-tight sm:text-[1.75rem]"
+                style={{ color: "var(--text)" }}
+              >
+                Meet {organizer.name.split(" ")[0]}
+              </h2>
+
+              <div
+                className="relative mt-6 overflow-hidden rounded-3xl"
+                style={{
+                  background:
+                    "linear-gradient(145deg, var(--bg-secondary) 0%, #fff 48%, var(--surface-raised) 100%)",
+                }}
+              >
+                {/* Decorative corner wash */}
+                <div
+                  className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full opacity-40"
+                  style={{
+                    background:
+                      "radial-gradient(circle, var(--gold-dim) 0%, transparent 70%)",
+                  }}
+                />
+
+                <div className="relative grid gap-6 p-6 sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8">
+                  {/* Portrait + verified seal */}
+                  <div className="flex flex-col items-center sm:items-start">
+                    <div className="relative">
+                      <div
+                        className="h-28 w-28 overflow-hidden rounded-full sm:h-32 sm:w-32"
+                        style={{
+                          boxShadow:
+                            "0 0 0 4px #fff, 0 18px 40px -20px rgba(42,27,15,0.45)",
+                        }}
+                      >
+                        <Avatar className="h-full w-full">
+                          <AvatarImage
+                            src={organizer.avatar || DEFAULT_PROFILE_IMAGE}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="overflow-hidden p-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={DEFAULT_PROFILE_IMAGE}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                      {organizer.verified && (
+                        <span
+                          className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-white"
+                          style={{ background: "var(--primary)" }}
+                          title="Identity verified"
+                        >
+                          <Check
+                            className="h-4 w-4 text-[#fbf7f1]"
+                            strokeWidth={3}
+                          />
                         </span>
                       )}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
-                <TabsContent value="itinerary">
-                  <div className="relative mt-6 space-y-0">
-                    {trip.itinerary.map((day, idx) => (
-                      <div key={day.day} className="relative flex gap-5 pb-8 last:pb-0">
-                        {idx < trip.itinerary.length - 1 && (
-                          <div className="absolute left-[15px] top-10 h-[calc(100%-16px)] w-0.5" style={{ background: "linear-gradient(to bottom, var(--gold-dim), var(--border))" }} />
-                        )}
-                        <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: "var(--gradient-brand)", color: "#fbf7f1" }}>
-                          {day.day}
-                        </div>
-                        <div className="min-w-0 flex-1 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                          <h3 className="font-semibold" style={{ color: "var(--text)" }}>{day.title}</h3>
-                          <ul className="mt-3 space-y-2">
-                            {day.activities.map((activity, i) => (
-                              <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: "var(--text-secondary)" }}>
-                                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--gold)" }} />
-                                {activity}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="included">
-                  <div className="mt-6 space-y-6">
-                    <div>
-                      <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--gold)" }}>What&apos;s included</h3>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {trip.included.map((item) => {
-                          const Icon = getIncludedIcon(item);
-                          return (
-                            <div key={item} className="flex items-center gap-3 rounded-xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                              <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--gold)" }} />
-                              <span className="text-sm" style={{ color: "var(--text)" }}>{item}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
-                    {trip.excluded.length > 0 && (
-                      <div>
-                        <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--coral)" }}>Not included</h3>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {trip.excluded.map((item) => (
-                            <div key={item} className="flex items-center gap-3 rounded-xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                              <X className="h-4 w-4 shrink-0" style={{ color: "var(--coral)" }} />
-                              <span className="text-sm" style={{ color: "var(--text)" }}>{item}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                    {organizer.verified && (
+                      <p
+                        className="mt-3 text-center text-xs font-medium sm:text-left"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Identity verified
+                      </p>
                     )}
                   </div>
-                </TabsContent>
 
-                <TabsContent value="reviews">
-                  <div className="mt-6">
-                    {trip.reviews.length === 0 ? (
-                      <div className="flex flex-col items-center rounded-xl border border-dashed py-12 text-center" style={{ borderColor: "var(--border)" }}>
-                        <Star className="h-8 w-8" style={{ color: "var(--border)" }} />
-                        <p className="mt-3 font-medium" style={{ color: "var(--text)" }}>No reviews yet</p>
-                        <p className="mt-1 text-sm" style={{ color: "var(--text-tertiary)" }}>Be the first to share your experience!</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mb-6 flex items-center gap-6 rounded-xl p-5" style={{ background: "var(--gold-dim)" }}>
-                          <div className="text-center">
-                            <p className="font-display text-4xl font-bold" style={{ color: "var(--text)" }}>{trip.rating}</p>
-                            <StarRating rating={Math.round(trip.rating)} size="sm" />
-                            <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>{trip.reviewCount} reviews</p>
-                          </div>
-                          <Separator orientation="vertical" className="h-16" style={{ background: "var(--border)" }} />
-                          <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>Travelers love this trip for its organization, authentic experiences, and knowledgeable guides.</p>
-                        </div>
-                        <div className="space-y-4">
-                          {trip.reviews.map((review) => (
-                            <div key={review.id} className="rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                              <div className="flex items-start gap-3">
-                                <Avatar className="h-10 w-10">
-                                  <AvatarImage src={review.avatar} />
-                                  <AvatarFallback>{review.author[0]}</AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-medium" style={{ color: "var(--text)" }}>{review.author}</span>
-                                    <StarRating rating={review.rating} size="sm" />
-                                  </div>
-                                  <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{review.comment}</p>
-                                  <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>{review.date}</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </>
+                  <div className="min-w-0 text-center sm:text-left">
+                    <h3
+                      className="font-display text-xl font-bold tracking-tight sm:text-2xl"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {organizer.name}
+                    </h3>
+                    {organizer.location && (
+                      <p
+                        className="mt-1.5 inline-flex items-center justify-center gap-1.5 text-sm sm:justify-start"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <MapPin
+                          className="h-3.5 w-3.5"
+                          style={{ color: "var(--gold)" }}
+                        />
+                        {organizer.location}
+                      </p>
                     )}
-                  </div>
-                </TabsContent>
 
-                <TabsContent value="organizer">
-                  <div className="mt-6 overflow-hidden rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                    <div className="h-24" style={{ background: "var(--gradient-teal)" }} />
-                    <div className="relative px-6 pb-6">
-                      <Avatar className="absolute -top-10 h-20 w-20 border-4" style={{ borderColor: "var(--surface)" }}>
-                        <AvatarImage src={organizer.avatar} />
-                        <AvatarFallback className="text-xl">{organizer.name[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="pt-14">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-display text-xl font-semibold" style={{ color: "var(--text)" }}>{organizer.name}</h3>
-                          {organizer.verified && <VerifiedBadge />}
-                        </div>
-                        <p className="mt-1 flex items-center gap-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
-                          <MapPin className="h-3.5 w-3.5" /> {organizer.location}
-                        </p>
-                        <p className="mt-4 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{organizer.bio}</p>
-                        <div className="mt-5 flex flex-wrap gap-3">
-                          {[
-                            { label: `${organizer.rating} rating`, icon: Star },
-                            { label: `${organizer.tripCount} trips hosted` },
-                            { label: `${organizer.reviewCount} reviews` },
-                          ].map(({ label, icon: Icon }) => (
-                            <span key={label} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium" style={{ background: "var(--bg-secondary)", color: "var(--text)" }}>
-                              {Icon && <Icon className="h-3.5 w-3.5 fill-current" style={{ color: "var(--gold)" }} />}
-                              {label}
+                    {/* Trust stats */}
+                    {(organizer.rating > 0 ||
+                      organizer.tripCount > 0 ||
+                      organizer.reviewCount > 0) && (
+                      <div
+                        className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-y py-3 text-sm sm:justify-start"
+                        style={{ borderColor: "var(--border)" }}
+                      >
+                        {organizer.rating > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1.5 font-semibold"
+                            style={{ color: "var(--text)" }}
+                          >
+                            <Star
+                              className="h-3.5 w-3.5 fill-current"
+                              style={{ color: "var(--gold)" }}
+                            />
+                            {organizer.rating}
+                            <span
+                              className="font-normal"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              rating
+                            </span>
+                          </span>
+                        )}
+                        {organizer.tripCount > 0 && (
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            <span
+                              className="font-semibold"
+                              style={{ color: "var(--text)" }}
+                            >
+                              {organizer.tripCount}
+                            </span>{" "}
+                            trips hosted
+                          </span>
+                        )}
+                        {organizer.reviewCount > 0 && (
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            <span
+                              className="font-semibold"
+                              style={{ color: "var(--text)" }}
+                            >
+                              {organizer.reviewCount}
+                            </span>{" "}
+                            reviews
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {organizer.bio && (
+                      <blockquote
+                        className="mt-4 border-l-2 pl-4 text-left text-[15px] leading-relaxed"
+                        style={{
+                          borderColor: "var(--gold)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {organizer.bio}
+                      </blockquote>
+                    )}
+
+                    {organizer.tripSpecialties &&
+                      organizer.tripSpecialties.length > 0 && (
+                        <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">
+                          {organizer.tripSpecialties.map((s) => (
+                            <span
+                              key={s}
+                              className="rounded-full px-3 py-1 text-xs font-medium"
+                              style={{
+                                background: "rgba(255,255,255,0.7)",
+                                color: "var(--text-secondary)",
+                                border: "1px solid var(--border)",
+                              }}
+                            >
+                              {tripSpecialtyLabel(s)}
                             </span>
                           ))}
                         </div>
-                        <Button asChild variant="outline" className="mt-5 rounded-xl" style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}>
-                          <Link href={`/organizers/${organizer.id}`}>
-                            View all trips by {organizer.name.split(" ")[0]}
-                            <ChevronRight className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
+                      )}
+
+                    <Link
+                      href={organizerHomeHref}
+                      className="mt-6 inline-flex items-center gap-2 text-sm font-semibold transition-opacity hover:opacity-70"
+                      style={{ color: "var(--primary)" }}
+                    >
+                      View all trips by {organizer.name.split(" ")[0]}
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
                   </div>
-                </TabsContent>
-              </Tabs>
-            </div>
+                </div>
+              </div>
+            </section>
           </div>
 
-          {/* Desktop booking sidebar */}
-          <div className="hidden lg:block">
+          <div className="td-reveal hidden lg:block">
             <div className="sticky top-24">
-              <BookingCard trip={trip} isFull={isFull} onBook={handleBook} onSave={handleSave} onShare={handleShare} wishlisted={wishlisted} />
+              <BookingPanel
+                trip={trip}
+                isFull={isFull}
+                onBook={handleBook}
+                onSave={handleSave}
+                onShare={handleShare}
+                wishlisted={wishlisted}
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile sticky booking bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden" style={{ borderColor: "var(--border)", background: "rgba(251,247,241,0.96)" }}>
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <div>
-            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>From</p>
-            <p className="font-display text-xl font-bold" style={{ color: "var(--text)" }}>
+      {/* Mobile sticky CTA — GetYourGuide / Airbnb pattern */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 backdrop-blur-md lg:hidden"
+        style={{
+          borderColor: "var(--border)",
+          background: "rgba(251,247,241,0.94)",
+        }}
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="font-display text-lg font-bold" style={{ color: "var(--text)" }}>
               {formatCurrency(trip.price)}
-              <span className="text-sm font-normal" style={{ color: "var(--text-tertiary)" }}> / person</span>
+              <span
+                className="text-sm font-normal"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {" "}
+                / person
+              </span>
+            </p>
+            <p className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>
+              {bookable
+                ? formatSpotsLeftLabel(trip)
+                : trip.status === "completed"
+                  ? "Trip completed"
+                  : "Not bookable"}
             </p>
           </div>
           <Button
             size="lg"
-            className="min-w-[140px] shrink-0 rounded-xl"
-            style={{ background: "var(--gradient-brand)", color: "#fbf7f1", boxShadow: "var(--glow-gold)" }}
+            className="shrink-0 px-6"
+            style={{ background: "var(--primary)", color: "#fbf7f1" }}
             onClick={handleBook}
+            disabled={!bookable}
           >
-            {isFull ? "Join Waitlist" : "Book Now"}
+            {!bookable
+              ? trip.status === "completed"
+                ? "Completed"
+                : "Unavailable"
+              : isFull
+                ? "Join waitlist"
+                : "Reserve"}
           </Button>
         </div>
       </div>
 
-      {/* Lightbox — rendered last so it sits above everything */}
       {lightboxIndex !== null && (
-        <Lightbox images={trip.images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+        <Lightbox
+          images={trip.images.length ? trip.images : ["/images/cta-image.jpg"]}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </>
   );

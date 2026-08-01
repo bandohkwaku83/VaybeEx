@@ -7,15 +7,15 @@ import {
   TrendingUp,
   Repeat,
   BarChart3,
-  ChevronDown,
   Info,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import type { Trip } from "@/lib/types";
+import type { TripAnalyticsData } from "@/lib/api/organizer-trips";
 import gsap from "gsap";
 
 interface TripAnalyticsPanelProps {
   trip: Trip;
+  analytics?: TripAnalyticsData | null;
   className?: string;
 }
 
@@ -39,8 +39,10 @@ function useCountUp(target: number, duration = 1.4, prefix = "", suffix = "") {
         setDisplay(`${prefix}${v}${suffix}`);
       },
     });
-    return () => { tween.kill(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      tween.kill();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
   return { display, ref };
@@ -161,7 +163,6 @@ function StatCard({
         (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)";
       }}
     >
-      {/* top row */}
       <div className="mb-3 flex items-start justify-between">
         <div
           className="flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
@@ -211,147 +212,21 @@ function StatCard({
   );
 }
 
-/* ─── Revenue breakdown accordion ───────────────────────────────── */
-function RevenueBreakdown({
-  revenue,
-  booked,
-}: {
-  revenue: number;
-  booked: number;
-}) {
-  const [open, setOpen] = useState(false);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const chevronRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    const wrap = bodyRef.current;
-    const inner = innerRef.current;
-    if (!wrap || !inner) return;
-
-    const h = inner.getBoundingClientRect().height;
-    if (open) {
-      gsap.to(wrap, { height: h, duration: 0.4, ease: "power3.out" });
-      gsap.to(chevronRef.current, { rotate: 180, duration: 0.3 });
-    } else {
-      gsap.to(wrap, { height: 0, duration: 0.3, ease: "power3.inOut" });
-      gsap.to(chevronRef.current, { rotate: 0, duration: 0.3 });
-    }
-  }, [open]);
-
-  const rows = [
-    {
-      label: `Ticket sales (×${booked})`,
-      value: formatCurrency(revenue),
-      color: "var(--text)",
-      sign: "",
-    },
-    {
-      label: "Platform fee (10%)",
-      value: formatCurrency(revenue * 0.1),
-      color: "var(--coral)",
-      sign: "−",
-    },
-    {
-      label: "Processing (1.5%)",
-      value: formatCurrency(revenue * 0.015),
-      color: "var(--coral)",
-      sign: "−",
-    },
-  ];
-
-  return (
-    <div
-      className="overflow-hidden rounded-2xl border"
-      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-    >
-      {/* header — always visible */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors duration-150 hover:bg-[var(--bg-secondary)]"
-      >
-        <div>
-          <p
-            className="font-display text-sm font-bold"
-            style={{ color: "var(--text)" }}
-          >
-            Revenue breakdown
-          </p>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
-            Net earnings after fees
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className="font-display text-lg font-black"
-            style={{ color: "var(--primary)" }}
-          >
-            {formatCurrency(revenue * 0.885)}
-          </span>
-          <ChevronDown
-            ref={chevronRef}
-            className="h-4 w-4 shrink-0"
-            style={{ color: "var(--text-tertiary)" }}
-          />
-        </div>
-      </button>
-
-      {/* expandable rows */}
-      <div ref={bodyRef} style={{ height: 0, overflow: "hidden" }}>
-        <div ref={innerRef}>
-          <div
-            className="h-px"
-            style={{ background: "var(--border)" }}
-          />
-          <div className="space-y-0 px-5 py-3">
-            {rows.map((r) => (
-              <div
-                key={r.label}
-                className="flex items-center justify-between border-b py-2.5 last:border-0"
-                style={{ borderColor: "var(--border-subtle)" }}
-              >
-                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  {r.label}
-                </span>
-                <span
-                  className="font-mono text-xs font-semibold"
-                  style={{ color: r.color }}
-                >
-                  {r.sign}
-                  {r.value}
-                </span>
-              </div>
-            ))}
-
-            {/* net total */}
-            <div className="flex items-center justify-between pt-3">
-              <span
-                className="text-sm font-bold"
-                style={{ color: "var(--text)" }}
-              >
-                Your earnings
-              </span>
-              <span
-                className="font-display text-base font-black"
-                style={{ color: "var(--primary)" }}
-              >
-                {formatCurrency(revenue * 0.885)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Main panel ─────────────────────────────────────────────────── */
-export function TripAnalyticsPanel({ trip, className }: TripAnalyticsPanelProps) {
+export function TripAnalyticsPanel({
+  trip,
+  analytics,
+  className,
+}: TripAnalyticsPanelProps) {
+  const data = analytics ?? trip.analytics;
+  const views = data?.views ?? trip.views;
+  const conversions = data?.conversions ?? trip.conversions;
   const conversionRate =
-    trip.views > 0 ? (trip.conversions / trip.views) * 100 : 0;
-  const revenue = trip.price * trip.booked;
-  const repeatBookers = 2;
+    data?.conversionRate ??
+    (views > 0 ? (conversions / views) * 100 : 0);
+  const revenue = data?.revenue ?? trip.price * trip.booked;
+  const repeatBookers = data?.repeatBookers ?? 0;
+  const insight = data?.insight;
 
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -364,38 +239,49 @@ export function TripAnalyticsPanel({ trip, className }: TripAnalyticsPanelProps)
     );
   }, []);
 
-  const funnelSteps = [
-    {
-      label: "Page views",
-      value: trip.views,
-      pct: 100,
-      color: "linear-gradient(90deg, var(--primary-dark), var(--primary))",
-    },
-    {
-      label: "Clicked Book",
-      value: Math.round(trip.views * 0.12),
-      pct: 12,
-      color: "linear-gradient(90deg, var(--primary), var(--gold))",
-    },
-    {
-      label: "Started checkout",
-      value: Math.round(trip.views * 0.06),
-      pct: 6,
-      color: "linear-gradient(90deg, var(--gold), var(--amber))",
-    },
-    {
-      label: "Confirmed booking",
-      value: trip.conversions,
-      pct: conversionRate,
-      color: "linear-gradient(90deg, var(--amber), var(--coral))",
-    },
-  ];
+  const funnelSteps =
+    data?.funnel?.length
+      ? data.funnel.map((step, i) => ({
+          label: step.label,
+          value: step.value,
+          pct: step.pct,
+          color: [
+            "linear-gradient(90deg, var(--primary-dark), var(--primary))",
+            "linear-gradient(90deg, var(--primary), var(--gold))",
+            "linear-gradient(90deg, var(--gold), var(--amber))",
+            "linear-gradient(90deg, var(--amber), var(--coral))",
+          ][i % 4],
+        }))
+      : [
+          {
+            label: "Page views",
+            value: views,
+            pct: 100,
+            color: "linear-gradient(90deg, var(--primary-dark), var(--primary))",
+          },
+          {
+            label: "Clicked Book",
+            value: data?.bookClicks ?? 0,
+            pct: views > 0 ? ((data?.bookClicks ?? 0) / views) * 100 : 0,
+            color: "linear-gradient(90deg, var(--primary), var(--gold))",
+          },
+          {
+            label: "Started checkout",
+            value: data?.checkoutStarts ?? 0,
+            pct: views > 0 ? ((data?.checkoutStarts ?? 0) / views) * 100 : 0,
+            color: "linear-gradient(90deg, var(--gold), var(--amber))",
+          },
+          {
+            label: "Confirmed booking",
+            value: conversions,
+            pct: conversionRate,
+            color: "linear-gradient(90deg, var(--amber), var(--coral))",
+          },
+        ];
 
   return (
     <div className={className}>
       <div className="sticky top-6 space-y-4">
-
-        {/* ── Section header ── */}
         <div ref={headerRef} style={{ opacity: 0 }} className="flex items-center gap-2.5">
           <div
             className="flex h-8 w-8 items-center justify-center rounded-lg"
@@ -410,17 +296,19 @@ export function TripAnalyticsPanel({ trip, className }: TripAnalyticsPanelProps)
             >
               Analytics
             </p>
-            <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-tertiary)" }}>
+            <p
+              className="text-[10px] uppercase tracking-widest"
+              style={{ color: "var(--text-tertiary)" }}
+            >
               Live performance
             </p>
           </div>
         </div>
 
-        {/* ── 4 stat cards ── */}
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="Views"
-            rawValue={trip.views}
+            rawValue={views}
             icon={Eye}
             iconBg="var(--primary-dim)"
             iconColor="var(--primary)"
@@ -458,7 +346,6 @@ export function TripAnalyticsPanel({ trip, className }: TripAnalyticsPanelProps)
           />
         </div>
 
-        {/* ── Booking funnel ── */}
         <div
           className="rounded-2xl border p-5"
           style={{ borderColor: "var(--border)", background: "var(--surface)" }}
@@ -494,7 +381,6 @@ export function TripAnalyticsPanel({ trip, className }: TripAnalyticsPanelProps)
             ))}
           </div>
 
-          {/* drop-off insight */}
           <div
             className="mt-4 flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs"
             style={{
@@ -508,17 +394,20 @@ export function TripAnalyticsPanel({ trip, className }: TripAnalyticsPanelProps)
               style={{ color: "var(--primary)" }}
             />
             <span>
-              <strong style={{ color: "var(--text)" }}>
-                {(100 - conversionRate).toFixed(1)}% drop-off
-              </strong>{" "}
-              from views to bookings. Consider improving your trip description
-              or pricing clarity to convert more browsers.
+              {insight ? (
+                insight
+              ) : (
+                <>
+                  <strong style={{ color: "var(--text)" }}>
+                    {(100 - conversionRate).toFixed(1)}% drop-off
+                  </strong>{" "}
+                  from views to bookings. Consider improving your trip description
+                  or pricing clarity to convert more browsers.
+                </>
+              )}
             </span>
           </div>
         </div>
-
-        {/* ── Revenue breakdown (accordion) ── */}
-        <RevenueBreakdown revenue={revenue} booked={trip.booked} />
       </div>
     </div>
   );

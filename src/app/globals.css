@@ -85,15 +85,15 @@
   --glow-teal-strong: 0 24px 60px -20px rgba(86, 47, 24, 0.55);
   --glow-gold: 0 14px 30px -16px rgba(196, 134, 76, 0.45);
 
-  --gradient-brand: linear-gradient(135deg, #6b3f1d 0%, #c4864c 100%);
+  --gradient-brand: #6b3f1d;
   --gradient-hero: linear-gradient(180deg, #fbf7f1 0%, #f2eada 60%, #fbf7f1 100%);
   --gradient-card: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.9) 0%,
     rgba(247, 240, 226, 0.7) 100%
   );
-  --gradient-teal: linear-gradient(135deg, #6b3f1d 0%, #4a2a12 100%);
-  --gradient-warm: linear-gradient(135deg, #c4864c 0%, #b5523a 100%);
+  --gradient-teal: #6b3f1d;
+  --gradient-warm: #c4864c;
 }
 
 @keyframes marquee {
@@ -180,6 +180,8 @@
     color: var(--text);
     font-family: var(--font-sans), "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
   }
   h1,
   h2,
@@ -194,6 +196,18 @@
   ::selection {
     background: var(--primary);
     color: #fbf7f1;
+  }
+  /* Rectangular buttons project-wide (exclude toggles, tabs, soft chips) */
+  button:not([role="switch"]):not([role="tab"]):not(.soft-chip),
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  .ant-btn {
+    border-radius: 0 !important;
+  }
+  button[role="switch"],
+  button.soft-chip {
+    border-radius: 9999px !important;
   }
   ::-webkit-scrollbar {
     width: 10px;
@@ -216,16 +230,10 @@
 }
 
 @utility text-gradient-brand {
-  background: var(--gradient-brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--gradient-brand);
 }
 @utility text-gradient-warm {
-  background: var(--gradient-warm);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--gradient-warm);
 }
 
 @utility bg-gradient-card {
@@ -235,13 +243,17 @@
   background-image: var(--gradient-hero);
 }
 @utility bg-gradient-teal {
-  background-image: var(--gradient-teal);
+  background-color: var(--gradient-teal);
 }
 @utility bg-gradient-brand {
-  background-image: var(--gradient-brand);
+  background-color: var(--gradient-brand);
 }
 @utility bg-gradient-warm {
-  background-image: var(--gradient-warm);
+  background-color: var(--gradient-warm);
+}
+
+@utility btn-gradient {
+  background-color: var(--primary);
 }
 
 @utility glow-teal {
@@ -292,4 +304,55 @@
 }
 .tilt-r {
   transform: rotate(5deg);
+}
+
+/* Ant Design tables in admin portal */
+.admin-antd-table .ant-table {
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+}
+.admin-antd-table .ant-table-container {
+  border-inline-start: none !important;
+  border-top: none !important;
+}
+.admin-antd-table .ant-pagination {
+  margin-inline: 0 !important;
+}
+.admin-antd-table .ant-pagination-item-active {
+  background: #171717 !important;
+  border-color: #171717 !important;
+}
+.admin-antd-table .ant-pagination-item-active a {
+  color: #ffffff !important;
+}
+.admin-antd-table .ant-pagination-item-active:hover a {
+  color: #ffffff !important;
+}
+
+/* Ant Design tables in organizer portal */
+.organizer-antd-table .ant-table {
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+}
+.organizer-antd-table .ant-table-container {
+  border-inline-start: none !important;
+  border-top: none !important;
+}
+.organizer-antd-table .ant-table {
+  border: 1px solid rgba(107, 63, 29, 0.14) !important;
+}
+.organizer-antd-table .ant-pagination {
+  margin-inline: 0 !important;
+}
+.organizer-antd-table .ant-pagination-item-active {
+  background: #6b3f1d !important;
+  border-color: #6b3f1d !important;
+}
+.organizer-antd-table .ant-pagination-item-active a {
+  color: #fbf7f1 !important;
+}
+.organizer-antd-table .ant-pagination-item-active:hover a {
+  color: #fbf7f1 !important;
 }

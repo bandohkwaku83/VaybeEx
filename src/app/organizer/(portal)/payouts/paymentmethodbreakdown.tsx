@@ -1,23 +1,33 @@
-// components/organizer/payment-method-breakdown.tsx
 "use client";
 
 import { useMemo, useRef, useEffect } from "react";
-import { CreditCard, Smartphone, Building2, CalendarClock, BarChart3 } from "lucide-react";
+import {
+  CreditCard,
+  Smartphone,
+  Building2,
+  CalendarClock,
+  BarChart3,
+} from "lucide-react";
+import type { PayoutPaymentMethods } from "@/lib/api/organizer-payouts";
 import type { TripAttendee, PaymentMethod } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 
-const METHOD_META: Record<PaymentMethod, { label: string; Icon: React.ElementType; color: string }> = {
-  card:        { label: "Card",          Icon: CreditCard,    color: "#6b3f1d" },
-  mtn:         { label: "MTN MoMo",      Icon: Smartphone,    color: "#c4864c" },
-  vodafone:    { label: "Vodafone Cash", Icon: Smartphone,    color: "#d08a3c" },
-  airteltigo:  { label: "AirtelTigo",    Icon: Smartphone,    color: "#b5523a" },
-  bank:        { label: "Bank Transfer", Icon: Building2,     color: "#4a2a12" },
-  installment: { label: "Installment",   Icon: CalendarClock, color: "#9c8773" },
+const METHOD_META: Record<
+  PaymentMethod,
+  { label: string; Icon: React.ElementType; color: string }
+> = {
+  card: { label: "Card", Icon: CreditCard, color: "#6b3f1d" },
+  mtn: { label: "MTN MoMo", Icon: Smartphone, color: "#c4864c" },
+  vodafone: { label: "Vodafone Cash", Icon: Smartphone, color: "#d08a3c" },
+  airteltigo: { label: "AirtelTigo", Icon: Smartphone, color: "#b5523a" },
+  bank: { label: "Bank Transfer", Icon: Building2, color: "#4a2a12" },
+  installment: { label: "Installment", Icon: CalendarClock, color: "#9c8773" },
 };
 
+const FALLBACK_COLORS = ["#6b3f1d", "#c4864c", "#d08a3c", "#b5523a", "#4a2a12", "#9c8773"];
+
 interface AggRow {
-  key: PaymentMethod;
+  key: string;
   label: string;
   color: string;
   Icon: React.ElementType;
@@ -28,119 +38,212 @@ interface AggRow {
   pending: number;
 }
 
-function useAggregated(attendees: TripAttendee[]): AggRow[] {
+function normalizeMethodKey(value?: string | null): PaymentMethod | null {
+  if (!value) return null;
+  const raw = value.toLowerCase().replace(/[\s_-]+/g, "");
+  if (raw === "card" || raw === "paystack") return "card";
+  if (raw === "mtn" || raw === "mtnmomo" || raw === "momo") return "mtn";
+  if (raw === "vodafone" || raw === "vodafonecash") return "vodafone";
+  if (raw === "airteltigo" || raw === "airteltigomoney") return "airteltigo";
+  if (raw === "bank" || raw === "banktransfer") return "bank";
+  if (raw === "installment") return "installment";
+  return null;
+}
+
+function useAggregated(
+  attendees: TripAttendee[],
+  apiMethods?: PayoutPaymentMethods | null
+): { rows: AggRow[]; methodsUsed: number; avgPerPaid: number } {
   return useMemo(() => {
+    if (apiMethods && apiMethods.methods.length > 0) {
+      const rows = apiMethods.methods.map((m, i) => {
+        const key =
+          normalizeMethodKey(m.method) ??
+          m.method ??
+          m.label ??
+          `method-${i}`;
+        const known = normalizeMethodKey(m.method);
+        const meta = known ? METHOD_META[known] : null;
+        return {
+          key: String(key),
+          label: m.label || meta?.label || String(m.method || "Other"),
+          color: meta?.color ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+          Icon: meta?.Icon ?? CreditCard,
+          collected: m.collected ?? m.amount ?? 0,
+          count: m.count ?? 0,
+          paid: m.paid ?? 0,
+          partial: m.partial ?? 0,
+          pending: m.pending ?? 0,
+        };
+      });
+      return {
+        rows: rows.sort((a, b) => b.collected - a.collected),
+        methodsUsed: apiMethods.methodsUsed || rows.length,
+        avgPerPaid: apiMethods.avgPerPaidMember,
+      };
+    }
+
     const map = new Map<PaymentMethod, AggRow>();
     for (const a of attendees) {
       if (!a.paymentMethod) continue;
       const meta = METHOD_META[a.paymentMethod];
       const row = map.get(a.paymentMethod) ?? {
-        key: a.paymentMethod, ...meta,
-        collected: 0, count: 0, paid: 0, partial: 0, pending: 0,
+        key: a.paymentMethod,
+        ...meta,
+        collected: 0,
+        count: 0,
+        paid: 0,
+        partial: 0,
+        pending: 0,
       };
       row.collected += a.amountPaid;
       row.count++;
       row[a.paymentStatus]++;
       map.set(a.paymentMethod, row);
     }
-    return [...map.values()].sort((a, b) => b.collected - a.collected);
-  }, [attendees]);
+    const rows = [...map.values()].sort((a, b) => b.collected - a.collected);
+    const paidCount = attendees.filter((a) => a.paymentStatus === "paid").length;
+    const totalCollected = rows.reduce((s, m) => s + m.collected, 0);
+
+    return {
+      rows,
+      methodsUsed: apiMethods?.methodsUsed ?? rows.length,
+      avgPerPaid:
+        apiMethods?.avgPerPaidMember ??
+        (paidCount > 0 ? totalCollected / paidCount : 0),
+    };
+  }, [attendees, apiMethods]);
 }
 
 function AnimatedBar({ pct, color }: { pct: number; color: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const t = setTimeout(() => { if (ref.current) ref.current.style.width = pct + "%"; }, 80);
+    const t = setTimeout(() => {
+      if (ref.current) ref.current.style.width = pct + "%";
+    }, 80);
     return () => clearTimeout(t);
   }, [pct, color]);
   return (
-    <div className="h-1.5 rounded-full overflow-hidden bg-bg-secondary flex-1">
+    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-secondary">
       <div
         ref={ref}
-        style={{ width: "0%", background: color, transition: "width 0.65s cubic-bezier(0.34,1.2,0.64,1)" }}
+        style={{
+          width: "0%",
+          background: color,
+          transition: "width 0.65s cubic-bezier(0.34,1.2,0.64,1)",
+        }}
         className="h-full rounded-full"
       />
     </div>
   );
 }
 
-interface Props { attendees: TripAttendee[] }
+interface Props {
+  attendees: TripAttendee[];
+  paymentMethods?: PayoutPaymentMethods | null;
+}
 
-export function PaymentMethodBreakdown({ attendees }: Props) {
-  const agg = useAggregated(attendees);
+export function PaymentMethodBreakdown({ attendees, paymentMethods }: Props) {
+  const { rows: agg, methodsUsed, avgPerPaid } = useAggregated(
+    attendees,
+    paymentMethods
+  );
   const totalCollected = agg.reduce((s, m) => s + m.collected, 0);
-  const paidCount      = attendees.filter(a => a.paymentStatus === "paid").length;
 
-  if (!agg.length) return null;
+  if (!agg.length && !paymentMethods) return null;
 
   return (
     <section>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="mb-4 flex items-center gap-2">
         <BarChart3 className="h-3.5 w-3.5 text-text-tertiary" />
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
           Payment methods
         </h3>
       </div>
 
-      {/* Summary tiles */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <div className="bg-bg-secondary rounded-[10px] p-3 text-center">
-          <p className="text-[15px] font-bold tracking-tight text-text">{agg.length}</p>
-          <p className="text-[11px] text-text-tertiary mt-0.5">Methods used</p>
-        </div>
-        <div className="bg-bg-secondary rounded-[10px] p-3 text-center">
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <div className="rounded-[10px] bg-bg-secondary p-3 text-center">
           <p className="text-[15px] font-bold tracking-tight text-text">
-            {formatCurrency(totalCollected / Math.max(paidCount, 1))}
+            {methodsUsed}
           </p>
-          <p className="text-[11px] text-text-tertiary mt-0.5">Avg per paid member</p>
+          <p className="mt-0.5 text-[11px] text-text-tertiary">Methods used</p>
+        </div>
+        <div className="rounded-[10px] bg-bg-secondary p-3 text-center">
+          <p className="text-[15px] font-bold tracking-tight text-text">
+            {formatCurrency(avgPerPaid)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-text-tertiary">
+            Avg per paid member
+          </p>
         </div>
       </div>
 
-      {/* Method list */}
-      <div className="bg-surface border border-border rounded-[14px] overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-          <div className="flex items-center gap-2 text-[13px] font-bold text-text">
-            <CreditCard className="h-3.5 w-3.5 text-text-tertiary" />
-            Collected by method
+      {agg.length > 0 && (
+        <div className="overflow-hidden rounded-[14px] border border-border bg-surface">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+            <div className="flex items-center gap-2 text-[13px] font-bold text-text">
+              <CreditCard className="h-3.5 w-3.5 text-text-tertiary" />
+              Collected by method
+            </div>
+            <span className="text-[11px] text-text-tertiary">
+              {formatCurrency(totalCollected)} total
+            </span>
           </div>
-          <span className="text-[11px] text-text-tertiary">
-            {formatCurrency(totalCollected)} total
-          </span>
-        </div>
-        <div className="p-3 space-y-1">
-          {agg.map(m => {
-            const pct = Math.round((m.collected / Math.max(totalCollected, 1)) * 100);
-            return (
-              <div
-                key={m.key}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-[9px] hover:bg-bg-secondary transition-colors"
-              >
+          <div className="space-y-1 p-3">
+            {agg.map((m) => {
+              const pct = Math.round(
+                (m.collected / Math.max(totalCollected, 1)) * 100
+              );
+              return (
                 <div
-                  className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]"
-                  style={{ background: m.color + "18" }}
+                  key={m.key}
+                  className="flex items-center gap-3 rounded-[9px] px-3 py-2.5 transition-colors hover:bg-bg-secondary"
                 >
-                  <m.Icon className="h-4 w-4" style={{ color: m.color }} />
+                  <div
+                    className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]"
+                    style={{ background: m.color + "18" }}
+                  >
+                    <m.Icon className="h-4 w-4" style={{ color: m.color }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex items-baseline justify-between">
+                      <span className="text-[12px] font-semibold text-text">
+                        {m.label}
+                      </span>
+                      <span className="text-[12px] font-bold text-text">
+                        {formatCurrency(m.collected)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <AnimatedBar pct={pct} color={m.color} />
+                      <span className="w-7 shrink-0 text-right text-[11px] text-text-tertiary">
+                        {pct}%
+                      </span>
+                    </div>
+                    <div className="mt-1 flex gap-2">
+                      {m.paid > 0 && (
+                        <span className="text-[10px] text-[#2e7d52]">
+                          {m.paid} paid
+                        </span>
+                      )}
+                      {m.partial > 0 && (
+                        <span className="text-[10px] text-amber">
+                          {m.partial} partial
+                        </span>
+                      )}
+                      {m.pending > 0 && (
+                        <span className="text-[10px] text-text-tertiary">
+                          {m.pending} pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-1.5">
-                    <span className="text-[12px] font-semibold text-text">{m.label}</span>
-                    <span className="text-[12px] font-bold text-text">{formatCurrency(m.collected)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <AnimatedBar pct={pct} color={m.color} />
-                    <span className="text-[11px] text-text-tertiary w-7 text-right shrink-0">{pct}%</span>
-                  </div>
-                  <div className="flex gap-2 mt-1">
-                    {m.paid    > 0 && <span className="text-[10px] text-[#2e7d52]">{m.paid} paid</span>}
-                    {m.partial > 0 && <span className="text-[10px] text-amber">{m.partial} partial</span>}
-                    {m.pending > 0 && <span className="text-[10px] text-text-tertiary">{m.pending} pending</span>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import {
   RefreshCw, RotateCcw, CheckCircle2, XCircle, Clock,
   AlertCircle, Search, ChevronDown, ChevronUp, ArrowRight,
-  User, CreditCard, Calendar, MapPin, DollarSign, Filter,
+  User, CreditCard, Calendar, MapPin, DollarSign,
   ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import {
@@ -15,144 +15,28 @@ import {
   flexRender, createColumnHelper, type SortingState,
 } from "@tanstack/react-table";
 import { Card, CardContent } from "@/components/ui/card";
+import { OrganizerEmptyState } from "@/components/organizer/empty-state";
+import { OrganizerPortalTabs } from "@/components/organizer/portal-tabs";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import {
+  listOrganizerCancellations,
+  updateOrganizerCancellation,
+} from "@/lib/api/cancellations";
+import { ApiError } from "@/lib/api/client";
+import type { CancellationRequest, CancellationStatus } from "@/lib/types";
 
-/* ── Types ───────────────────────────────────────────────────────── */
-type RefundStatus = "pending" | "processing" | "refunded" | "denied";
-type PaymentMethod = "card" | "mtn" | "vodafone" | "airteltigo" | "bank" | "installment";
+type RefundStatus = CancellationStatus;
 
-interface CancellationRequest {
-  id: string;
-  travelerName: string;
-  travelerEmail: string;
-  phone: string;
-  tripTitle: string;
-  tripId: string;
-  destination: string;
-  requestedAt: string;
-  refundAmount: number;
-  paymentMethod: PaymentMethod;
-  status: RefundStatus;
-  reason: string;
+const POLL_MS = 10_000;
+
+function paymentMethodLabel(method?: string) {
+  return method?.trim() || "Original payment method";
 }
 
-/* ── Mock data ───────────────────────────────────────────────────── */
-const MOCK_REQUESTS: CancellationRequest[] = [
-  // Pending / processing — these show as action cards
-  {
-    id: "cr-01", travelerName: "Kofi Mensah",    travelerEmail: "kofi@example.com",    phone: "+233 20 111 2222",
-    tripTitle: "Sahara Desert Trek",   tripId: "t1", destination: "Morocco",
-    requestedAt: "2026-06-10", refundAmount: 700,  paymentMethod: "mtn",
-    status: "pending",
-    reason: "Family emergency came up unexpectedly and I'm unable to travel on the scheduled dates.",
-  },
-  {
-    id: "cr-02", travelerName: "Adwoa Kyei",      travelerEmail: "adwoa@example.com",   phone: "+233 27 555 6661",
-    tripTitle: "Atlas Mountains Hike", tripId: "t2", destination: "Morocco",
-    requestedAt: "2026-06-14", refundAmount: 450,  paymentMethod: "bank",
-    status: "processing",
-    reason: "My passport renewal is delayed and won't arrive before the trip departure.",
-  },
-  {
-    id: "cr-03", travelerName: "Yaw Frimpong",    travelerEmail: "yaw@example.com",     phone: "+233 27 445 5667",
-    tripTitle: "Sahara Desert Trek",   tripId: "t1", destination: "Morocco",
-    requestedAt: "2026-06-18", refundAmount: 700,  paymentMethod: "mtn",
-    status: "pending",
-    reason: "Work obligations have changed and I can no longer take leave during this period.",
-  },
-  {
-    id: "cr-04", travelerName: "Kweku Baffoe",    travelerEmail: "kweku@example.com",   phone: "+233 26 777 8881",
-    tripTitle: "Atlas Mountains Hike", tripId: "t2", destination: "Morocco",
-    requestedAt: "2026-06-20", refundAmount: 900,  paymentMethod: "installment",
-    status: "pending",
-    reason: "Medical condition prevents me from participating in strenuous hiking activities.",
-  },
-
-  // Completed — these populate the TanStack table
-  {
-    id: "cr-05", travelerName: "Ama Owusu",       travelerEmail: "ama@example.com",     phone: "+233 24 333 4444",
-    tripTitle: "Cape Coast Tour",      tripId: "t3", destination: "Ghana",
-    requestedAt: "2026-05-02", refundAmount: 320,  paymentMethod: "card",
-    status: "refunded",
-    reason: "Personal reasons.",
-  },
-  {
-    id: "cr-06", travelerName: "Efua Boateng",    travelerEmail: "efua@example.com",    phone: "+233 26 777 8888",
-    tripTitle: "Sahara Desert Trek",   tripId: "t1", destination: "Morocco",
-    requestedAt: "2026-05-08", refundAmount: 700,  paymentMethod: "vodafone",
-    status: "refunded",
-    reason: "Flight cancellation meant I couldn't reach the departure city in time.",
-  },
-  {
-    id: "cr-07", travelerName: "Kwame Adjei",     travelerEmail: "kwame@example.com",   phone: "+233 20 999 0000",
-    tripTitle: "Sahara Desert Trek",   tripId: "t1", destination: "Morocco",
-    requestedAt: "2026-05-12", refundAmount: 700,  paymentMethod: "bank",
-    status: "denied",
-    reason: "Requested cancellation 2 days before departure, outside the refund window.",
-  },
-  {
-    id: "cr-08", travelerName: "Akua Sarpong",    travelerEmail: "akua@example.com",    phone: "+233 26 778 8990",
-    tripTitle: "Sahara Desert Trek",   tripId: "t1", destination: "Morocco",
-    requestedAt: "2026-05-15", refundAmount: 420,  paymentMethod: "installment",
-    status: "refunded",
-    reason: "Medical emergency with a family member requiring my immediate attention.",
-  },
-  {
-    id: "cr-09", travelerName: "Nana Asare",      travelerEmail: "nana@example.com",    phone: "+233 20 111 2221",
-    tripTitle: "Atlas Mountains Hike", tripId: "t2", destination: "Morocco",
-    requestedAt: "2026-05-20", refundAmount: 900,  paymentMethod: "card",
-    status: "denied",
-    reason: "No valid reason provided within the cancellation window.",
-  },
-  {
-    id: "cr-10", travelerName: "Akosua Bonsu",    travelerEmail: "akosua@example.com",  phone: "+233 20 111 2223",
-    tripTitle: "Cape Coast Tour",      tripId: "t3", destination: "Ghana",
-    requestedAt: "2026-05-22", refundAmount: 320,  paymentMethod: "vodafone",
-    status: "refunded",
-    reason: "Visa application was rejected for the travel period.",
-  },
-  {
-    id: "cr-11", travelerName: "Fiifi Acheampong", travelerEmail: "fiifi@example.com",  phone: "+233 24 333 4443",
-    tripTitle: "Cape Coast Tour",      tripId: "t3", destination: "Ghana",
-    requestedAt: "2026-05-25", refundAmount: 320,  paymentMethod: "card",
-    status: "denied",
-    reason: "Cancellation request submitted after the 14-day refund policy window.",
-  },
-  {
-    id: "cr-12", travelerName: "Benedicta Asante", travelerEmail: "bene@example.com",   phone: "+233 20 999 0003",
-    tripTitle: "Cape Coast Tour",      tripId: "t3", destination: "Ghana",
-    requestedAt: "2026-06-01", refundAmount: 320,  paymentMethod: "card",
-    status: "refunded",
-    reason: "Trip dates conflict with a mandatory work training that was just announced.",
-  },
-  {
-    id: "cr-13", travelerName: "Serwaa Ntim",     travelerEmail: "serwaa@example.com",  phone: "+233 27 555 6663",
-    tripTitle: "Cape Coast Tour",      tripId: "t3", destination: "Ghana",
-    requestedAt: "2026-06-03", refundAmount: 320,  paymentMethod: "mtn",
-    status: "refunded",
-    reason: "Pregnancy complications advised by doctor to avoid travel.",
-  },
-  {
-    id: "cr-14", travelerName: "Maame Ofori",     travelerEmail: "maame@example.com",   phone: "+233 20 999 0001",
-    tripTitle: "Atlas Mountains Hike", tripId: "t2", destination: "Morocco",
-    requestedAt: "2026-06-05", refundAmount: 900,  paymentMethod: "card",
-    status: "denied",
-    reason: "Changed mind about the trip without qualifying reason within policy.",
-  },
-  {
-    id: "cr-15", travelerName: "Paa Kwesi Mensah", travelerEmail: "paa@example.com",   phone: "+233 24 112 2336",
-    tripTitle: "Cape Coast Tour",      tripId: "t3", destination: "Ghana",
-    requestedAt: "2026-06-08", refundAmount: 160,  paymentMethod: "airteltigo",
-    status: "refunded",
-    reason: "Partial refund requested — only partially paid and cannot complete payment.",
-  },
-];
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  card: "Card", mtn: "MTN MoMo", vodafone: "Vodafone Cash",
-  airteltigo: "AirtelTigo Money", bank: "Bank Transfer", installment: "Installment",
-};
+function travelerDisplayName(request: CancellationRequest) {
+  return request.travelerName?.trim() || "Traveler";
+}
 
 /* ── Status helpers ──────────────────────────────────────────────── */
 function statusMeta(status: RefundStatus) {
@@ -214,18 +98,24 @@ function RefundActionCard({
   request, onAction,
 }: {
   request: CancellationRequest;
-  onAction: (id: string, action: "refunded" | "denied") => void;
+  onAction: (id: string, action: "refunded" | "denied") => Promise<void> | void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading]   = useState<"approve" | "deny" | null>(null);
   const meta = statusMeta(request.status);
+  const isPending = request.status === "pending";
+  const isProcessing = request.status === "processing";
+  const canApprove = isPending && request.refundEligible;
+  const canDeny = isPending;
 
   async function handleAction(action: "approve" | "deny") {
     setLoading(action);
-    await new Promise(r => setTimeout(r, 700));
-    setLoading(null);
-    setExpanded(false);
-    onAction(request.id, action === "approve" ? "refunded" : "denied");
+    try {
+      await onAction(request.id, action === "approve" ? "refunded" : "denied");
+      setExpanded(false);
+    } finally {
+      setLoading(null);
+    }
   }
 
   return (
@@ -246,11 +136,11 @@ function RefundActionCard({
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
             style={{ background: "var(--primary-dim)", color: "var(--primary)" }}
           >
-            {initials(request.travelerName)}
+            {initials(travelerDisplayName(request))}
           </div>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold truncate" style={{ color: "var(--text)" }}>
-              {request.travelerName}
+              {travelerDisplayName(request)}
             </p>
             <p className="text-[12px] truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
               {request.tripTitle} · {request.destination}
@@ -263,9 +153,20 @@ function RefundActionCard({
                 <DollarSign className="h-3 w-3" /> {formatCurrency(request.refundAmount)}
               </span>
               <span className="flex items-center gap-1 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                <CreditCard className="h-3 w-3" /> {PAYMENT_METHOD_LABELS[request.paymentMethod]}
+                <CreditCard className="h-3 w-3" /> {paymentMethodLabel(request.paymentMethod)}
               </span>
             </div>
+            {isProcessing && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Paystack is sending the refund…
+              </p>
+            )}
+            {request.refundFailureReason && (
+              <p className="mt-1.5 text-[11px]" style={{ color: "var(--coral)" }}>
+                {request.refundFailureReason}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -289,11 +190,11 @@ function RefundActionCard({
               {/* Detail grid */}
               <div className="grid grid-cols-2 gap-3 rounded-xl p-3" style={{ background: "var(--bg-secondary)" }}>
                 {[
-                  { icon: User,       label: "Traveler",    value: request.travelerName },
+                  { icon: User,       label: "Traveler",    value: travelerDisplayName(request) },
                   { icon: MapPin,     label: "Trip",        value: `${request.tripTitle} · ${request.destination}` },
                   { icon: Calendar,   label: "Requested",   value: formatDate(request.requestedAt) },
                   { icon: DollarSign, label: "Refund amt",  value: formatCurrency(request.refundAmount) },
-                  { icon: CreditCard, label: "Method",      value: PAYMENT_METHOD_LABELS[request.paymentMethod] },
+                  { icon: CreditCard, label: "Method",      value: paymentMethodLabel(request.paymentMethod) },
                   { icon: Clock,      label: "Status",      value: meta.label },
                 ].map(item => (
                   <div key={item.label} className="flex items-start gap-2">
@@ -316,42 +217,75 @@ function RefundActionCard({
                   Reason for cancellation
                 </p>
                 <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                  {request.reason}
+                  {request.reason?.trim() || "No reason provided."}
                 </p>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={loading !== null}
-                  onClick={() => handleAction("approve")}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-[13px] font-semibold transition-all"
-                  style={{ background: "#2e7d52", color: "#fff", opacity: loading ? 0.7 : 1 }}
-                >
-                  {loading === "approve"
-                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  Approve refund
-                </button>
-                <button
-                  type="button"
-                  disabled={loading !== null}
-                  onClick={() => handleAction("deny")}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-semibold transition-all"
+              {isProcessing && (
+                <div
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[12px]"
                   style={{
-                    borderColor: "rgba(181,82,58,0.3)",
-                    background: "rgba(181,82,58,0.07)",
-                    color: "var(--coral)",
-                    opacity: loading ? 0.7 : 1,
+                    background: "var(--primary-dim)",
+                    borderColor: "rgba(107,63,29,0.2)",
+                    color: "var(--text-secondary)",
                   }}
                 >
-                  {loading === "deny"
-                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    : <XCircle className="h-3.5 w-3.5" />}
-                  Deny request
-                </button>
-              </div>
+                  <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: "var(--primary)" }} />
+                  Paystack is sending the refund to the traveler&apos;s original payment method. This updates automatically.
+                </div>
+              )}
+
+              {request.refundFailureReason && (
+                <div
+                  className="rounded-xl border px-3 py-2.5 text-[12px]"
+                  style={{
+                    background: "rgba(181,82,58,0.07)",
+                    borderColor: "rgba(181,82,58,0.25)",
+                    color: "var(--coral)",
+                  }}
+                >
+                  {request.refundFailureReason}
+                </div>
+              )}
+
+              {/* Actions — never set processing from the client */}
+              {isPending && (
+                <div className="flex gap-2 pt-1">
+                  {canApprove && (
+                    <button
+                      type="button"
+                      disabled={loading !== null}
+                      onClick={() => void handleAction("approve")}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-none px-4 py-2.5 text-[13px] font-semibold transition-all"
+                      style={{ background: "#2e7d52", color: "#fff", opacity: loading ? 0.7 : 1 }}
+                    >
+                      {loading === "approve"
+                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      {request.refundFailureReason ? "Retry approve" : "Approve refund"}
+                    </button>
+                  )}
+                  {canDeny && (
+                    <button
+                      type="button"
+                      disabled={loading !== null}
+                      onClick={() => void handleAction("deny")}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-none border px-4 py-2.5 text-[13px] font-semibold transition-all"
+                      style={{
+                        borderColor: "rgba(181,82,58,0.3)",
+                        background: "rgba(181,82,58,0.07)",
+                        color: "var(--coral)",
+                        opacity: loading ? 0.7 : 1,
+                      }}
+                    >
+                      {loading === "deny"
+                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        : <XCircle className="h-3.5 w-3.5" />}
+                      {request.refundEligible ? "Deny" : "Close / Deny"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -364,24 +298,26 @@ function RefundActionCard({
 const columnHelper = createColumnHelper<CancellationRequest>();
 
 const COMPLETED_COLUMNS = [
-  columnHelper.accessor("travelerName", {
+  columnHelper.accessor((row) => travelerDisplayName(row), {
+    id: "travelerName",
     header: "Traveler",
     cell: info => {
       const r = info.row.original;
+      const name = travelerDisplayName(r);
       return (
         <div className="flex items-center gap-2.5">
           <div
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
             style={{ background: "var(--primary-dim)", color: "var(--primary)" }}
           >
-            {initials(r.travelerName)}
+            {initials(name)}
           </div>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold truncate" style={{ color: "var(--text)" }}>
-              {r.travelerName}
+              {name}
             </p>
             <p className="text-[11px] truncate" style={{ color: "var(--text-tertiary)" }}>
-              {r.travelerEmail}
+              {r.travelerEmail || "—"}
             </p>
           </div>
         </div>
@@ -415,11 +351,12 @@ const COMPLETED_COLUMNS = [
       new Date(a.original.requestedAt).getTime() - new Date(b.original.requestedAt).getTime(),
     meta: { className: "hidden md:table-cell" },
   }),
-  columnHelper.accessor("paymentMethod", {
+  columnHelper.accessor((row) => paymentMethodLabel(row.paymentMethod), {
+    id: "paymentMethod",
     header: "Method",
     cell: info => (
       <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
-        {PAYMENT_METHOD_LABELS[info.getValue()]}
+        {info.getValue()}
       </span>
     ),
     meta: { className: "hidden lg:table-cell" },
@@ -468,11 +405,11 @@ function CompletedTable({ data, search }: { data: CancellationRequest[]; search:
       const r = row.original;
       const q = (value as string).toLowerCase();
       return (
-        r.travelerName.toLowerCase().includes(q) ||
+        travelerDisplayName(r).toLowerCase().includes(q) ||
         r.tripTitle.toLowerCase().includes(q) ||
-        r.travelerEmail.toLowerCase().includes(q) ||
+        (r.travelerEmail || "").toLowerCase().includes(q) ||
         r.destination.toLowerCase().includes(q) ||
-        r.reason.toLowerCase().includes(q)
+        (r.reason || "").toLowerCase().includes(q)
       );
     },
     initialState: { pagination: { pageSize: 8 } },
@@ -484,14 +421,17 @@ function CompletedTable({ data, search }: { data: CancellationRequest[]; search:
     <Card className="border shadow-none" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <CardContent className="p-0">
         {rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-14 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full mb-4" style={{ background: "var(--primary-dim)" }}>
-              <RotateCcw className="h-5 w-5" style={{ color: "var(--primary)" }} />
-            </div>
-            <p className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
-              {search ? `No results for "${search}".` : "No completed requests yet."}
-            </p>
-          </div>
+          <OrganizerEmptyState
+            icon={RotateCcw}
+            title={search ? `No results for "${search}"` : "No completed requests yet"}
+            description={
+              search
+                ? "Try a different search term."
+                : "Approved and denied refunds will show up here."
+            }
+            framed={false}
+            className="py-14"
+          />
         ) : (
           <>
             <div className="overflow-x-auto px-4 pt-4 pb-2">
@@ -563,7 +503,7 @@ function CompletedTable({ data, search }: { data: CancellationRequest[]; search:
                       type="button"
                       onClick={btn.action}
                       disabled={!btn.can}
-                      className="rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-[var(--bg-secondary)] disabled:opacity-40"
+                      className="rounded-none border px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-[var(--bg-secondary)] disabled:opacity-40"
                       style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
                     >
                       {btn.label}
@@ -583,26 +523,108 @@ function CompletedTable({ data, search }: { data: CancellationRequest[]; search:
 type TabValue = "pending" | "completed" | "all";
 
 export default function RefundsPage() {
-  const [requests, setRequests]     = useState<CancellationRequest[]>(MOCK_REQUESTS);
+  const [requests, setRequests]     = useState<CancellationRequest[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [activeTab, setActiveTab]   = useState<TabValue>("pending");
   const [search, setSearch]         = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const loadRequests = useCallback(async () => {
+    const res = await listOrganizerCancellations({ limit: 100 });
+    setRequests(res.data?.requests ?? []);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        await loadRequests();
+      } catch (error) {
+        if (!cancelled) {
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : "Failed to load refund requests"
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadRequests]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise(r => setTimeout(r, 500));
-    // In production: setRequests(getOrganizerCancellationRequests(ORGANIZER_ID));
-    setRefreshing(false);
-  }, []);
+    try {
+      await loadRequests();
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Failed to refresh refund requests"
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadRequests]);
 
-  // Move an actioned request from pending → completed in local state
-  const handleAction = useCallback((id: string, newStatus: "refunded" | "denied") => {
-    setRequests(prev =>
-      prev.map(r => r.id === id ? { ...r, status: newStatus } : r)
-    );
-  }, []);
+  const hasProcessing = useMemo(
+    () => requests.some((r) => r.status === "processing"),
+    [requests]
+  );
 
-  const pending   = useMemo(() => requests.filter(r => r.status === "pending" || r.status === "processing"), [requests]);
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const id = window.setInterval(() => {
+      void loadRequests();
+    }, POLL_MS);
+    return () => window.clearInterval(id);
+  }, [hasProcessing, loadRequests]);
+
+  const handleAction = useCallback(async (id: string, newStatus: "refunded" | "denied") => {
+    try {
+      const res = await updateOrganizerCancellation(id, { status: newStatus });
+      const updated = res.data;
+      if (updated) {
+        setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      } else {
+        await loadRequests();
+      }
+      if (newStatus === "denied") {
+        toast.success("Cancellation denied — no refund");
+      } else if (updated?.status === "refunded") {
+        toast.success("Refund sent");
+      } else {
+        toast.success(
+          "Refund submitted — traveler will receive it via Paystack"
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Failed to update refund request"
+      );
+      throw error;
+    }
+  }, [loadRequests]);
+
+  const needsAction = useMemo(
+    () => requests.filter((r) => r.status === "pending"),
+    [requests]
+  );
+  const processing = useMemo(
+    () => requests.filter((r) => r.status === "processing"),
+    [requests]
+  );
+  const pending = useMemo(
+    () => [...needsAction, ...processing],
+    [needsAction, processing]
+  );
   const completed = useMemo(() => requests.filter(r => r.status === "refunded" || r.status === "denied"),    [requests]);
   const refunded  = useMemo(() => completed.filter(r => r.status === "refunded"), [completed]);
   const denied    = useMemo(() => completed.filter(r => r.status === "denied"),   [completed]);
@@ -612,36 +634,31 @@ export default function RefundsPage() {
     if (!search.trim()) return list;
     const q = search.toLowerCase();
     return list.filter(r =>
-      r.travelerName.toLowerCase().includes(q) ||
+      travelerDisplayName(r).toLowerCase().includes(q) ||
       r.tripTitle.toLowerCase().includes(q) ||
-      r.travelerEmail.toLowerCase().includes(q) ||
-      r.reason.toLowerCase().includes(q)
+      (r.travelerEmail || "").toLowerCase().includes(q) ||
+      (r.reason || "").toLowerCase().includes(q)
     );
   }, [search]);
 
   const pendingFiltered = useMemo(() => filterBySearch(pending), [filterBySearch, pending]);
 
-  const TABS: { value: TabValue; label: string }[] = [
-    { value: "pending",   label: `Needs action (${pending.length})` },
-    { value: "completed", label: `Completed (${completed.length})` },
-    { value: "all",       label: `All requests (${requests.length})` },
+  const TABS: { value: TabValue; label: string; count: number }[] = [
+    { value: "pending",   label: "Open",      count: pending.length },
+    { value: "completed", label: "Completed", count: completed.length },
+    { value: "all",       label: "All",       count: requests.length },
   ];
 
   function ActionCards({ items }: { items: CancellationRequest[] }) {
     if (!items.length) {
       return (
-        <div
-          className="flex flex-col items-center justify-center py-14 rounded-[14px] border border-dashed text-center"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full mb-4" style={{ background: "var(--primary-dim)" }}>
-            <CheckCircle2 className="h-5 w-5" style={{ color: "var(--primary)" }} />
-          </div>
-          <p className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>All clear</p>
-          <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>
-            {search ? `No results for "${search}".` : "No refunds waiting for action."}
-          </p>
-        </div>
+        <OrganizerEmptyState
+          icon={CheckCircle2}
+          title="All clear"
+          description={
+            search ? `No results for "${search}".` : "No refunds waiting for action."
+          }
+        />
       );
     }
     return (
@@ -656,7 +673,7 @@ export default function RefundsPage() {
   }
 
   return (
-    <div className="w-full px-4 py-8 sm:px-6 lg:px-10 lg:py-10" style={{ background: "var(--bg)" }}>
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-10 lg:py-10" style={{ background: "#f5f5f5" }}>
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <div
@@ -668,14 +685,14 @@ export default function RefundsPage() {
             Refunds
           </h1>
           <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
-            Review traveler cancellation requests and process refunds.
+            Approve or deny cancellations. Approved refunds are sent by Paystack to the traveler&apos;s original payment method — you don&apos;t hold the money.
           </p>
         </div>
         <button
           type="button"
           onClick={refresh}
           disabled={refreshing}
-          className="inline-flex items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-semibold transition-colors self-start sm:self-auto"
+          className="inline-flex items-center gap-2 rounded-none border px-4 py-2.5 text-[13px] font-semibold transition-colors self-start sm:self-auto"
           style={{ borderColor: "var(--border-strong)", background: "var(--surface)", color: "var(--text-secondary)" }}
         >
           <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
@@ -686,9 +703,15 @@ export default function RefundsPage() {
       {/* ── Stat cards ──────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
-          label="Pending action" value={pending.length}
+          label="Needs action" value={needsAction.length}
           icon={AlertCircle} iconBg="rgba(208,138,60,0.1)" iconColor="#d08a3c"
-          sub={pending.length > 0 ? "Awaiting your review" : "All clear"}
+          sub={
+            processing.length > 0
+              ? `${processing.length} sending via Paystack`
+              : needsAction.length > 0
+                ? "Awaiting your review"
+                : "All clear"
+          }
         />
         <StatCard
           label="Refunded" value={refunded.length}
@@ -698,7 +721,7 @@ export default function RefundsPage() {
         <StatCard
           label="Denied" value={denied.length}
           icon={XCircle} iconBg="rgba(181,82,58,0.1)" iconColor="var(--coral)"
-          sub="Not eligible"
+          sub="No refund issued"
         />
         <StatCard
           label="Total requests" value={requests.length}
@@ -709,7 +732,7 @@ export default function RefundsPage() {
 
       {/* ── Alert banner ────────────────────────────────────────── */}
       <AnimatePresence>
-        {pending.length > 0 && (
+        {needsAction.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -723,8 +746,8 @@ export default function RefundsPage() {
               </div>
               <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 <span className="font-semibold" style={{ color: "var(--text)" }}>
-                  {pending.length} request{pending.length !== 1 ? "s" : ""}
-                </span>{" "}waiting for your action
+                  {needsAction.length} request{needsAction.length !== 1 ? "s" : ""}
+                </span>{" "}waiting for approve or deny
               </p>
             </div>
             <button
@@ -752,29 +775,23 @@ export default function RefundsPage() {
             style={{ borderColor: "var(--border-strong)", background: "var(--surface)", color: "var(--text)" }}
           />
         </div>
-        <div className="flex flex-wrap gap-1">
-          {TABS.map(tab => {
-            const active = activeTab === tab.value;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setActiveTab(tab.value)}
-                className="rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-150"
-                style={{
-                  background: active ? "var(--primary)" : "var(--bg-secondary)",
-                  color: active ? "#fbf7f1" : "var(--text-secondary)",
-                  border: active ? "1px solid transparent" : "1px solid var(--border)",
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <OrganizerPortalTabs
+          aria-label="Refund sections"
+          tabs={TABS}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────── */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <RefreshCw className="h-5 w-5 animate-spin mb-3" style={{ color: "var(--primary)" }} />
+          <p className="text-[13px]" style={{ color: "var(--text-tertiary)" }}>
+            Loading refund requests…
+          </p>
+        </div>
+      ) : (
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -792,7 +809,7 @@ export default function RefundsPage() {
               {pending.length > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
-                    Needs action
+                    Open
                   </p>
                   <ActionCards items={filterBySearch(pending)} />
                 </div>
@@ -805,40 +822,17 @@ export default function RefundsPage() {
                   <CompletedTable data={completed} search={search} />
                 </div>
               )}
+              {requests.length === 0 && (
+                <OrganizerEmptyState
+                  icon={RotateCcw}
+                  title="No refund requests yet"
+                  description="When travelers request cancellations, they appear here for review."
+                />
+              )}
             </div>
           )}
         </motion.div>
       </AnimatePresence>
-
-      {/* ── How-to guide (only when truly empty) ────────────────── */}
-      {requests.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-6 rounded-[14px] border border-dashed p-6"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "var(--primary-dim)" }}>
-              <Filter className="h-3.5 w-3.5" style={{ color: "var(--primary)" }} />
-            </div>
-            <p className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>How to test this flow</p>
-          </div>
-          <ol className="space-y-2 ml-1">
-            {[
-              <> Sign in as a traveler and open{" "}<Link href="/dashboard" className="font-semibold underline underline-offset-2" style={{ color: "var(--gold)" }}>My Dashboard</Link></>,
-              <> Click <span className="font-semibold" style={{ color: "var(--text)" }}>Request Cancellation</span> on an upcoming booking</>,
-              <> Sign back in as organizer — the request appears on this page</>,
-            ].map((step, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold mt-0.5" style={{ background: "var(--primary-dim)", color: "var(--primary)" }}>
-                  {i + 1}
-                </span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
-        </motion.div>
       )}
     </div>
   );

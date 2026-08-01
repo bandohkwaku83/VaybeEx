@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SeatCounter } from "./seat-counter";
 import { formatCurrency, formatDateRange, cn } from "@/lib/utils";
-import { getOrganizerById } from "@/lib/mock-data";
+import { getTripDetailHref } from "@/lib/tenant";
 import type { Trip } from "@/lib/types";
 
 interface TripCardProps {
@@ -19,7 +19,7 @@ interface TripCardProps {
 }
 
 export function TripCard({ trip, wishlisted, onToggleWishlist, index = 0 }: TripCardProps) {
-  const organizer = getOrganizerById(trip.organizerId);
+  const href = getTripDetailHref(trip);
 
   return (
     <motion.div
@@ -27,7 +27,7 @@ export function TripCard({ trip, wishlisted, onToggleWishlist, index = 0 }: Trip
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
     >
-      <Card className="group overflow-hidden hover:shadow-lg hover:border-teal-200/60 transition-all duration-300">
+    <Card className="group overflow-hidden hover:shadow-lg hover:border-teal-200/60 transition-all duration-300">
         <div className="relative aspect-[16/10] overflow-hidden">
           <Image
             src={trip.image}
@@ -41,9 +41,10 @@ export function TripCard({ trip, wishlisted, onToggleWishlist, index = 0 }: Trip
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-3 right-3 h-9 w-9 rounded-full bg-white/90 hover:bg-white shadow-sm"
+              className="absolute top-3 right-3 h-9 w-9 bg-white/90 hover:bg-white shadow-sm"
               onClick={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 onToggleWishlist(trip.id);
               }}
             >
@@ -55,7 +56,7 @@ export function TripCard({ trip, wishlisted, onToggleWishlist, index = 0 }: Trip
           </div>
         </div>
         <CardContent className="p-4">
-          <Link href={`/trips/${trip.id}`}>
+          <Link href={href}>
             <h3 className="font-semibold text-stone-900 group-hover:text-teal-700 transition-colors line-clamp-1">
               {trip.title}
             </h3>
@@ -83,8 +84,8 @@ export function TripCard({ trip, wishlisted, onToggleWishlist, index = 0 }: Trip
               </div>
             )}
           </div>
-          {organizer && (
-            <p className="mt-2 text-xs text-stone-400">by {organizer.name}</p>
+          {trip.organizerName && (
+            <p className="mt-2 text-xs text-stone-400">by {trip.organizerName}</p>
           )}
         </CardContent>
       </Card>

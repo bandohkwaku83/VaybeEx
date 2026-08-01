@@ -42,7 +42,7 @@ function PrimaryButton({
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-[13px] font-semibold transition-all ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-none px-4 py-2.5 text-[13px] font-semibold transition-all ${className}`}
       style={{ background: "var(--primary)", color: "#fbf7f1" }}
       onMouseEnter={e => (e.currentTarget.style.background = "var(--primary-dark)")}
       onMouseLeave={e => (e.currentTarget.style.background = "var(--primary)")}
@@ -61,7 +61,7 @@ function OutlineButton({
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13px] font-semibold transition-colors ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-none border px-4 py-2.5 text-[13px] font-semibold transition-colors ${className}`}
       style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)", background: "var(--surface)" }}
       onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-secondary)")}
       onMouseLeave={e => (e.currentTarget.style.background = "var(--surface)")}
@@ -200,7 +200,7 @@ export function PayoutAccountsSection() {
               >
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none"
                     style={{
                       background: account.isDefault ? "var(--gold)" : "var(--primary-dim)",
                       color: account.isDefault ? "#fff" : "var(--primary)",
@@ -267,7 +267,7 @@ export function PayoutAccountsSection() {
         >
           <div className="flex items-start gap-3">
             <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none"
               style={{ background: "linear-gradient(135deg,#6b3f1d,#c4864c)" }}
             >
               <Wallet className="h-4 w-4" style={{ color: "#fbf7f1" }} />

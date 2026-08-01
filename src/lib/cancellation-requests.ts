@@ -55,9 +55,10 @@ export function updateCancellationRequest(
   return updated;
 }
 
+/** Traveler-facing cancellation / refund status labels. */
 export const CANCELLATION_STATUS_LABELS: Record<CancellationRequest["status"], string> = {
-  pending: "Pending review",
-  processing: "Refund processing",
+  pending: "Waiting for organizer",
+  processing: "Refund on the way",
   refunded: "Refunded",
-  denied: "Not eligible",
+  denied: "No refund",
 };

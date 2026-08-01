@@ -1,8 +1,18 @@
 "use client"
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Compass, Mail, MessageSquare } from "lucide-react";
 
 export function Footer() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/login")) return null;
+  if (
+    pathname === "/organizer/login" ||
+    pathname === "/organizer/verify" ||
+    pathname === "/organizer/onboarding"
+  )
+    return null;
+
   return (
     <footer
       className="border-t"
@@ -13,8 +23,8 @@ export function Footer() {
       }}
     >
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-8 md:grid-cols-4">
-          <div className="md:col-span-1">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="sm:col-span-2 lg:col-span-1">
             <div className="mb-4 flex items-center gap-2">
               <div
                 className="flex h-8 w-8 items-center justify-center text-white"
@@ -27,14 +37,7 @@ export function Footer() {
               </div>
               <span className="font-display text-lg font-bold" style={{ color: "#fbf7f1" }}>
                 Vaybe
-                <span
-                  style={{
-                    background: "linear-gradient(90deg, var(--gold), var(--amber))",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
+                <span style={{ color: "var(--gold)" }}>
                   Ex
                 </span>
               </span>
@@ -82,6 +85,20 @@ export function Footer() {
 
           <div>
             <h4 className="font-display mb-3 font-semibold" style={{ color: "#fbf7f1" }}>
+              Company
+            </h4>
+            <ul className="space-y-2 text-sm" style={{ color: "rgba(251, 247, 241, 0.55)" }}>
+              <li>
+                <FooterLink href="/terms">Terms &amp; Conditions</FooterLink>
+              </li>
+              <li>
+                <FooterLink href="/privacy">Privacy Policy</FooterLink>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-display mb-3 font-semibold" style={{ color: "#fbf7f1" }}>
               Notifications
             </h4>
             <ul className="space-y-2 text-sm" style={{ color: "rgba(251, 247, 241, 0.55)" }}>
@@ -103,7 +120,10 @@ export function Footer() {
             color: "rgba(251, 247, 241, 0.4)",
           }}
         >
-          © 2026 VaybeEx. All rights reserved.
+          © 2026 VaybeEx. All rights reserved. ·{" "}
+          <FooterLink href="/terms">Terms</FooterLink>
+          {" · "}
+          <FooterLink href="/privacy">Privacy</FooterLink>
         </div>
       </div>
     </footer>
