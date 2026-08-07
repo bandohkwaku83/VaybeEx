@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Compass, Eye, EyeOff, Shield } from "lucide-react";
+import { Eye, EyeOff, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,22 +74,14 @@ function AdminLoginForm() {
     >
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Link href="/" className="mb-6 flex items-center gap-2.5">
-            <div
-              className="flex h-10 w-10 items-center justify-center text-white"
-              style={{
-                background: "#171717",
-                borderRadius: "12px",
-              }}
-            >
-              <Compass className="h-5 w-5" />
-            </div>
-            <span
-              className="font-display text-xl font-bold"
-              style={{ color: "#171717" }}
-            >
-              VaybeEx
-            </span>
+          <Link href="/" className="mb-6">
+            <BrandLogo
+              size="lg"
+              withWordmark
+              accentEx={false}
+              wordmarkClassName="text-xl"
+              wordmarkStyle={{ color: "#171717" }}
+            />
           </Link>
 
           <div

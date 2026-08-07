@@ -7,6 +7,7 @@ import {
   LayoutDashboard, PlusCircle, Wallet, ArrowDownToLine, RotateCcw,
   MessageSquare, Compass, LogOut, BookOpen, Settings, ChevronsLeft, ChevronsRight,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { VerifiedBadge } from "@/components/trips/verified-badge";
@@ -78,20 +79,13 @@ export function OrganizerSidebar({ collapsed, onToggle }: OrganizerSidebarProps)
         style={{ borderColor: "var(--border)" }}
       >
         <Link href="/organizer/dashboard" className="flex items-center gap-2 overflow-hidden">
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: "var(--gradient-brand)" }}
-          >
-            <Compass className="h-4 w-4" style={{ color: "#fbf7f1" }} />
-          </div>
-          {!collapsed && (
-            <div className="whitespace-nowrap">
-              <span className="font-display text-sm font-bold" style={{ color: "var(--text)" }}>
-                Vaybe<span style={{ color: "var(--primary)" }}>Ex</span>
-              </span>
-              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Organizer Portal</p>
-            </div>
-          )}
+          <BrandLogo
+            size="sm"
+            withWordmark={!collapsed}
+            wordmarkClassName="text-sm"
+            wordmarkStyle={{ color: "var(--text)" }}
+            subline={collapsed ? undefined : "Organizer Portal"}
+          />
         </Link>
 
         {!collapsed && (

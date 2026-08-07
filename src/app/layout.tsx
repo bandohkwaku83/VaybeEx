@@ -21,6 +21,11 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "VaybeEx — Discover & Book Group Trips",
   description: "Curated group travel experiences across Ghana and West Africa. Book adventures and track your trips.",
+  icons: {
+    icon: [{ url: "/images/web_logo.png", type: "image/png" }],
+    apple: [{ url: "/images/web_logo.png", type: "image/png" }],
+    shortcut: ["/images/web_logo.png"],
+  },
 };
 
 export default function RootLayout({

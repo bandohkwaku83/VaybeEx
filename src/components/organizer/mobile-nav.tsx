@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowDownToLine,
-  Compass,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -18,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { BrandLogo } from "@/components/brand-logo";
 import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { getOrganizerProfile } from "@/lib/organizer-profile";
 import { cn } from "@/lib/utils";
@@ -136,34 +136,30 @@ export function OrganizerMobileDrawer({
                 className="flex min-w-0 items-center gap-2.5"
                 onClick={onClose}
               >
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                  style={{
-                    background: brandLogo ? "transparent" : "var(--primary)",
-                  }}
-                >
-                  {brandLogo ? (
-                    <img
-                      src={brandLogo || DEFAULT_PROFILE_IMAGE}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <Compass className="h-3.5 w-3.5 text-[#fbf7f1]" />
-                  )}
-                </span>
-                <span
-                  className="truncate font-display text-sm font-bold tracking-tight"
-                  style={{ color: "var(--text)" }}
-                >
-                  {brandLabel === "VaybeEx" ? (
-                    <>
-                      Vaybe<span style={{ color: "var(--gold)" }}>Ex</span>
-                    </>
-                  ) : (
-                    brandLabel
-                  )}
-                </span>
+                {brandLogo ? (
+                  <>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                      <img
+                        src={brandLogo || DEFAULT_PROFILE_IMAGE}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </span>
+                    <span
+                      className="truncate font-display text-sm font-bold tracking-tight"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {brandLabel}
+                    </span>
+                  </>
+                ) : (
+                  <BrandLogo
+                    size="sm"
+                    withWordmark
+                    wordmarkClassName="text-sm"
+                    wordmarkStyle={{ color: "var(--text)" }}
+                  />
+                )}
               </Link>
               <button
                 type="button"

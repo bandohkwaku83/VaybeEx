@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, Compass, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 
 interface AuthHighlight {
@@ -92,27 +93,14 @@ export function AuthSplitLayout({
           )}
         >
           {showLogo && (
-            <Link href={brandHref} className="mb-8 flex items-center gap-2.5 lg:mb-10">
-              <div
-                className="flex h-10 w-10 items-center justify-center text-white"
-                style={{
-                  background: "var(--gradient-brand)",
-                  borderRadius: "12px",
-                  boxShadow: "var(--glow-gold)",
-                }}
-              >
-                <Compass className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="font-display text-xl font-bold" style={{ color: "var(--text)" }}>
-                  Vaybe<span style={{ color: "var(--gold)" }}>Ex</span>
-                </span>
-                {brandSubline && (
-                  <p className="text-xs leading-none" style={{ color: "var(--text-tertiary)" }}>
-                    {brandSubline}
-                  </p>
-                )}
-              </div>
+            <Link href={brandHref} className="mb-8 lg:mb-10">
+              <BrandLogo
+                size="lg"
+                withWordmark
+                wordmarkClassName="text-xl"
+                wordmarkStyle={{ color: "var(--text)" }}
+                subline={brandSubline}
+              />
             </Link>
           )}
 

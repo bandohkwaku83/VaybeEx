@@ -291,7 +291,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -313,9 +313,7 @@ import {
   Mountain,
   Zap,
 } from "lucide-react";
-import { OrganizerLandingHeader } from "@/components/organizer/landing-header";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import OrganizerHero from "./components/organizerhero";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -325,7 +323,6 @@ import { HowItWorks } from "./components/howitworks";
 import Tools from "./components/tools";
 import CardSwap, { Card } from "./components/cardswap";
 import { PaymentsSection } from "./components/payment";
-import { ReachSection } from "./components/reachsection";
 import { TrustSection } from "./components/trustsection";
 import CircularGallery from "@/components/CircularGallery";
 import { FAQSection } from "./components/faqsection";
@@ -333,16 +330,6 @@ import { FAQSection } from "./components/faqsection";
 gsap.registerPlugin(ScrollTrigger);
 
 /* ─── DATA ──────────────────────────────────────────────────────── */
-
-const NAV_SECTIONS = [
-  { id: "why", label: "Why VaybeEx" },
-  { id: "how-it-works", label: "How it works" },
-  { id: "tools", label: "Tools" },
-  { id: "payments", label: "Payments" },
-  { id: "reach", label: "Reach" },
-  { id: "trust", label: "Trust" },
-  { id: "get-started", label: "Get started" },
-];
 
 const WHY_BENEFITS = [
   {
@@ -552,27 +539,6 @@ export function RevealBox({
 /* ─── PAGE ────────────────────────────────────────────────────────── */
 
 export default function OrganizerLandingPage() {
-  const [activeSection, setActiveSection] = useState("why");
-
-  /* Active nav highlight via IntersectionObserver */
-  useEffect(() => {
-    const ids = NAV_SECTIONS.map((s) => s.id);
-    const observers: IntersectionObserver[] = [];
-    ids.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const obs = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) setActiveSection(id);
-        },
-        { threshold: 0.35 },
-      );
-      obs.observe(el);
-      observers.push(obs);
-    });
-    return () => observers.forEach((o) => o.disconnect());
-  }, []);
-
   /* ── How it works: horizontal scroll pin ── */
   const howPinRef = useRef<HTMLDivElement>(null);
   const howTrackRef = useRef<HTMLDivElement>(null);
@@ -715,43 +681,7 @@ export default function OrganizerLandingPage() {
       className="min-h-screen"
       style={{ background: "var(--bg)", color: "var(--text)" }}
     >
-      <OrganizerLandingHeader />
       <OrganizerHero />
-
-      {/* ── Sticky section nav ──────────────────────────────── */}
-      <nav
-        className="sticky top-16 z-40 border-b"
-        style={{
-          borderColor: "var(--border)",
-          background: "rgba(251,247,241,0.96)",
-          backdropFilter: "blur(16px)",
-        }}
-      >
-        <div className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6 lg:px-8">
-          <ul className="flex gap-1 py-2 min-w-max">
-            {NAV_SECTIONS.map((s) => (
-              <li key={s.id}>
-                <a
-                  href={`#${s.id}`}
-                  className={cn(
-                    "block rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 whitespace-nowrap",
-                    activeSection === s.id
-                      ? "text-[var(--primary-dark)] font-bold"
-                      : "text-[var(--text-secondary)] hover:text-[var(--primary)]",
-                  )}
-                  style={
-                    activeSection === s.id
-                      ? { background: "var(--primary-dim)" }
-                      : {}
-                  }
-                >
-                  {s.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </nav>
 
       {/* ══════════════════════════════════════════════════════
           WHY VAYBEEX
@@ -777,12 +707,7 @@ export default function OrganizerLandingPage() {
 
       <PaymentsSection/>
 
-     
 
-      {/* ══════════════════════════════════════════════════════
-          REACH
-      ══════════════════════════════════════════════════════ */}
-      <ReachSection/>
 
    
 

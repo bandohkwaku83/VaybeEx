@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Compass } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -30,31 +31,19 @@ export function OrganizerLandingHeader() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
         {/* Logo */}
-        <Link href="/organizer" className="flex items-center gap-2.5 group">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-[#fbf7f1] transition-shadow duration-200 group-hover:shadow-[var(--glow-teal)]"
-            style={{ background: "var(--gradient-brand)" }}
-          >
-            <Compass className="h-5 w-5" />
-          </div>
-          <div>
-            <span
-              className={cn(
-                "font-display text-lg font-bold transition-colors duration-300",
-                scrolled ? "text-[var(--text)]" : "text-[#fbf7f1]"
-              )}
-            >
-              Vaybe<span className="text-[var(--gold)]">Ex</span>
-            </span>
-            <p
-              className={cn(
-                "text-xs leading-none transition-colors duration-300",
-                scrolled ? "text-[var(--text-tertiary)]" : "text-[rgba(251,247,241,0.7)]"
-              )}
-            >
-              For Organizers
-            </p>
-          </div>
+        <Link href="/organizer" className="group flex items-center gap-2.5">
+          <BrandLogo
+            size="md"
+            withWordmark
+            wordmarkClassName="text-lg"
+            wordmarkStyle={{
+              color: scrolled ? "var(--text)" : "#fbf7f1",
+            }}
+            subline="For Organizers"
+            sublineStyle={{
+              color: scrolled ? "var(--text-tertiary)" : "rgba(251,247,241,0.7)",
+            }}
+          />
         </Link>
 
         {/* Actions */}

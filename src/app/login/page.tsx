@@ -165,41 +165,51 @@ function LoginForm() {
     >
       <div className="space-y-6">
         <div
-          className="flex rounded-xl border p-1"
-          style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
+          role="tablist"
+          aria-label="Account mode"
+          className="flex w-full border-b"
+          style={{ borderColor: "var(--border)" }}
         >
           <button
             type="button"
+            role="tab"
+            aria-selected={!isSignup}
             onClick={() => {
               setIsSignup(false);
               setGoogleConnected(false);
             }}
             className={cn(
-              "flex-1 rounded-none py-2 text-sm font-semibold transition-all",
-              !isSignup ? "shadow-sm" : "opacity-60"
+              "relative flex-1 pb-3 pt-1 text-sm transition-colors",
+              !isSignup ? "font-semibold" : "font-medium opacity-70"
             )}
-            style={
-              !isSignup
-                ? { background: "var(--surface)", color: "var(--text)" }
-                : { color: "var(--text-secondary)" }
-            }
+            style={{ color: !isSignup ? "var(--text)" : "var(--text-tertiary)" }}
           >
             Sign in
+            {!isSignup && (
+              <span
+                className="absolute inset-x-0 bottom-0 h-0.5"
+                style={{ background: "var(--primary)" }}
+              />
+            )}
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={isSignup}
             onClick={() => setIsSignup(true)}
             className={cn(
-              "flex-1 rounded-none py-2 text-sm font-semibold transition-all",
-              isSignup ? "shadow-sm" : "opacity-60"
+              "relative flex-1 pb-3 pt-1 text-sm transition-colors",
+              isSignup ? "font-semibold" : "font-medium opacity-70"
             )}
-            style={
-              isSignup
-                ? { background: "var(--surface)", color: "var(--text)" }
-                : { color: "var(--text-secondary)" }
-            }
+            style={{ color: isSignup ? "var(--text)" : "var(--text-tertiary)" }}
           >
             Create account
+            {isSignup && (
+              <span
+                className="absolute inset-x-0 bottom-0 h-0.5"
+                style={{ background: "var(--primary)" }}
+              />
+            )}
           </button>
         </div>
 

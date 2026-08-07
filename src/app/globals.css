@@ -197,8 +197,8 @@
     background: var(--primary);
     color: #fbf7f1;
   }
-  /* Rectangular buttons project-wide (exclude toggles, tabs, soft chips) */
-  button:not([role="switch"]):not([role="tab"]):not(.soft-chip),
+  /* Rectangular buttons project-wide (exclude toggles, tabs, soft chips, intentional rounded rects) */
+  button:not([role="switch"]):not([role="tab"]):not(.soft-chip):not(.rounded-rect),
   input[type="button"],
   input[type="submit"],
   input[type="reset"],
@@ -208,6 +208,12 @@
   button[role="switch"],
   button.soft-chip {
     border-radius: 9999px !important;
+  }
+  button[role="tab"] {
+    border-radius: 0.5rem !important; /* soft tab inside rounded track */
+  }
+  button.rounded-rect {
+    border-radius: 1rem !important; /* rounded-2xl */
   }
   ::-webkit-scrollbar {
     width: 10px;

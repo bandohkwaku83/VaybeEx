@@ -6,12 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Check,
-  Compass,
   Loader2,
   Mail,
   RefreshCw,
   ShieldAlert,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { RequireOrganizerAuth } from "@/components/auth/require-organizer-auth";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -133,16 +133,13 @@ function PendingContent() {
               "linear-gradient(180deg, rgba(42,27,15,0.35) 0%, rgba(251,247,241,1) 95%)",
           }}
         />
-        <div className="absolute bottom-4 left-5 flex items-center gap-2">
-          <div
-            className="flex h-8 w-8 items-center justify-center text-white"
-            style={{ background: "var(--gradient-brand)", borderRadius: "10px" }}
-          >
-            <Compass className="h-4 w-4" />
-          </div>
-          <span className="font-display text-lg font-bold" style={{ color: "var(--text)" }}>
-            Vaybe<span style={{ color: "var(--gold)" }}>Ex</span>
-          </span>
+        <div className="absolute bottom-4 left-5">
+          <BrandLogo
+            size="sm"
+            withWordmark
+            wordmarkClassName="text-lg"
+            wordmarkStyle={{ color: "var(--text)" }}
+          />
         </div>
       </div>
 
@@ -157,25 +154,14 @@ function PendingContent() {
         />
 
         <div className="relative mx-auto w-full max-w-lg animate-[fade-up_0.7s_cubic-bezier(0.16,1,0.3,1)_both]">
-          <Link href="/organizer" className="mb-10 hidden items-center gap-2.5 lg:flex">
-            <div
-              className="flex h-10 w-10 items-center justify-center text-white"
-              style={{
-                background: "var(--gradient-brand)",
-                borderRadius: "12px",
-                boxShadow: "var(--glow-gold)",
-              }}
-            >
-              <Compass className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="font-display text-xl font-bold" style={{ color: "var(--text)" }}>
-                Vaybe<span style={{ color: "var(--gold)" }}>Ex</span>
-              </span>
-              <p className="text-xs leading-none" style={{ color: "var(--text-tertiary)" }}>
-                Organizer portal
-              </p>
-            </div>
+          <Link href="/organizer" className="mb-10 hidden lg:block">
+            <BrandLogo
+              size="lg"
+              withWordmark
+              wordmarkClassName="text-xl"
+              wordmarkStyle={{ color: "var(--text)" }}
+              subline="Organizer portal"
+            />
           </Link>
 
           <div className="flex items-center gap-3">

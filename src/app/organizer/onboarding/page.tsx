@@ -10,7 +10,6 @@ import {
   Check,
   ChevronRight,
   Clock,
-  Compass,
   Map,
   MapPin,
   Phone,
@@ -22,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FileUploadZone } from "@/components/organizer/file-upload-zone";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -395,24 +395,14 @@ function OnboardingFlow() {
             Back to overview
           </Link>
 
-          <Link href="/organizer" className="mb-8 flex items-center gap-2.5">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{
-                background: "var(--gradient-brand)",
-                boxShadow: "var(--glow-gold)",
-              }}
-            >
-              <Compass className="h-5 w-5" style={{ color: "#fbf7f1" }} />
-            </div>
-            <div>
-              <span className="font-display text-lg font-bold" style={{ color: "var(--text)" }}>
-                Vaybe<span style={{ color: "var(--gold)" }}>Ex</span>
-              </span>
-              <p className="text-xs leading-none" style={{ color: "var(--text-tertiary)" }}>
-                Organizer setup
-              </p>
-            </div>
+          <Link href="/organizer" className="mb-8">
+            <BrandLogo
+              size="lg"
+              withWordmark
+              wordmarkClassName="text-lg"
+              wordmarkStyle={{ color: "var(--text)" }}
+              subline="Organizer setup"
+            />
           </Link>
 
           <div className="mb-6">

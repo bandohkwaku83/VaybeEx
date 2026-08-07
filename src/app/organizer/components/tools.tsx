@@ -224,20 +224,26 @@ const Tools = () => {
                   const Icon = category.icon;
 
                   return (
-                    <button
+                    <div
                       key={category.title}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setActiveIndex(index)}
-                      className={`group relative flex flex-1 w-full items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition-all duration-300 ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setActiveIndex(index);
+                        }
+                      }}
+                      className={`group relative flex flex-1 w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition-all duration-300 ${
                         isActive
                           ? "border-transparent text-white shadow-[0_8px_24px_rgba(42,27,15,0.18)]"
                           : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--gold)]/40 hover:bg-[var(--primary-dim)]"
                       }`}
-                      style={
-                        isActive
-                          ? { background: "var(--text)" }
-                          : undefined
-                      }
+                      style={{
+                        borderRadius: 16,
+                        ...(isActive ? { background: "var(--text)" } : {}),
+                      }}
                       aria-pressed={isActive}
                     >
                       {isActive && (
@@ -275,7 +281,7 @@ const Tools = () => {
                       >
                         {category.title}
                       </span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>

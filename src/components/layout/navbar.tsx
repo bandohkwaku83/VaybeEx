@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Heart, LogIn, LogOut, Menu, Phone, Search, User, X } from "lucide-react";
+import { Heart, LogOut, Menu, User, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -45,10 +46,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const isOrganizerLanding = pathname === "/organizer";
-  const isHome = pathname === "/";
-  const overlay = (isHome || isOrganizerLanding) && !scrolled;
   const lightOverlay = isOrganizerLanding && !scrolled;
-  const overlayFg = lightOverlay ? "#fbf7f1" : "#000000";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -57,6 +55,7 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Hide on organizer portal/auth routes — the landing page (`/organizer`) keeps the main nav.
   if (pathname.startsWith("/organizer") && !isOrganizerLanding) return null;
   if (pathname.startsWith("/admin-portal") || pathname.startsWith("/admin")) return null;
   if (pathname.startsWith("/login")) return null;
@@ -80,40 +79,17 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
         {/* ── Logo ── */}
-        <Link href={apexHref("/")} className="flex items-center gap-2 group">
-          <div
-            className="flex h-9 w-9 items-center justify-center text-white"
-            style={{
-              background: "var(--gradient-teal)",
-              borderRadius: "10px",
-              boxShadow: "var(--glow-teal)",
-              transition: "box-shadow 0.3s ease, transform 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--glow-teal-strong)";
-              (e.currentTarget as HTMLDivElement).style.transform = "scale(1.08)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--glow-teal)";
-              (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
-            }}
-          >
-            <Compass className="h-5 w-5" />
-          </div>
-          <span
-            className="font-display"
-            style={{
+        <Link href={apexHref("/")} className="group flex items-center gap-2">
+          <BrandLogo
+            size="md"
+            withWordmark
+            wordmarkClassName="text-[1.2rem]"
+            wordmarkStyle={{
               color: lightOverlay ? "#fbf7f1" : "var(--text)",
-              fontWeight: 700,
               letterSpacing: "-0.03em",
-              fontSize: "1.2rem",
             }}
-          >
-            Vaybe
-            <span style={{ color: "var(--gold)" }}>
-              Ex
-            </span>
-          </span>
+            className="transition-transform duration-300 group-hover:scale-[1.03]"
+          />
         </Link>
 
         {/* ── Desktop Nav ── */}
@@ -184,43 +160,7 @@ export function Navbar() {
         </nav>
 
         {/* ── Right side (lg+; tablet/mobile use the hamburger menu) ── */}
-        <div className="hidden items-center lg:flex">
-          {overlay && (
-            <>
-              <div
-                className="flex items-center gap-1 px-4"
-                style={{
-                  borderRight: `1px solid ${lightOverlay ? "rgba(251,247,241,0.25)" : "var(--border)"}`,
-                  color: overlayFg,
-                  fontSize: "0.875rem",
-                  cursor: "pointer",
-                  transition: "color 0.2s ease",
-                }}
-                onMouseEnter={(e) =>
-                  ((e.currentTarget as HTMLDivElement).style.color = lightOverlay ? "#ffffff" : "#333333")
-                }
-                onMouseLeave={(e) =>
-                  ((e.currentTarget as HTMLDivElement).style.color = overlayFg)
-                }
-              >
-                <Search className="h-4 w-4" />
-              </div>
-              <div
-                className="flex items-center gap-2 px-4"
-                style={{
-                  borderRight: `1px solid ${lightOverlay ? "rgba(251,247,241,0.25)" : "var(--border)"}`,
-                  color: overlayFg,
-                  fontSize: "0.8rem",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                <Phone className="h-3.5 w-3.5" style={{ color: overlayFg }} />
-                <span className="hidden lg:inline">+233 20 123 4567</span>
-              </div>
-            </>
-          )}
-
-          <div className={cn("flex items-center gap-2", overlay && "pl-4")}>
+        <div className="hidden items-center gap-2 lg:flex">
             {isAuthenticated && isTraveler && (
               <Button
                 variant="ghost"
@@ -276,10 +216,13 @@ export function Navbar() {
                 <Button
                   size="sm"
                   variant="outline"
+                  title="Sign up as a traveler"
                   style={{
                     background: "transparent",
-                    color: "#000000",
-                    border: "0.5px solid var(--border-strong)",
+                    color: lightOverlay ? "#fbf7f1" : "#000000",
+                    border: lightOverlay
+                      ? "0.5px solid rgba(251,247,241,0.45)"
+                      : "0.5px solid var(--border-strong)",
                     borderRadius: "0",
                     fontWeight: 600,
                     fontSize: "0.8125rem",
@@ -289,16 +232,16 @@ export function Navbar() {
                 >
                   <Link
                     href={apexHref(
-                      `/login?mode=signup&redirect=${encodeURIComponent(pathname)}`
+                      `/login?mode=signup&redirect=${encodeURIComponent(pathname === "/organizer" ? "/" : pathname)}`
                     )}
                   >
-                    <span className="hidden sm:inline">Create account</span>
-                    <span className="sm:hidden">Join</span>
+                    Traveler
                   </Link>
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
+                  title="Sign up as an organizer"
                   style={{
                     background: "var(--gradient-teal)",
                     color: "#fbf7f1",
@@ -322,26 +265,18 @@ export function Navbar() {
                     el.style.boxShadow = "var(--glow-teal)";
                     el.style.transform = "translateY(0)";
                   }}
-                  onMouseDown={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.transform = "scale(0.97)")
-                  }
-                  onMouseUp={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)")
-                  }
                   asChild
                 >
                   <Link
                     href={apexHref(
-                      `/login?redirect=${encodeURIComponent(pathname)}`
+                      `/organizer/login?mode=signup&redirect=${encodeURIComponent("/organizer/onboarding")}`
                     )}
                   >
-                    <LogIn className="h-4 w-4" />
-                    <span className="hidden sm:inline">Sign in</span>
+                    Organizer
                   </Link>
                 </Button>
               </>
             )}
-          </div>
         </div>
 
         {/* ── Mobile / tablet hamburger (below lg) ── */}
@@ -420,24 +355,25 @@ export function Navbar() {
             <>
               <Link
                 href={apexHref(
-                  `/login?mode=signup&redirect=${encodeURIComponent(pathname)}`
+                  `/login?mode=signup&redirect=${encodeURIComponent(pathname === "/organizer" ? "/" : pathname)}`
                 )}
                 onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
                 style={{ color: "var(--text-secondary)" }}
+                title="Sign up as a traveler"
               >
-                Create account
+                Traveler
               </Link>
               <Link
                 href={apexHref(
-                  `/login?redirect=${encodeURIComponent(pathname)}`
+                  `/organizer/login?mode=signup&redirect=${encodeURIComponent("/organizer/onboarding")}`
                 )}
                 onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
                 style={{ color: "var(--primary)", fontWeight: 500 }}
+                title="Sign up as an organizer"
               >
-                <LogIn className="h-4 w-4" />
-                Sign in
+                Organizer
               </Link>
             </>
           )}

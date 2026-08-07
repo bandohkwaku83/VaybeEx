@@ -10,10 +10,10 @@ import {
   LayoutDashboard,
   LogOut,
   Map,
-  Shield,
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { cn } from "@/lib/utils";
 
@@ -116,32 +116,15 @@ export function AdminSidebar({
         style={{ borderColor: "#e5e5e5" }}
       >
         <Link href="/admin-portal" className="flex min-w-0 items-center gap-3">
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{
-              background: "#f5f5f5",
-              boxShadow: "inset 0 0 0 1px #e5e5e5",
-              color: "#171717",
-            }}
-          >
-            <Shield className="h-4 w-4" strokeWidth={1.75} />
-          </span>
-          {!collapsed && (
-            <span className="min-w-0">
-              <span
-                className="block font-display text-[15px] font-bold tracking-tight"
-                style={{ color: "#171717" }}
-              >
-                VaybeEx
-              </span>
-              <span
-                className="block text-[10px] font-medium uppercase tracking-[0.16em]"
-                style={{ color: "#a3a3a3" }}
-              >
-                Operations
-              </span>
-            </span>
-          )}
+          <BrandLogo
+            size="md"
+            withWordmark={!collapsed}
+            accentEx={false}
+            wordmarkClassName="text-[15px]"
+            wordmarkStyle={{ color: "#171717" }}
+            subline={collapsed ? undefined : "Operations"}
+            sublineStyle={{ color: "#a3a3a3" }}
+          />
         </Link>
 
         {!collapsed && (

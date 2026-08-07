@@ -1,7 +1,8 @@
 "use client"
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Mail, MessageSquare } from "lucide-react";
+import { Mail, MessageSquare } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function Footer() {
   const pathname = usePathname();
@@ -25,22 +26,13 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div className="sm:col-span-2 lg:col-span-1">
-            <div className="mb-4 flex items-center gap-2">
-              <div
-                className="flex h-8 w-8 items-center justify-center text-white"
-                style={{
-                  background: "var(--gradient-warm)",
-                  borderRadius: "10px",
-                }}
-              >
-                <Compass className="h-4 w-4" />
-              </div>
-              <span className="font-display text-lg font-bold" style={{ color: "#fbf7f1" }}>
-                Vaybe
-                <span style={{ color: "var(--gold)" }}>
-                  Ex
-                </span>
-              </span>
+            <div className="mb-4">
+              <BrandLogo
+                size="sm"
+                withWordmark
+                wordmarkClassName="text-lg"
+                wordmarkStyle={{ color: "#fbf7f1" }}
+              />
             </div>
             <p className="text-sm leading-relaxed" style={{ color: "rgba(251, 247, 241, 0.55)" }}>
               We know you. We care for you. We&apos;re with you — from booking to return.
