@@ -17,16 +17,12 @@ import { ApiError } from "@/lib/api/client";
 import { setOrganizerToken } from "@/lib/api/auth-token";
 import {
   loginOrganizer,
+  loginOrganizerWithGoogle,
   mapOrganizerSession,
   registerOrganizer,
   resolveOrganizerHome,
 } from "@/lib/api/organizer-auth";
 import { syncOrganizerProfileCache } from "@/lib/api/organizer-profile";
-
-const MOCK_GOOGLE_USER = {
-  name: "Alex Morgan",
-  email: "alex.morgan@gmail.com",
-};
 
 const ORGANIZER_HIGHLIGHTS = [
   { icon: BarChart3, label: "Trip analytics" },
@@ -66,14 +62,35 @@ function OrganizerLoginForm() {
   const canSubmitSignin =
     Boolean(email.trim()) && Boolean(password.trim()) && !isSubmitting;
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleCredential = async (idToken: string) => {
     if (isSignup && !acceptedTerms) {
       toast.error("Please agree to the Terms & Conditions to continue.");
       return;
     }
-    login(MOCK_GOOGLE_USER);
-    toast.success(isSignup ? "Google account connected!" : "Welcome back!");
-    router.push(redirect);
+
+    setIsSubmitting(true);
+    try {
+      const response = await loginOrganizerWithGoogle({ idToken });
+      const { user, token } = response.data ?? {};
+      if (!user || !token) {
+        toast.error(response.message || "Google sign-in failed. Please try again.");
+        return;
+      }
+
+      setOrganizerToken(token);
+      login(mapOrganizerSession(user));
+      syncOrganizerProfileCache(user);
+      toast.success(response.message || (isSignup ? "Account connected!" : "Welcome back!"));
+      router.push(resolveOrganizerHome(user, searchParams.get("redirect")));
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "Something went wrong. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -222,7 +239,11 @@ function OrganizerLoginForm() {
         </button>
       </div>
 
-      <GoogleSignInButton onClick={handleGoogleSignIn} disabled={isSubmitting} />
+      <GoogleSignInButton
+        onCredential={handleGoogleCredential}
+        disabled={isSubmitting}
+        label={isSignup ? "Sign up with Google" : "Sign in with Google"}
+      />
 
       <div className="relative my-5 flex items-center">
         <span className="h-px flex-1" style={{ background: "var(--border)" }} />

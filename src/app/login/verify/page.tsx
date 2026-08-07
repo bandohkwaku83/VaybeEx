@@ -27,6 +27,7 @@ function VerifyLoginForm() {
   const email = searchParams.get("email") ?? "";
   const phone = searchParams.get("phone") ?? "";
   const mode = searchParams.get("mode") === "signin" ? "signin" : "signup";
+  const viaPhone = searchParams.get("via") === "phone";
   const redirect = searchParams.get("redirect") ?? "/";
 
   const [otp, setOtp] = useState("");
@@ -34,7 +35,7 @@ function VerifyLoginForm() {
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const destinationLabel = email || phone;
+  const destinationLabel = viaPhone ? phone || email : email || phone;
 
   useEffect(() => {
     if (!email && !phone) {
@@ -61,8 +62,15 @@ function VerifyLoginForm() {
     try {
       const response = await verifyTravelerOtp({
         code: otp,
-        ...(email ? { email } : {}),
-        ...(phone && !email ? { phone } : {}),
+        ...(viaPhone
+          ? {
+              ...(phone ? { phone } : {}),
+              ...(email ? { email } : {}),
+            }
+          : {
+              ...(email ? { email } : {}),
+              ...(phone && !email ? { phone } : {}),
+            }),
       });
 
       const { user, token } = response.data ?? {};
@@ -98,10 +106,17 @@ function VerifyLoginForm() {
 
     setIsResending(true);
     try {
-      const response = await resendTravelerOtp({
-        ...(email ? { email } : {}),
-        ...(phone && !email ? { phone } : {}),
-      });
+      const response = await resendTravelerOtp(
+        viaPhone
+          ? {
+              ...(phone ? { phone } : {}),
+              ...(email ? { email } : {}),
+            }
+          : {
+              ...(email ? { email } : {}),
+              ...(phone && !email ? { phone } : {}),
+            }
+      );
       toast.success(response.message);
       setResendCooldown(60);
       setOtp("");
@@ -128,10 +143,16 @@ function VerifyLoginForm() {
       showLogo={false}
       compact
       eyebrow="Almost there"
-      title={mode === "signin" ? "Enter your code" : "Verify your email"}
+      title={
+        viaPhone
+          ? "Verify your phone"
+          : mode === "signin"
+            ? "Enter your code"
+            : "Verify your email"
+      }
       subtitle={
         <>
-          We sent a {OTP_LENGTH}-digit code to{" "}
+          We sent a {OTP_LENGTH}-digit {viaPhone ? "SMS " : ""}code to{" "}
           <span className="font-semibold" style={{ color: "var(--text)" }}>
             {destinationLabel}
           </span>

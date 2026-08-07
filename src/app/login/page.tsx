@@ -11,26 +11,26 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/use-auth";
+import { setTravelerToken } from "@/lib/api/auth-token";
 import { ApiError } from "@/lib/api/client";
 import {
   isEmailIdentifier,
   loginTraveler,
+  loginTravelerWithGoogle,
+  mapTravelerSession,
   normalizePhone,
   registerTraveler,
+  type TravelerPublicUser,
 } from "@/lib/api/traveler-auth";
 import { cn } from "@/lib/utils";
-
-const MOCK_GOOGLE_USER = {
-  name: "Jordan Lee",
-  email: "jordan.lee@gmail.com",
-  phone: "+233 20 123 4567",
-};
 
 function buildVerifyUrl(opts: {
   mode: "signup" | "signin";
   email?: string;
   phone?: string;
   redirect: string;
+  via?: "phone" | "email";
 }) {
   const params = new URLSearchParams({
     mode: opts.mode,
@@ -38,12 +38,14 @@ function buildVerifyUrl(opts: {
   });
   if (opts.email) params.set("email", opts.email);
   if (opts.phone) params.set("phone", opts.phone);
+  if (opts.via) params.set("via", opts.via);
   return `/login/verify?${params.toString()}`;
 }
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { login } = useAuth();
 
   const initialIsSignup = searchParams.get("mode") === "signup";
   const [isSignup, setIsSignup] = useState(initialIsSignup);
@@ -51,7 +53,6 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [identifier, setIdentifier] = useState("");
-  const [googleConnected, setGoogleConnected] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -65,22 +66,81 @@ function LoginForm() {
     !isSubmitting;
   const canSubmitSignin = Boolean(identifier.trim()) && !isSubmitting;
 
-  const handleGoogleSignIn = () => {
-    if (isSignup) {
-      setName(MOCK_GOOGLE_USER.name);
-      setEmail(MOCK_GOOGLE_USER.email);
-      setPhone(MOCK_GOOGLE_USER.phone);
-      setGoogleConnected(true);
-      toast.success("Google account connected. Confirm your details and continue.");
+  const finishGoogleSession = (opts: {
+    token: string;
+    user: TravelerPublicUser;
+    needsProfile?: boolean;
+    needsPhoneVerification?: boolean;
+    message?: string;
+  }) => {
+    setTravelerToken(opts.token);
+    login(mapTravelerSession(opts.user));
+
+    if (opts.needsProfile) {
+      const params = new URLSearchParams({ redirect });
+      if (opts.user.fullName) params.set("name", opts.user.fullName);
+      if (opts.user.email) params.set("email", opts.user.email);
+      toast.success(opts.message || "Connected with Google. Finish your profile.");
+      router.push(`/login/complete-profile?${params.toString()}`);
       return;
     }
 
-    setIsSignup(true);
-    setName(MOCK_GOOGLE_USER.name);
-    setEmail(MOCK_GOOGLE_USER.email);
-    setPhone(MOCK_GOOGLE_USER.phone);
-    setGoogleConnected(true);
-    toast.info("Complete your profile to create a traveler account.");
+    if (opts.needsPhoneVerification) {
+      toast.success(opts.message || "Verify your phone to continue.");
+      router.push(
+        buildVerifyUrl({
+          mode: "signup",
+          email: opts.user.email,
+          phone: opts.user.phone ?? undefined,
+          redirect,
+          via: "phone",
+        })
+      );
+      return;
+    }
+
+    toast.success(opts.message || "Signed in with Google");
+    if (redirect.startsWith("http://") || redirect.startsWith("https://")) {
+      window.location.assign(redirect);
+    } else {
+      router.push(redirect);
+    }
+  };
+
+  const handleGoogleCredential = async (idToken: string) => {
+    if (isSignup && !acceptedTerms) {
+      toast.error("Please agree to the Terms & Conditions to continue.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await loginTravelerWithGoogle({ idToken });
+      const data = response.data;
+      if (!data?.token || !data.user) {
+        toast.error(response.message || "Google sign-in failed. Please try again.");
+        return;
+      }
+
+      finishGoogleSession({
+        token: data.token,
+        user: data.user,
+        needsProfile:
+          data.needsProfile === true || data.user.needsProfile === true,
+        needsPhoneVerification:
+          data.needsPhoneVerification === true ||
+          data.user.needsPhoneVerification === true,
+        message: response.message,
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "Something went wrong. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,10 +234,7 @@ function LoginForm() {
             type="button"
             role="tab"
             aria-selected={!isSignup}
-            onClick={() => {
-              setIsSignup(false);
-              setGoogleConnected(false);
-            }}
+            onClick={() => setIsSignup(false)}
             className={cn(
               "relative flex-1 pb-3 pt-1 text-sm transition-colors",
               !isSignup ? "font-semibold" : "font-medium opacity-70"
@@ -214,7 +271,7 @@ function LoginForm() {
         </div>
 
         <GoogleSignInButton
-          onClick={handleGoogleSignIn}
+          onCredential={handleGoogleCredential}
           disabled={isSubmitting}
           label={isSignup ? "Sign up with Google" : "Sign in with Google"}
         />
@@ -244,20 +301,10 @@ function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@gmail.com"
                   className="mt-1.5 h-11 rounded-xl"
-                  style={{
-                    borderColor: "var(--border-strong)",
-                    background:
-                      googleConnected ? "var(--bg-secondary)" : undefined,
-                  }}
+                  style={{ borderColor: "var(--border-strong)" }}
                   autoComplete="email"
-                  readOnly={googleConnected}
                   required
                 />
-                {googleConnected && (
-                  <p className="mt-1.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    Email from your Google account
-                  </p>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -271,12 +318,8 @@ function LoginForm() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your full name"
                     className="mt-1.5 h-11 rounded-xl"
-                    style={{
-                      borderColor: "var(--border-strong)",
-                      background: googleConnected ? "var(--bg-secondary)" : undefined,
-                    }}
+                    style={{ borderColor: "var(--border-strong)" }}
                     autoComplete="name"
-                    readOnly={googleConnected}
                     required
                   />
                 </div>
@@ -393,10 +436,7 @@ function LoginForm() {
               Already have an account?{" "}
               <button
                 type="button"
-                onClick={() => {
-                  setIsSignup(false);
-                  setGoogleConnected(false);
-                }}
+                onClick={() => setIsSignup(false)}
                 className="font-medium transition-colors hover:text-[var(--primary)]"
                 style={{ color: "var(--primary)" }}
               >

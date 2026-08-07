@@ -15,20 +15,25 @@ export type TravelerPublicUser = {
   id: string;
   fullName?: string;
   email: string;
-  phone?: string;
+  phone?: string | null;
   role?: string;
   isVerified?: boolean;
+  needsProfile?: boolean;
+  needsPhoneVerification?: boolean;
 };
 
 export type TravelerAuthData = {
   user: TravelerPublicUser;
   token: string;
+  needsProfile?: boolean;
+  needsPhoneVerification?: boolean;
 };
 
 export type TravelerOtpMeta = {
   email?: string;
   phone?: string;
   expiresInMinutes?: number;
+  needsPhoneVerification?: boolean;
 };
 
 export type TravelerVerifyOtpInput = {
@@ -42,6 +47,16 @@ export type TravelerResendOtpInput = {
   phone?: string;
 };
 
+export type TravelerGoogleAuthInput = {
+  /** Google ID token (JWT) from GIS / @react-oauth/google — not an access token. */
+  idToken: string;
+};
+
+export type TravelerCompleteProfileInput = {
+  fullName?: string;
+  phone: string;
+};
+
 export function registerTraveler(input: TravelerRegisterInput) {
   return apiRequest<TravelerOtpMeta>("/api/auth/register", {
     method: "POST",
@@ -52,6 +67,27 @@ export function registerTraveler(input: TravelerRegisterInput) {
 export function loginTraveler(input: TravelerLoginInput) {
   return apiRequest<TravelerOtpMeta>("/api/auth/login", {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** POST /api/auth/google — exchange Google ID token for a VaybeEx session. */
+export function loginTravelerWithGoogle(input: TravelerGoogleAuthInput) {
+  return apiRequest<TravelerAuthData>("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * POST /api/auth/complete-profile — finish Google signup (phone required).
+ * Sends SMS OTP when `needsPhoneVerification` is returned.
+ */
+export function completeTravelerProfile(input: TravelerCompleteProfileInput) {
+  const token = getTravelerToken();
+  return apiRequest<TravelerAuthData & TravelerOtpMeta>("/api/auth/complete-profile", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: JSON.stringify(input),
   });
 }
@@ -83,7 +119,7 @@ export function mapTravelerSession(user: TravelerPublicUser) {
   return {
     name: user.fullName ?? "",
     email: user.email,
-    phone: user.phone,
+    phone: user.phone ?? undefined,
     role: "traveler" as const,
   };
 }

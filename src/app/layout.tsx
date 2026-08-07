@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/hooks/use-auth";
+import { GoogleAuthProvider } from "@/components/auth/google-auth-provider";
 import { Navbar } from "@/components/layout/navbar";
 import { ConditionalFooter } from "@/components/layout/conditional-footer";
 import "./globals.css";
@@ -40,10 +41,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col overflow-x-clip bg-stone-50 overscroll-x-none" suppressHydrationWarning>
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1 overflow-x-clip">{children}</main>
-          <ConditionalFooter />
-          <Toaster position="top-right" richColors />
+          <GoogleAuthProvider>
+            <Navbar />
+            <main className="flex-1 overflow-x-clip">{children}</main>
+            <ConditionalFooter />
+            <Toaster position="top-right" richColors />
+          </GoogleAuthProvider>
         </AuthProvider>
       </body>
     </html>

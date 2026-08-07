@@ -78,6 +78,14 @@ export function loginOrganizer(input: OrganizerLoginInput) {
   });
 }
 
+/** POST /api/organizer/auth/google — exchange Google ID token for an organizer session. */
+export function loginOrganizerWithGoogle(input: { idToken: string }) {
+  return apiRequest<OrganizerAuthData>("/api/organizer/auth/google", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function logoutOrganizer() {
   const token = getOrganizerToken();
   return apiRequest("/api/organizer/auth/logout", {
