@@ -36,8 +36,15 @@ function buildVerifyUrl(opts: {
     mode: opts.mode,
     redirect: opts.redirect,
   });
-  if (opts.email) params.set("email", opts.email);
-  if (opts.phone) params.set("phone", opts.phone);
+  // Backend verify/resend accept exactly one identifier.
+  if (opts.via === "phone") {
+    if (opts.phone) params.set("phone", opts.phone);
+  } else if (opts.via === "email") {
+    if (opts.email) params.set("email", opts.email);
+  } else {
+    if (opts.email) params.set("email", opts.email);
+    else if (opts.phone) params.set("phone", opts.phone);
+  }
   if (opts.via) params.set("via", opts.via);
   return `/login/verify?${params.toString()}`;
 }
@@ -90,7 +97,6 @@ function LoginForm() {
       router.push(
         buildVerifyUrl({
           mode: "signup",
-          email: opts.user.email,
           phone: opts.user.phone ?? undefined,
           redirect,
           via: "phone",
@@ -164,8 +170,8 @@ function LoginForm() {
           buildVerifyUrl({
             mode: "signup",
             email: trimmedEmail,
-            phone: trimmedPhone,
             redirect,
+            via: "email",
           })
         );
       } catch (error) {
@@ -194,9 +200,10 @@ function LoginForm() {
       router.push(
         buildVerifyUrl({
           mode: "signin",
-          email: usingEmail ? value : response.data?.email,
-          phone: usingEmail ? response.data?.phone : normalizePhone(value),
+          email: usingEmail ? value : undefined,
+          phone: usingEmail ? undefined : normalizePhone(value),
           redirect,
+          via: usingEmail ? "email" : "phone",
         })
       );
     } catch (error) {

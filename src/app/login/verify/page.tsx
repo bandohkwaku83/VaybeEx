@@ -62,15 +62,10 @@ function VerifyLoginForm() {
     try {
       const response = await verifyTravelerOtp({
         code: otp,
-        ...(viaPhone
-          ? {
-              ...(phone ? { phone } : {}),
-              ...(email ? { email } : {}),
-            }
-          : {
-              ...(email ? { email } : {}),
-              ...(phone && !email ? { phone } : {}),
-            }),
+        // Backend accepts exactly one identifier.
+        ...(viaPhone || (phone && !email)
+          ? { phone }
+          : { email }),
       });
 
       const { user, token } = response.data ?? {};
@@ -107,15 +102,7 @@ function VerifyLoginForm() {
     setIsResending(true);
     try {
       const response = await resendTravelerOtp(
-        viaPhone
-          ? {
-              ...(phone ? { phone } : {}),
-              ...(email ? { email } : {}),
-            }
-          : {
-              ...(email ? { email } : {}),
-              ...(phone && !email ? { phone } : {}),
-            }
+        viaPhone || (phone && !email) ? { phone } : { email }
       );
       toast.success(response.message);
       setResendCooldown(60);

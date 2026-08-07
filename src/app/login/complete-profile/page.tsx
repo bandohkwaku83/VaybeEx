@@ -69,14 +69,14 @@ function CompleteProfileForm() {
       toast.success(response.message || "Profile saved. Verify your phone to continue.");
 
       if (needsPhoneVerification) {
+        // Use the real phone the user entered — API `data.phone` is masked for display.
+        // Send only phone to verify (backend rejects email + phone together).
         const params = new URLSearchParams({
           mode: "signup",
           via: "phone",
-          phone: data?.phone || data?.user?.phone || trimmedPhone,
+          phone: trimmedPhone,
           redirect,
         });
-        const email = data?.email || data?.user?.email || prefillEmail;
-        if (email) params.set("email", email);
         router.push(`/login/verify?${params.toString()}`);
         return;
       }
