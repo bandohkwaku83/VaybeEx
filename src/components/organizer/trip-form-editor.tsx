@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { MediaImage } from "@/components/ui/media-image";
 import {
   ArrowLeft,
   ArrowRight,
@@ -69,6 +69,8 @@ interface TripFormEditorProps {
     status: TripStatus,
     files: CreateTripFiles
   ) => void | Promise<void>;
+  canPublish?: boolean;
+  publishBlockedReason?: string;
 }
 
 const STEP_DEFS = [
@@ -105,6 +107,8 @@ export function TripFormEditor({
   onBack,
   onSave,
   isSaving = false,
+  canPublish = true,
+  publishBlockedReason = "Your account must be approved before you can publish trips.",
 }: TripFormEditorProps) {
   const [form, setForm] = useState<TripForm>(initialForm);
   const [addOns, setAddOns] = useState(initialAddOns);
@@ -246,6 +250,10 @@ export function TripFormEditor({
     stepComplete.basics && stepComplete.experience && stepComplete.booking;
 
   const handleSave = async (status: TripStatus) => {
+    if (!canPublish) {
+      toast.error(publishBlockedReason);
+      return;
+    }
     if (!requiredComplete) {
       toast.error("Fill basics, experience, and pricing before publishing.");
       const firstIncomplete = STEP_DEFS.findIndex((s) => !stepComplete[s.key]);
@@ -386,11 +394,10 @@ export function TripFormEditor({
                 aria-label={form.coverImage ? "Change cover photo" : "Choose cover photo"}
               >
                 {form.coverImage ? (
-                  <Image
+                  <MediaImage
                     src={form.coverImage}
                     alt="Cover preview"
                     fill
-                    unoptimized
                     className="object-cover"
                   />
                 ) : (
@@ -1222,7 +1229,7 @@ export function TripFormEditor({
             <Button
               variant="outline"
               onClick={() => handleSave("draft")}
-              disabled={isSaving}
+              disabled={isSaving || !canPublish}
               className="rounded-lg"
               style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
             >
@@ -1234,11 +1241,12 @@ export function TripFormEditor({
                   mode === "edit" && form.status !== "draft" ? form.status : "live"
                 )
               }
-              disabled={isSaving}
+              disabled={isSaving || !canPublish}
               className="rounded-lg"
               style={{
                 background: "var(--gradient-brand)",
                 color: "#fbf7f1",
+                opacity: canPublish ? 1 : 0.55,
               }}
             >
               {isSaving

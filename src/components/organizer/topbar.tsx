@@ -3,11 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { getOrganizerProfile } from "@/lib/organizer-profile";
 import { OrganizerMobileMenuButton } from "@/components/organizer/mobile-nav";
+import { OrganizerNotificationsBell } from "@/components/organizer/notifications-bell";
 
 export function OrganizerTopbar({
   menuOpen,
@@ -83,14 +84,7 @@ export function OrganizerTopbar({
       </form>
 
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-        <Link
-          href="/organizer/messages"
-          className="relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
-          style={{ color: "var(--text-secondary)" }}
-          aria-label="Messages"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-        </Link>
+        <OrganizerNotificationsBell />
 
         <Link
           href="/organizer/settings"

@@ -1,6 +1,10 @@
 import { apiRequest } from "./client";
 import { getOrganizerToken } from "./auth-token";
 import { resolveMediaUrl } from "./media";
+import {
+  extractOrganizerKyc,
+  type OrganizerKyc,
+} from "@/lib/organizer-kyc";
 
 function bearerHeaders(): HeadersInit {
   const token = getOrganizerToken();
@@ -73,9 +77,11 @@ export type OrganizerDashboardData = {
     fullName: string;
     email?: string;
   };
+  kyc?: OrganizerKyc | null;
   stats: DashboardStats;
   quickActions: {
     pendingRefunds: number;
+    unreadNotifications: number;
   };
   trips: {
     items: DashboardTripItem[];
@@ -217,6 +223,7 @@ function mapDashboard(raw: Record<string, unknown>): OrganizerDashboardData {
       ),
       email: organizer.email != null ? asString(organizer.email) : undefined,
     },
+    kyc: extractOrganizerKyc(raw),
     stats: {
       revenue: mapStatMetric(stats.revenue as Record<string, unknown>),
       activeTrips: mapStatMetric(stats.activeTrips as Record<string, unknown>, {
@@ -234,6 +241,7 @@ function mapDashboard(raw: Record<string, unknown>): OrganizerDashboardData {
       pendingRefunds: asNumber(
         quickActions.pendingRefunds ?? quickActions.pendingCancellations
       ),
+      unreadNotifications: asNumber(quickActions.unreadNotifications),
     },
     trips: {
       items: tripsItems.map((t) =>

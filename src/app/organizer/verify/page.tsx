@@ -25,7 +25,7 @@ function VerifyEmailForm() {
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const email = searchParams.get("email") ?? "";
-  const redirect = searchParams.get("redirect") ?? "/organizer/onboarding";
+  const redirect = searchParams.get("redirect") ?? "/organizer/profile/setup";
 
   const [otp, setOtp] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
@@ -34,7 +34,7 @@ function VerifyEmailForm() {
 
   useEffect(() => {
     if (!email) {
-      router.replace("/organizer/login?mode=signup&redirect=/organizer/onboarding");
+      router.replace("/organizer/login?mode=signup&redirect=/organizer/profile/setup");
     }
   }, [email, router]);
 
@@ -67,7 +67,7 @@ function VerifyEmailForm() {
       }
 
       toast.success(response.message);
-      router.push("/organizer/onboarding");
+      router.push(redirect.startsWith("/organizer") ? redirect : "/organizer/profile/setup");
     } catch (error) {
       const message =
         error instanceof ApiError

@@ -4,20 +4,34 @@ export type ApiResponse<T> = {
   success: boolean;
   message?: string;
   error?: string;
+  code?: string;
   data?: T;
   errors?: unknown;
 };
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
   data?: unknown;
 
-  constructor(message: string, status: number, data?: unknown) {
+  constructor(message: string, status: number, data?: unknown, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.data = data;
+    this.code = code;
   }
+}
+
+function extractCode(body: ApiResponse<unknown>): string | undefined {
+  if (typeof body.code === "string" && body.code.trim()) {
+    return body.code.trim();
+  }
+  if (body.data && typeof body.data === "object" && !Array.isArray(body.data)) {
+    const nested = (body.data as { code?: unknown }).code;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  }
+  return undefined;
 }
 
 function resolveUrl(path: string) {
@@ -94,9 +108,11 @@ export async function apiRequest<T>(
       : "Something went wrong. Please try again."
   );
 
+  const code = extractCode(body);
+
   if (!response.ok || body.success === false) {
-    throw new ApiError(message, response.status, body.data ?? body.errors);
+    throw new ApiError(message, response.status, body.data ?? body.errors, code);
   }
 
-  return { ...body, message };
+  return { ...body, message, code };
 }

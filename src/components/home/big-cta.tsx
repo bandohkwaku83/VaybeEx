@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import {motion} from "framer-motion"
 
 import ctaImage from "@public/images/cta-image.jpg";
@@ -6,10 +7,13 @@ import ctaImage from "@public/images/cta-image.jpg";
 const BigCta = () => {
   return (
     <section className="relative isolate overflow-hidden">
-          <img
-            src={ctaImage.src}
+          <Image
+            src={ctaImage}
             alt=""
-            className="absolute inset-0 -z-10 h-full w-full object-cover"
+            fill
+            placeholder="blur"
+            sizes="100vw"
+            className="-z-10 object-cover"
           />
           <div className="absolute inset-0 -z-10 bg-primary-dark/75" />
           <div className="mx-auto max-w-4xl px-4 py-16 text-center text-white sm:px-6 sm:py-36">

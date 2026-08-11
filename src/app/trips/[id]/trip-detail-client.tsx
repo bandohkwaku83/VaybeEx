@@ -2,8 +2,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import { MediaImage } from "@/components/ui/media-image";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import {
@@ -45,7 +45,27 @@ import {
 } from "@/lib/tenant";
 import { getBrandFromHost } from "@/lib/tenant-host";
 import { tripSpecialtyLabel } from "@/lib/trip-specialties";
-import type { Organizer, Trip } from "@/lib/types";
+import { findActiveBookingForTrip } from "@/lib/api/bookings";
+import type { Booking, Organizer, Trip } from "@/lib/types";
+
+function existingBookingCta(booking: Booking): { label: string; hint: string } {
+  if (booking.paymentStatus === "paid") {
+    return {
+      label: "You're booked",
+      hint: "This trip is already on your bookings",
+    };
+  }
+  if (booking.paymentStatus === "partial") {
+    return {
+      label: "Pay balance",
+      hint: "You already reserved this trip — pay the remaining balance",
+    };
+  }
+  return {
+    label: "Complete payment",
+    hint: "Finish paying to confirm your existing reservation",
+  };
+}
 
 interface TripDetailClientProps {
   trip: Trip;
@@ -114,13 +134,14 @@ function Lightbox({
       </div>
       <div className="relative flex flex-1 items-center justify-center px-12">
         <div className="relative h-full max-h-[78vh] w-full max-w-5xl">
-          <Image
+          <MediaImage
             key={images[index]}
             src={images[index]}
             alt=""
             fill
             className="object-contain"
             priority
+            sizes="100vw"
           />
         </div>
         <button
@@ -164,7 +185,7 @@ function PhotoGallery({
         onClick={() => onOpen(0)}
         className="relative block h-[42vh] min-h-[280px] w-full overflow-hidden rounded-2xl sm:h-[52vh]"
       >
-        <Image
+        <MediaImage
           src={pics[0]}
           alt=""
           fill
@@ -191,7 +212,7 @@ function PhotoGallery({
           onClick={() => onOpen(0)}
           className="relative h-[280px] overflow-hidden sm:h-[420px]"
         >
-          <Image
+          <MediaImage
             src={pics[0]}
             alt=""
             fill
@@ -202,15 +223,15 @@ function PhotoGallery({
         </button>
 
         {count >= 3 ? (
-          <div className="hidden grid-cols-2 grid-rows-2 gap-1.5 sm:grid">
+          <div className="hidden h-[280px] grid-cols-2 grid-rows-2 gap-1.5 sm:grid sm:h-[420px]">
             {pics.slice(1, 5).map((src, i) => (
               <button
                 key={src + i}
                 type="button"
                 onClick={() => onOpen(i + 1)}
-                className="relative overflow-hidden"
+                className="relative h-full min-h-0 overflow-hidden"
               >
-                <Image
+                <MediaImage
                   src={src}
                   alt=""
                   fill
@@ -226,7 +247,7 @@ function PhotoGallery({
             onClick={() => onOpen(1)}
             className="relative hidden h-[420px] overflow-hidden sm:block"
           >
-            <Image
+            <MediaImage
               src={pics[1]}
               alt=""
               fill
@@ -263,6 +284,7 @@ function BookingPanel({
   onSave,
   onShare,
   wishlisted,
+  existingBooking,
 }: {
   trip: Trip;
   isFull: boolean;
@@ -270,8 +292,12 @@ function BookingPanel({
   onSave: () => void;
   onShare: () => void;
   wishlisted: boolean;
+  existingBooking: Booking | null;
 }) {
   const bookable = isTripBookable(trip);
+  const existingCta = existingBooking
+    ? existingBookingCta(existingBooking)
+    : null;
   const spots = getSpotsLeft(trip);
   const showCouple =
     trip.offerCouplePrice !== false && trip.couplePrice != null;
@@ -301,11 +327,13 @@ function BookingPanel({
               className="mt-2 text-sm"
               style={{ color: "var(--text-secondary)" }}
             >
-              {bookable
-                ? `${formatCurrency(trip.depositAmount)} due today to reserve`
-                : trip.status === "completed"
-                  ? "This trip has already been completed"
-                  : "Booking is not available for this trip"}
+              {existingCta
+                ? existingCta.hint
+                : bookable
+                  ? `${formatCurrency(trip.depositAmount)} due today to reserve`
+                  : trip.status === "completed"
+                    ? "This trip has already been completed"
+                    : "Booking is not available for this trip"}
             </p>
           </div>
           {trip.rating > 0 && (
@@ -436,26 +464,30 @@ function BookingPanel({
         <button
           type="button"
           onClick={onBook}
-          disabled={!bookable}
+          disabled={!existingCta && !bookable}
           className="mt-5 flex h-12 w-full items-center justify-center rounded-none text-sm font-semibold text-white transition-opacity hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: "var(--primary)" }}
         >
-          {!bookable
-            ? trip.status === "completed"
-              ? "Completed"
-              : "Unavailable"
-            : isFull
-              ? "Join waitlist"
-              : "Reserve"}
+          {existingCta
+            ? existingCta.label
+            : !bookable
+              ? trip.status === "completed"
+                ? "Completed"
+                : "Unavailable"
+              : isFull
+                ? "Join waitlist"
+                : "Reserve"}
         </button>
 
         <p
           className="mt-2.5 text-center text-xs"
           style={{ color: "var(--text-tertiary)" }}
         >
-          {bookable
-            ? "You won't be charged the full amount yet"
-            : "Booking is closed for this trip"}
+          {existingCta
+            ? "Open your booking instead of creating another one"
+            : bookable
+              ? "You won't be charged the full amount yet"
+              : "Booking is closed for this trip"}
         </p>
 
         <div className="mt-4 flex items-center justify-center gap-1">
@@ -546,14 +578,18 @@ function BookingPanel({
 
 export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
   const router = useRouter();
-  const { requireTravelerAuth } = useAuth();
+  const { requireTravelerAuth, user, isLoading: authLoading } = useAuth();
   const { toggle, isWishlisted } = useWishlist();
   const [descExpanded, setDescExpanded] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [existingBooking, setExistingBooking] = useState<Booking | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
   const isFull = isTripFull(trip);
   const bookable = isTripBookable(trip);
+  const existingCta = existingBooking
+    ? existingBookingCta(existingBooking)
+    : null;
   const organizerHomeHref = organizer.brandSlug
     ? getTenantBrandHomeUrl(organizer.brandSlug)
     : `/organizers/${organizer.id}`;
@@ -568,7 +604,33 @@ export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
       trip.returnTime
   );
 
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user || user.role !== "traveler") {
+      setExistingBooking(null);
+      return;
+    }
+    let cancelled = false;
+    void findActiveBookingForTrip(trip.id)
+      .then((booking) => {
+        if (!cancelled) setExistingBooking(booking);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingBooking(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, trip.id]);
+
   const handleBook = () => {
+    if (existingBooking) {
+      requireTravelerAuth(() => {
+        router.push("/dashboard");
+      }, "/dashboard");
+      return;
+    }
+
     const onTenant =
       typeof window !== "undefined" &&
       Boolean(getBrandFromHost(window.location.host));
@@ -1284,6 +1346,7 @@ export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
                 onSave={handleSave}
                 onShare={handleShare}
                 wishlisted={wishlisted}
+                existingBooking={existingBooking}
               />
             </div>
           </div>
@@ -1311,11 +1374,13 @@ export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
               </span>
             </p>
             <p className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>
-              {bookable
-                ? formatSpotsLeftLabel(trip)
-                : trip.status === "completed"
-                  ? "Trip completed"
-                  : "Not bookable"}
+              {existingCta
+                ? existingCta.hint
+                : bookable
+                  ? formatSpotsLeftLabel(trip)
+                  : trip.status === "completed"
+                    ? "Trip completed"
+                    : "Not bookable"}
             </p>
           </div>
           <Button
@@ -1323,15 +1388,17 @@ export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
             className="shrink-0 px-6"
             style={{ background: "var(--primary)", color: "#fbf7f1" }}
             onClick={handleBook}
-            disabled={!bookable}
+            disabled={!existingCta && !bookable}
           >
-            {!bookable
-              ? trip.status === "completed"
-                ? "Completed"
-                : "Unavailable"
-              : isFull
-                ? "Join waitlist"
-                : "Reserve"}
+            {existingCta
+              ? existingCta.label
+              : !bookable
+                ? trip.status === "completed"
+                  ? "Completed"
+                  : "Unavailable"
+                : isFull
+                  ? "Join waitlist"
+                  : "Reserve"}
           </Button>
         </div>
       </div>

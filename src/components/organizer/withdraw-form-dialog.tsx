@@ -162,25 +162,17 @@ export function WithdrawFormDialog({
       }
 
       const res = await createTripWithdrawal(selectedTrip.tripId, {
-        amount: amountValue,
+        ...(amountValue === available ? {} : { amount: amountValue }),
         momoProvider: resolvedAccount.type as MomoProvider,
         momoNumber: resolvedAccount.momoNumber.trim(),
         accountName: resolvedAccount.accountName.trim() || undefined,
         note: "Trip settlement",
       });
 
-      const status = res.data?.withdrawal?.status ?? "pending";
-      if (status === "success" || status === "completed") {
-        toast.success(
-          res.message ||
-            `${formatCurrency(amountValue, currency)} sent for ${selectedTrip.title}.`
-        );
-      } else {
-        toast.success(
-          res.message ||
-            `Withdrawal of ${formatCurrency(amountValue, currency)} submitted for ${selectedTrip.title}. Funds are locked while MoMo transfer completes.`
-        );
-      }
+      toast.success(
+        res.message ||
+          "Request received. An admin will pay your MoMo shortly."
+      );
       handleOpenChange(false);
       onSuccess?.();
     } catch (err) {
@@ -203,9 +195,9 @@ export function WithdrawFormDialog({
         <DialogHeader>
           <DialogTitle>Withdraw earnings</DialogTitle>
           <DialogDescription>
-            Withdraw to MoMo from a trip balance. Funds are held by VaybeEx —
-            Paystack pays your MoMo from our balance. Status moves Processing →
-            Success or Failed.
+            Request a payout from a trip balance. An admin reviews it and sends
+            the money to your MoMo. Pending requests lock that amount until they
+            are paid or rejected.
           </DialogDescription>
         </DialogHeader>
 
@@ -431,7 +423,7 @@ export function WithdrawFormDialog({
                 ) : (
                   <>
                     <ArrowDownToLine className="h-4 w-4" />
-                    Request MoMo transfer
+                    Request payout
                   </>
                 )}
               </Button>

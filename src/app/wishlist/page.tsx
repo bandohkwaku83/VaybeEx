@@ -7,6 +7,7 @@ import { ArrowRight, Heart, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Suspense } from "react";
 import { FadeInUp } from "@/components/ui/fadeInUp";
+import { MediaImage } from "@/components/ui/media-image";
 import { TripCard } from "@/components/trips/trip-card";
 import { useAuth } from "@/hooks/use-auth";
 import { useWishlist } from "@/hooks/use-wishlist";
@@ -117,10 +118,12 @@ function WishlistContent() {
           <FadeInUp delay={0.05}>
             <div className="relative overflow-hidden">
               <div className="relative min-h-[20rem] sm:min-h-[22rem]">
-                <img
+                <MediaImage
                   src="/images/beautiful-nature.jpg"
                   alt=""
-                  className="absolute inset-0 h-full w-full object-cover"
+                  fill
+                  sizes="100vw"
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg)] via-[var(--bg)]/92 to-[var(--bg)]/55" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-transparent to-[var(--bg)]/40" />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FadeInUp } from "../ui/fadeInUp";
+import { MediaImage } from "@/components/ui/media-image";
 import Link from "next/link";
 import { ArrowRight, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
@@ -54,12 +55,14 @@ function FeaturedExpedition({
         className,
       )}
     >
-      <img
+      <MediaImage
         src={trip.image}
         alt={trip.title}
-        loading={priority ? "eager" : "lazy"}
+        fill
+        priority={priority}
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 58vw"
         className={cn(
-          "absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]",
+          "object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]",
           !bookable && "opacity-90",
         )}
       />
@@ -246,10 +249,12 @@ const FeaturedTrips = () => {
       ) : featured.length === 0 ? (
         <FadeInUp>
           <div className="relative aspect-[16/10] overflow-hidden bg-bg-secondary sm:aspect-[21/9]">
-            <img
+            <MediaImage
               src="/images/beautiful-nature.jpg"
               alt=""
-              className="absolute inset-0 h-full w-full scale-110 object-cover blur-md"
+              fill
+              sizes="100vw"
+              className="scale-110 object-cover blur-md"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">

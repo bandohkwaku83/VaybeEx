@@ -14,24 +14,51 @@ function resolveMeta(pathname: string, search: string) {
   }
   if (pathname.startsWith("/admin-portal/users")) {
     const isQueue =
-      search.includes("queue=pending") || search.includes("queue=pending_approval");
+      search.includes("queue=pending") ||
+      search.includes("queue=resubmitted") ||
+      search.includes("queue=rejected");
+    const subtitle = search.includes("queue=resubmitted")
+      ? "Came back after a rejection — check what you asked them to fix"
+      : search.includes("queue=rejected")
+        ? "Waiting on the organizer to update and resubmit"
+        : "First reviews and resubmits waiting on a decision";
     return isQueue
-      ? { title: "Approvals", subtitle: "Organizers waiting on KYC review" }
+      ? { title: "Approvals", subtitle }
       : { title: "People", subtitle: "Travelers & organizers" };
+  }
+  if (pathname.startsWith("/admin-portal/activity")) {
+    return { title: "Activity", subtitle: "Who did what, and when" };
+  }
+  if (pathname.startsWith("/admin-portal/messages/") && pathname !== "/admin-portal/messages") {
+    return { title: "Campaign", subtitle: "Delivery status by recipient" };
+  }
+  if (pathname.startsWith("/admin-portal/messages")) {
+    return { title: "Messages", subtitle: "Text or email people on VaybeEx" };
   }
   if (pathname.startsWith("/admin-portal/trips")) {
     return { title: "Trips", subtitle: "Listings across the platform" };
   }
+  if (pathname.startsWith("/admin-portal/refunds/") && pathname !== "/admin-portal/refunds") {
+    return { title: "Refund", subtitle: "Cancellation detail · read only" };
+  }
+  if (pathname.startsWith("/admin-portal/refunds")) {
+    return { title: "Refunds", subtitle: "Traveler cancellation pipeline" };
+  }
   if (pathname.startsWith("/admin-portal/withdrawals")) {
-    return { title: "Payouts", subtitle: "Organizer withdrawal pipeline" };
+    return {
+      title: "Payouts",
+      subtitle: "Review requests, send MoMo, then mark paid",
+    };
   }
   return { title: "Admin", subtitle: "Platform operations" };
 }
 
 function AdminTopbarInner({
   pendingApprovalCount = 0,
+  resubmittedCount = 0,
 }: {
   pendingApprovalCount?: number;
+  resubmittedCount?: number;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -85,9 +112,24 @@ function AdminTopbarInner({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {pendingApprovalCount > 0 && (
+          {resubmittedCount > 0 ? (
             <Link
-              href="/admin-portal/users?queue=pending"
+              href="/admin-portal/users?queue=resubmitted"
+              className="group inline-flex items-center gap-2 rounded-none px-3 py-1.5 text-xs font-semibold"
+              style={{
+                background: "#fef2f2",
+                color: "#dc2626",
+                boxShadow: "inset 0 0 0 1px #fecaca",
+              }}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span className="tabular-nums">{resubmittedCount}</span>
+              <span className="hidden sm:inline">resubmitted</span>
+              <ArrowRight className="h-3 w-3 opacity-60 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ) : pendingApprovalCount > 0 ? (
+            <Link
+              href="/admin-portal/users?queue=pending_approval"
               className="group inline-flex items-center gap-2 rounded-none px-3 py-1.5 text-xs font-semibold"
               style={{
                 background: "#fef2f2",
@@ -100,7 +142,7 @@ function AdminTopbarInner({
               <span className="hidden sm:inline">awaiting review</span>
               <ArrowRight className="h-3 w-3 opacity-60 transition-transform group-hover:translate-x-0.5" />
             </Link>
-          )}
+          ) : null}
         </div>
       </div>
     </header>
@@ -109,8 +151,10 @@ function AdminTopbarInner({
 
 export function AdminTopbar({
   pendingApprovalCount = 0,
+  resubmittedCount = 0,
 }: {
   pendingApprovalCount?: number;
+  resubmittedCount?: number;
 }) {
   return (
     <Suspense
@@ -121,7 +165,10 @@ export function AdminTopbar({
         />
       }
     >
-      <AdminTopbarInner pendingApprovalCount={pendingApprovalCount} />
+      <AdminTopbarInner
+        pendingApprovalCount={pendingApprovalCount}
+        resubmittedCount={resubmittedCount}
+      />
     </Suspense>
   );
 }

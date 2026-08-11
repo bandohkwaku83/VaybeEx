@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import { MediaImage } from "@/components/ui/media-image";
 import { motion } from "framer-motion";
 import { Calendar, MapPin, Star, Heart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +29,7 @@ export function TripCard({ trip, wishlisted, onToggleWishlist, index = 0 }: Trip
     >
     <Card className="group overflow-hidden hover:shadow-lg hover:border-teal-200/60 transition-all duration-300">
         <div className="relative aspect-[16/10] overflow-hidden">
-          <Image
+          <MediaImage
             src={trip.image}
             alt={trip.title}
             fill

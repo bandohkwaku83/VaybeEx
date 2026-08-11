@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import { MediaImage } from "@/components/ui/media-image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUpRight,
@@ -36,6 +36,12 @@ import {
 } from "@/lib/trip-capacity";
 import type { Trip, TripStatus } from "@/lib/types";
 import type { TripForm } from "@/lib/trip-form-utils";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  handleOrganizerKycError,
+  kycFromAuthUser,
+  organizerCannotPublishReason,
+} from "@/lib/organizer-kyc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -80,6 +86,9 @@ function statusMeta(status: string) {
 export default function CreateTripPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const kyc = kycFromAuthUser(user);
+  const canPublish = kyc.canPublish;
   const { trips, createTrip, isLoading, isSaving, error } = useOrganizerTrips();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState(() => searchParams.get("q")?.trim() ?? "");
@@ -90,7 +99,13 @@ export default function CreateTripPage() {
     if (q != null) setSearch(q.trim());
   }, [searchParams]);
 
-  const startCreateTrip = () => setShowForm(true);
+  const startCreateTrip = () => {
+    if (!canPublish) {
+      toast.error(organizerCannotPublishReason(kyc));
+      return;
+    }
+    setShowForm(true);
+  };
 
   const handleSave = async (
     form: TripForm,
@@ -103,6 +118,12 @@ export default function CreateTripPage() {
       toast.success(STATUS_MESSAGES[status]);
       router.push(`/organizer/trips/${trip.id}`);
     } catch (err) {
+      if (handleOrganizerKycError(err, router)) {
+        toast.error(
+          err instanceof ApiError ? err.message : organizerCannotPublishReason(kyc)
+        );
+        return;
+      }
       toast.error(
         err instanceof ApiError
           ? err.message
@@ -209,6 +230,8 @@ export default function CreateTripPage() {
         isSaving={isSaving}
         onBack={() => setShowForm(false)}
         onSave={handleSave}
+        canPublish={canPublish}
+        publishBlockedReason={organizerCannotPublishReason(kyc)}
       />
     );
   }
@@ -237,17 +260,31 @@ export default function CreateTripPage() {
         </div>
         <Button
           onClick={startCreateTrip}
-          
+          disabled={!canPublish}
           style={{
             background: "var(--gradient-brand)",
             color: "#fbf7f1",
             boxShadow: "var(--glow-gold)",
+            opacity: canPublish ? 1 : 0.55,
           }}
         >
           <Plus className="h-4 w-4" />
           Create Trip
         </Button>
       </div>
+
+      {!canPublish ? (
+        <div
+          className="mb-5 rounded-xl border px-4 py-3 text-sm"
+          style={{
+            borderColor: kyc.status === "rejected" ? "rgba(181,82,58,0.28)" : "rgba(208,138,60,0.35)",
+            background: kyc.status === "rejected" ? "rgba(181,82,58,0.08)" : "rgba(208,138,60,0.1)",
+            color: "var(--text)",
+          }}
+        >
+          {organizerCannotPublishReason(kyc)}
+        </div>
+      ) : null}
 
       {trips.length > 0 && (
         <>
@@ -440,19 +477,12 @@ function TripListCard({ trip }: { trip: Trip }) {
     >
       {/* Mid-height cover */}
       <div className="relative h-56 overflow-hidden sm:h-60">
-        <Image
-          src={trip.image || "/images/cta-image.jpg"}
+        <MediaImage
+          src={trip.image}
           alt={trip.title}
           fill
           className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-          unoptimized={
-            Boolean(
-              trip.image &&
-                (trip.image.startsWith("http://") ||
-                  trip.image.startsWith("https://"))
-            )
-          }
         />
         <div
           className="absolute inset-0"

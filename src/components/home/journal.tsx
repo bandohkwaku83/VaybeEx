@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
+import Image, { type StaticImageData } from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -13,7 +14,7 @@ import { MapPin, X, ArrowUpRight, Compass } from "lucide-react";
 gsap.registerPlugin(ScrollTrigger);
 
 interface Postcard {
-  src: { src: string };
+  src: StaticImageData;
   region: string;
   tag: string;
   sites: string[];
@@ -288,11 +289,14 @@ const Journal = () => {
                   transformOrigin: "bottom center",
                 }}
               >
-                <img
-                  src={p.src.src}
+                <Image
+                  src={p.src}
                   alt={p.region}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  fill
+                  placeholder="blur"
+                  sizes="230px"
                   draggable={false}
+                  className="object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-primary-dark/85 via-primary-dark/10 to-transparent" />
 
@@ -349,10 +353,13 @@ const Journal = () => {
               ref={modalImgRef}
               className="relative h-72 overflow-hidden sm:h-full"
             >
-              <img
-                src={active.src.src}
+              <Image
+                src={active.src}
                 alt={active.region}
-                className="h-full w-full object-cover"
+                fill
+                placeholder="blur"
+                sizes="(max-width: 640px) 100vw, 50vw"
+                className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-primary-dark/60 via-transparent to-transparent sm:bg-gradient-to-r" />
             </div>

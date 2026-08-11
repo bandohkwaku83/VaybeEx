@@ -47,7 +47,7 @@ function OrganizerLoginForm() {
 
   const redirect =
     searchParams.get("redirect") ??
-    (isSignup ? "/organizer/onboarding" : "/organizer/dashboard");
+    (isSignup ? "/organizer/profile/setup" : "/organizer/dashboard");
 
   const passwordValid = password.length >= 8;
   const passwordsMatch = password === confirmPassword;
@@ -163,7 +163,7 @@ function OrganizerLoginForm() {
         const verifyEmail =
           (error.data as { email?: string }).email ?? email.trim();
         router.push(
-          `/organizer/verify?email=${encodeURIComponent(verifyEmail)}&redirect=${encodeURIComponent("/organizer/onboarding")}`
+          `/organizer/verify?email=${encodeURIComponent(verifyEmail)}&redirect=${encodeURIComponent("/organizer/profile/setup")}`
         );
       }
     } finally {

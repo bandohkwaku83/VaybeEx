@@ -14,6 +14,12 @@ import {
 } from "@/lib/trip-form-utils";
 import type { TripStatus } from "@/lib/types";
 import type { TripForm } from "@/lib/trip-form-utils";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  handleOrganizerKycError,
+  kycFromAuthUser,
+  organizerCannotPublishReason,
+} from "@/lib/organizer-kyc";
 
 export default function EditTripPage({
   params,
@@ -22,6 +28,8 @@ export default function EditTripPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user } = useAuth();
+  const kyc = kycFromAuthUser(user);
   const { getTrip, updateTrip, refreshTrip, isLoading, isSaving } =
     useOrganizerTrips();
   const trip = getTrip(id);
@@ -51,6 +59,14 @@ export default function EditTripPage({
       toast.success(STATUS_MESSAGES[status] ?? "Trip updated");
       router.push(`/organizer/trips/${id}`);
     } catch (error) {
+      if (handleOrganizerKycError(error, router)) {
+        toast.error(
+          error instanceof ApiError
+            ? error.message
+            : organizerCannotPublishReason(kyc)
+        );
+        return;
+      }
       toast.error(
         error instanceof ApiError
           ? error.message
@@ -69,6 +85,8 @@ export default function EditTripPage({
       isSaving={isSaving}
       onBack={() => router.push(`/organizer/trips/${id}`)}
       onSave={handleSave}
+      canPublish={kyc.canPublish}
+      publishBlockedReason={organizerCannotPublishReason(kyc)}
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 import { Globe, Users, Shield, TrendingUp } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -240,11 +241,13 @@ export function WhySection() {
             className="absolute inset-0"
             style={{ opacity: 0 }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={cityFromHigh.src}
+            <Image
+              src={cityFromHigh}
               alt="Aerial view of a Ghanaian city nestled in a valley with mountains beyond"
-              className="absolute inset-0 h-full w-full object-cover"
+              fill
+              placeholder="blur"
+              sizes="(max-width: 1024px) 100vw, 40vw"
+              className="object-cover"
             />
             <div
               className="absolute inset-0"
@@ -302,12 +305,13 @@ export function WhySection() {
         <div
           className="bento-stat-band relative flex items-center justify-around overflow-hidden rounded-[20px] px-8 py-7 lg:col-start-2 lg:row-start-3 max-lg:col-span-full"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={highShot.src}
+          <Image
+            src={highShot}
             alt=""
-            aria-hidden
-            className="absolute inset-0 h-full w-full object-cover"
+            fill
+            placeholder="blur"
+            sizes="(max-width: 1024px) 100vw, 40vw"
+            className="object-cover"
           />
           <div
             className="absolute inset-0 bg-black/60"

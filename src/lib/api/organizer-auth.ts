@@ -1,5 +1,12 @@
 import { apiRequest } from "./client";
 import { getOrganizerToken } from "./auth-token";
+import {
+  extractOrganizerKyc,
+  kycToLegacyOrganizerStatus,
+  nextOrganizerRoute,
+  normalizeOrganizerKyc,
+  type OrganizerKyc,
+} from "@/lib/organizer-kyc";
 
 export type OrganizerRegisterInput = {
   email: string;
@@ -41,12 +48,18 @@ export type OrganizerPublicUser = {
   createdAt?: string;
   updatedAt?: string;
   reviewedAt?: string;
+  resubmittedAt?: string;
+  resubmissionCount?: number;
   /** KYC: `pending` | `approved` | `rejected` (null before profile setup). */
   status?: string | null;
   rejectionReason?: string;
   onboardingCompleted?: boolean;
+  canPublish?: boolean;
+  canResubmit?: boolean;
+  kyc?: OrganizerKyc | null;
   brandSlug?: string;
   businessName?: string;
+  unreadNotifications?: number;
 };
 
 export type OrganizerAuthData = {
@@ -133,36 +146,21 @@ export function updateOrganizerPassword(input: UpdateOrganizerPasswordInput) {
   });
 }
 
-/**
- * KYC gate mirrors backend middleware: full access only when status === "approved".
- * `isVerified` is email verification — not KYC approval.
- * `status` null/empty before setup → undefined (send to onboarding).
- */
-function mapOrganizerKycStatus(
-  user: OrganizerPublicUser
-): "pending" | "verified" | "rejected" | undefined {
-  if (!user.onboardingCompleted) return undefined;
-
-  const raw = String(user.status ?? "").toLowerCase().trim();
-  if (raw === "rejected") return "rejected";
-  if (raw === "approved") return "verified";
-  // pending, pending_approval, or any other onboarded-but-not-approved value
-  return "pending";
+export function organizerKycFromUser(user: OrganizerPublicUser): OrganizerKyc {
+  return normalizeOrganizerKyc(user);
 }
 
-/** Map backend organizer user → local auth session fields. */
+/** Map backend organizer user → local auth session fields. KYC is never read from the JWT. */
 export function mapOrganizerSession(user: OrganizerPublicUser) {
-  const organizerStatus = mapOrganizerKycStatus(user);
+  const kyc = organizerKycFromUser(user);
   return {
     name: user.fullName ?? "",
     email: user.email,
     phone: user.phone,
     role: "organizer" as const,
-    organizerStatus,
-    rejectionReason:
-      organizerStatus === "rejected"
-        ? String(user.rejectionReason ?? "").trim() || undefined
-        : undefined,
+    kyc,
+    organizerStatus: kycToLegacyOrganizerStatus(kyc),
+    rejectionReason: kyc.rejectionReason ?? undefined,
   };
 }
 
@@ -171,11 +169,16 @@ export function resolveOrganizerHome(
   user: OrganizerPublicUser,
   preferredRedirect?: string | null
 ) {
-  if (!user.onboardingCompleted) return "/organizer/onboarding";
-
-  const kyc = mapOrganizerKycStatus(user);
-  if (kyc === "pending" || kyc === "rejected") return "/organizer/pending";
-
-  if (preferredRedirect?.startsWith("/organizer")) return preferredRedirect;
-  return "/organizer/dashboard";
+  const kyc = organizerKycFromUser(user);
+  if (
+    kyc.status === "approved" &&
+    preferredRedirect?.startsWith("/organizer") &&
+    !preferredRedirect.startsWith("/organizer/login")
+  ) {
+    return preferredRedirect;
+  }
+  return nextOrganizerRoute(kyc);
 }
+
+export { extractOrganizerKyc, nextOrganizerRoute, normalizeOrganizerKyc };
+export type { OrganizerKyc };

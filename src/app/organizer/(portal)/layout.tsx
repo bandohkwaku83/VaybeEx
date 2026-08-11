@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { RequireOrganizerAuth } from "@/components/auth/require-organizer-auth";
 import { OrganizerSidebar, useSidebarCollapsed } from "@/components/organizer/sidebar";
@@ -12,18 +12,29 @@ import {
 } from "@/components/organizer/mobile-nav";
 import { OrganizerTripsProvider } from "@/hooks/use-organizer-trips";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  kycFromAuthUser,
+  ORGANIZER_SETUP_PATH,
+  ORGANIZER_VERIFICATION_PATH,
+} from "@/lib/organizer-kyc";
 
 function PortalGate({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (isLoading || !user) return;
 
-    if (user.organizerStatus === "pending" || user.organizerStatus === "rejected") {
-      router.replace("/organizer/pending");
+    const kyc = kycFromAuthUser(user);
+    if (!kyc.onboardingCompleted) {
+      router.replace(ORGANIZER_SETUP_PATH);
+      return;
     }
-  }, [user, isLoading, router]);
+    if (kyc.status === "pending") {
+      router.replace(ORGANIZER_VERIFICATION_PATH);
+    }
+  }, [user, isLoading, router, pathname]);
 
   if (isLoading) {
     return (
@@ -33,10 +44,8 @@ function PortalGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (
-    user?.organizerStatus === "pending" ||
-    user?.organizerStatus === "rejected"
-  ) {
+  const kyc = kycFromAuthUser(user);
+  if (!kyc.onboardingCompleted || kyc.status === "pending") {
     return null;
   }
 

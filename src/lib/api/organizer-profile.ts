@@ -47,7 +47,7 @@ export type OrganizerProfileSetupInput = {
   brandSlug: string;
   aboutYou: string;
   tripSpecialties: string[];
-  profilePhoto: File;
+  profilePhoto?: File | null;
   brandLogo?: File | null;
   nationalIdPhoto: File;
 };
@@ -269,7 +269,9 @@ export function setupOrganizerProfile(input: OrganizerProfileSetupInput) {
   form.append("brandSlug", input.brandSlug);
   form.append("aboutYou", input.aboutYou);
   form.append("tripSpecialties", JSON.stringify(input.tripSpecialties));
-  form.append("profilePhoto", input.profilePhoto, input.profilePhoto.name);
+  if (input.profilePhoto) {
+    form.append("profilePhoto", input.profilePhoto, input.profilePhoto.name);
+  }
   if (input.brandLogo) {
     form.append("brandLogo", input.brandLogo, input.brandLogo.name);
   }

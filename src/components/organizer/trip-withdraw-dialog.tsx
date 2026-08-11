@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ArrowDownToLine } from "lucide-react";
+import { Loader2, ArrowDownToLine, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -115,18 +115,20 @@ export function TripWithdrawDialog({
     setSubmitting(true);
     try {
       await createTripWithdrawal(tripId, {
-        amount: amountValue,
+        ...(useAllAvailable ? {} : { amount: amountValue }),
         momoProvider: network as MomoProvider,
         momoNumber: momoNumber.trim(),
         accountName: accountName.trim() || undefined,
       });
       setSubmittedAmount(amountValue);
       setPhase("submitted");
+      toast.success("Request received. An admin will pay your MoMo.");
+      onSuccess?.();
     } catch (err) {
       toast.error(
         err instanceof ApiError
           ? err.message
-          : "Could not send to MoMo. Please try again."
+          : "Could not submit the request. Please try again."
       );
     } finally {
       setSubmitting(false);
@@ -139,7 +141,7 @@ export function TripWithdrawDialog({
         {phase === "submitted" ? (
           <>
             <DialogHeader>
-              <DialogTitle>Sending to MoMo</DialogTitle>
+              <DialogTitle>Request submitted</DialogTitle>
               <DialogDescription>
                 {formatCurrency(submittedAmount, currency)} to{" "}
                 {PAYOUT_METHOD_LABELS[network]}
@@ -148,11 +150,11 @@ export function TripWithdrawDialog({
             <div className="flex flex-col items-center gap-4 py-6 text-center">
               <div
                 className="flex h-14 w-14 items-center justify-center rounded-full"
-                style={{ background: "rgba(208,138,60,0.14)" }}
+                style={{ background: "rgba(46,125,82,0.14)" }}
               >
-                <Loader2
-                  className="h-7 w-7 animate-spin"
-                  style={{ color: "var(--amber)" }}
+                <CheckCircle2
+                  className="h-7 w-7"
+                  style={{ color: "#2e7d52" }}
                 />
               </div>
               <div>
@@ -160,14 +162,14 @@ export function TripWithdrawDialog({
                   className="font-display text-lg font-semibold"
                   style={{ color: "var(--text)" }}
                 >
-                  Processing
+                  Awaiting admin
                 </p>
                 <p
                   className="mt-1.5 text-sm"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Paystack is transferring to your MoMo. Status will update to
-                  Success or Failed — not instant cash handoff.
+                  Your request is in the queue. An admin will send this to your
+                  MoMo. The amount is locked until they pay or reject it.
                 </p>
               </div>
               <Button
@@ -182,12 +184,13 @@ export function TripWithdrawDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Withdraw to MoMo</DialogTitle>
+              <DialogTitle>Request payout</DialogTitle>
               <DialogDescription>
-                Send earnings from{" "}
+                Request a payout from{" "}
                 <span className="font-medium" style={{ color: "var(--text)" }}>
                   {tripTitle}
                 </span>
+                . An admin reviews it and sends the money to your MoMo.
               </DialogDescription>
             </DialogHeader>
 
@@ -328,12 +331,12 @@ export function TripWithdrawDialog({
                 >
                   {submitting ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Sending…
+                      <Loader2 className="h-4 w-4 animate-spin" /> Submitting…
                     </>
                   ) : (
                     <>
                       <ArrowDownToLine className="h-4 w-4" />
-                      Send to MoMo
+                      Request payout
                     </>
                   )}
                 </Button>

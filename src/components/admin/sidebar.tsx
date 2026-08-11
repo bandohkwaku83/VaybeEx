@@ -4,12 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Activity,
   ArrowDownToLine,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
   LogOut,
+  Mail,
   Map,
+  RotateCcw,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -20,13 +23,14 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/admin-portal", label: "Overview", icon: LayoutDashboard, exact: true },
   {
-    href: "/admin-portal/users?queue=pending",
+    href: "/admin-portal/users?queue=pending_approval",
     label: "Approvals",
     icon: ShieldCheck,
     match: (pathname: string, search: string) =>
       pathname === "/admin-portal/users" &&
       (search.includes("queue=pending") ||
-        search.includes("queue=pending_approval")),
+        search.includes("queue=resubmitted") ||
+        search.includes("queue=rejected")),
   },
   {
     href: "/admin-portal/users",
@@ -37,13 +41,17 @@ const links = [
       if (pathname === "/admin-portal/users") {
         return (
           !search.includes("queue=pending") &&
-          !search.includes("queue=pending_approval")
+          !search.includes("queue=resubmitted") &&
+          !search.includes("queue=rejected")
         );
       }
       return true;
     },
   },
+  { href: "/admin-portal/activity", label: "Activity", icon: Activity },
+  { href: "/admin-portal/messages", label: "Messages", icon: Mail },
   { href: "/admin-portal/trips", label: "Trips", icon: Map },
+  { href: "/admin-portal/refunds", label: "Refunds", icon: RotateCcw },
   { href: "/admin-portal/withdrawals", label: "Payouts", icon: ArrowDownToLine },
 ] as const;
 
@@ -86,12 +94,14 @@ interface AdminSidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   pendingApprovalCount?: number;
+  resubmittedCount?: number;
 }
 
 export function AdminSidebar({
   collapsed,
   onToggle,
   pendingApprovalCount = 0,
+  resubmittedCount = 0,
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -156,8 +166,9 @@ export function AdminSidebar({
         {links.map((link) => {
           const active = linkActive(pathname, search, link);
           const Icon = link.icon;
-          const showBadge =
-            link.label === "Approvals" && pendingApprovalCount > 0;
+          const badgeCount =
+            pendingApprovalCount > 0 ? pendingApprovalCount : resubmittedCount;
+          const showBadge = link.label === "Approvals" && badgeCount > 0;
           return (
             <div key={link.href} className="group relative">
               <Link
@@ -198,9 +209,7 @@ export function AdminSidebar({
                         className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white"
                         style={{ background: "#dc2626" }}
                       >
-                        {pendingApprovalCount > 99
-                          ? "99+"
-                          : pendingApprovalCount}
+                        {badgeCount > 99 ? "99+" : badgeCount}
                       </span>
                     )}
                   </span>
@@ -221,7 +230,7 @@ export function AdminSidebar({
                   }}
                 >
                   {link.label}
-                  {showBadge ? ` (${pendingApprovalCount})` : ""}
+                  {showBadge ? ` (${badgeCount})` : ""}
                 </span>
               )}
             </div>

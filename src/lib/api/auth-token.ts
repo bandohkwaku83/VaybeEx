@@ -242,12 +242,25 @@ export function clearAuthToken(): void {
   removeToken(LEGACY_TOKEN_KEY);
 }
 
+export type StoredOrganizerKyc = {
+  status: "pending" | "approved" | "rejected" | null;
+  onboardingCompleted: boolean;
+  canPublish: boolean;
+  canResubmit: boolean;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  resubmittedAt: string | null;
+  resubmissionCount: number;
+};
+
 export type StoredAuthUser = {
   name: string;
   email: string;
   phone?: string;
   role?: "traveler" | "organizer";
-  /** Organizer KYC: pending admin review, verified (approved), or rejected. */
+  /** Live KYC from /me, login, Google, and dashboard — not from the JWT. */
+  kyc?: StoredOrganizerKyc;
+  /** @deprecated Prefer `kyc.status`. `verified` means approved. */
   organizerStatus?: "pending" | "verified" | "rejected";
   rejectionReason?: string;
 };

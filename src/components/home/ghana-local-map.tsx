@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import Image, { type StaticImageData } from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -16,7 +17,7 @@ type SpotSize = "sm" | "md" | "lg";
 
 type TouristSpot = {
   id: string;
-  image: { src: string };
+  image: StaticImageData;
   region: string;
   site: string;
   x: number;
@@ -337,10 +338,13 @@ export function GhanaLocalMap() {
             >
               <div className="relative aspect-square w-full">
                 <div className="absolute inset-0 overflow-hidden rounded-full border-[3px] border-white shadow-[0_10px_28px_-8px_rgba(74,42,18,0.4)]">
-                  <img
-                    src={spot.image.src}
+                  <Image
+                    src={spot.image}
                     alt={`${spot.region} — ${spot.site}`}
-                    className="h-full w-full object-cover transition-transform duration-500 hover:scale-110"
+                    fill
+                    placeholder="blur"
+                    sizes="140px"
+                    className="object-cover transition-transform duration-500 hover:scale-110"
                   />
                 </div>
               </div>

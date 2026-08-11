@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useRef, useState } from "react";
+import Image, { type StaticImageData } from "next/image";
 import gsap from "gsap";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -11,6 +12,7 @@ import hero1 from "@public/images/hero1.png";
 import hero2 from "@public/images/hero2.png";
 import hero3 from "@public/images/hero3.png";
 
+import { MediaImage } from "@/components/ui/media-image";
 import { listPublicTrips } from "@/lib/api/public-trips";
 import { getTripDetailHref } from "@/lib/tenant";
 import type { Trip } from "@/lib/types";
@@ -19,7 +21,7 @@ import { cn } from "@/lib/utils";
 gsap.registerPlugin(ScrollTrigger);
 
 /* Hero photographic backdrop — independent of the trip polaroid stack. */
-const HERO_BACKDROPS = [hero1.src, hero2.src, hero3.src];
+const HERO_BACKDROPS: StaticImageData[] = [hero1, hero2, hero3];
 
 /* ── Polaroid rotation data ──────────────────────────────────────── */
 interface PolaroidData {
@@ -60,8 +62,8 @@ function buildPolaroids(trips: Trip[]): PolaroidData[] {
     .filter((p): p is PolaroidData => p !== null);
 }
 
-function heroBackdropAt(index: number) {
-  return HERO_BACKDROPS[index % HERO_BACKDROPS.length];
+function heroBackdropIndex(index: number) {
+  return ((index % HERO_BACKDROPS.length) + HERO_BACKDROPS.length) % HERO_BACKDROPS.length;
 }
 
 const SWAP_INTERVAL = 3800; // ms between auto-swaps
@@ -124,11 +126,12 @@ const Polaroid = forwardRef<HTMLDivElement, PolaroidProps>(
     const inner = (
       <>
         <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-surface-raised">
-          <img
+          <MediaImage
             src={src}
             alt={caption}
-            className="h-full w-full object-cover"
-            loading="lazy"
+            fill
+            sizes="(max-width: 1024px) 40vw, 280px"
+            className="object-cover"
           />
           {active && (
             <span className="absolute top-2 right-2">
@@ -174,17 +177,12 @@ Polaroid.displayName = "Polaroid";
 /* ── Hero ────────────────────────────────────────────────────────── */
 const Hero = () => {
   const heroRef = useRef<HTMLDivElement>(null);
-  const parallaxRef = useRef<HTMLDivElement>(null);
-  const journalRef = useRef<HTMLDivElement>(null);
-
-  const bgLayerARef = useRef<HTMLDivElement>(null);
-  const bgLayerBRef = useRef<HTMLDivElement>(null);
+  const backdropRefs = useRef<Array<HTMLDivElement | null>>([]);
   const polaroidRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const [polaroids, setPolaroids] = useState<PolaroidData[]>([]);
   const [liveCount, setLiveCount] = useState<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [bgToggle, setBgToggle] = useState(false);
 
   const polaroidsRef = useRef(polaroids);
   useEffect(() => {
@@ -196,10 +194,7 @@ const Hero = () => {
     activeIndexRef.current = activeIndex;
   }, [activeIndex]);
 
-  const bgToggleRef = useRef(bgToggle);
-  useEffect(() => {
-    bgToggleRef.current = bgToggle;
-  }, [bgToggle]);
+  const backdropIndexRef = useRef(0);
 
   /* ── Load latest live trips for the polaroid stack (cards only) ─ */
   useEffect(() => {
@@ -228,16 +223,10 @@ const Hero = () => {
      Backdrop always stays on folder hero art — never trip photos. */
   useEffect(() => {
     const len = polaroids.length;
-    if (bgLayerARef.current) {
-      const img = bgLayerARef.current.querySelector("img");
-      if (img) img.setAttribute("src", HERO_BACKDROPS[0]);
-      gsap.set(bgLayerARef.current, { autoAlpha: 1 });
-    }
-    if (bgLayerBRef.current) {
-      const img = bgLayerBRef.current.querySelector("img");
-      if (img) img.setAttribute("src", HERO_BACKDROPS[1]);
-      gsap.set(bgLayerBRef.current, { autoAlpha: 0 });
-    }
+    HERO_BACKDROPS.forEach((_, i) => {
+      const layer = backdropRefs.current[i];
+      if (layer) gsap.set(layer, { autoAlpha: i === backdropIndexRef.current ? 1 : 0 });
+    });
     if (len === 0) return;
 
     if (activeIndexRef.current >= len) {
@@ -335,48 +324,6 @@ const Hero = () => {
         },
       });
 
-      const photos = gsap.utils.toArray<HTMLElement>(".journal-photo");
-      if (photos.length && journalRef.current) {
-        gsap.to(photos, {
-          xPercent: -100 * (photos.length - 1),
-          ease: "none",
-          scrollTrigger: {
-            trigger: journalRef.current,
-            pin: true,
-            scrub: 1,
-            snap: 1 / (photos.length - 1),
-            end: () => "+=" + journalRef.current!.offsetWidth * 1.2,
-          },
-        });
-      }
-
-      gsap.utils.toArray<HTMLElement>(".tilt-card").forEach((el) => {
-        gsap.fromTo(
-          el,
-          { y: 80, opacity: 0, rotateX: 18, rotateY: -6 },
-          {
-            y: 0,
-            opacity: 1,
-            rotateX: 0,
-            rotateY: 0,
-            duration: 1.1,
-            ease: "expo.out",
-            scrollTrigger: { trigger: el, start: "top 85%" },
-          }
-        );
-      });
-
-      gsap.to(".parallax-img", {
-        yPercent: -15,
-        ease: "none",
-        scrollTrigger: {
-          trigger: parallaxRef.current,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
-
       gsap.utils.toArray<HTMLElement>("[data-count]").forEach((el) => {
         const target = parseFloat(el.dataset.count || "0");
         const suffix = el.dataset.suffix || "";
@@ -392,7 +339,7 @@ const Hero = () => {
               const v = (this.targets()[0] as { v: number }).v;
               el.textContent = Math.round(v).toLocaleString() + suffix;
             },
-          }
+          },
         );
       });
     }, heroRef);
@@ -400,13 +347,15 @@ const Hero = () => {
     return () => ctx.revert();
   }, []);
 
-  /* ── Initial background state (layer A = hero artwork) ────────── */
+  /* ── Initial background state ───────────────────────────────── */
   useEffect(() => {
-    if (bgLayerARef.current) {
-      gsap.set(bgLayerARef.current, { autoAlpha: 1 });
-      const img = bgLayerARef.current.querySelector("img");
-      if (img) gsap.set(img, { scale: 1.06 });
-    }
+    HERO_BACKDROPS.forEach((_, i) => {
+      const layer = backdropRefs.current[i];
+      if (!layer) return;
+      gsap.set(layer, { autoAlpha: i === 0 ? 1 : 0 });
+      const img = layer.querySelector("img");
+      if (img && i === 0) gsap.set(img, { scale: 1.06 });
+    });
   }, []);
 
   /* ── Core swap logic: reorder polaroid stack + crossfade bg ──── */
@@ -417,24 +366,17 @@ const Hero = () => {
     if (nextIndex < 0 || nextIndex >= cards.length) return;
     setActiveIndex(nextIndex);
 
-    const showingLayerIsA = !bgToggleRef.current;
-    const showLayer = showingLayerIsA ? bgLayerBRef.current : bgLayerARef.current;
-    const hideLayer = showingLayerIsA ? bgLayerARef.current : bgLayerBRef.current;
-    setBgToggle((t) => !t);
+    const nextBackdrop = heroBackdropIndex(nextIndex);
+    const showLayer = backdropRefs.current[nextBackdrop];
+    const hideLayer = backdropRefs.current[backdropIndexRef.current];
+    backdropIndexRef.current = nextBackdrop;
 
-    if (showLayer && hideLayer) {
+    if (showLayer && hideLayer && showLayer !== hideLayer) {
       const showImg = showLayer.querySelector("img");
-      // Crossfade folder hero art only — trip photos stay on polaroid cards.
-      const nextSrc = heroBackdropAt(nextIndex);
-
-      if (showImg && showImg.getAttribute("src") !== nextSrc) {
-        showImg.setAttribute("src", nextSrc);
-      }
       if (showImg) {
         gsap.set(showImg, { scale: 1.14 });
         gsap.to(showImg, { scale: 1.06, duration: 2.6, ease: "power2.out" });
       }
-
       gsap.set(showLayer, { autoAlpha: 0 });
       gsap.to(showLayer, { autoAlpha: 1, duration: 1.4, ease: "power2.out" });
       gsap.to(hideLayer, { autoAlpha: 0, duration: 1.4, ease: "power2.out" });
@@ -510,22 +452,27 @@ const Hero = () => {
         style={{ perspective: 1400 }}
       >
         <div className="layer-bg absolute inset-0 -z-30">
-          <div ref={bgLayerARef} className="absolute inset-0" style={{ opacity: 0 }}>
-            <img
-              src={HERO_BACKDROPS[0]}
-              alt=""
-              className="h-full w-full object-cover object-[center_28%] lg:object-center"
-              style={{ willChange: "transform" }}
-            />
-          </div>
-          <div ref={bgLayerBRef} className="absolute inset-0" style={{ opacity: 0 }}>
-            <img
-              src={HERO_BACKDROPS[1]}
-              alt=""
-              className="h-full w-full object-cover object-[center_28%] lg:object-center"
-              style={{ willChange: "transform" }}
-            />
-          </div>
+          {HERO_BACKDROPS.map((backdrop, i) => (
+            <div
+              key={backdrop.src}
+              ref={(el) => {
+                backdropRefs.current[i] = el;
+              }}
+              className="absolute inset-0"
+              style={{ opacity: i === 0 ? 1 : 0 }}
+            >
+              <Image
+                src={backdrop}
+                alt=""
+                fill
+                priority={i === 0}
+                placeholder="blur"
+                sizes="100vw"
+                className="object-cover object-[center_28%] lg:object-center"
+                style={{ willChange: "transform" }}
+              />
+            </div>
+          ))}
 
           <div
             className="absolute inset-0 lg:hidden"

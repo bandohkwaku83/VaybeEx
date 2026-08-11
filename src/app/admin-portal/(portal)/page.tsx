@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  Activity,
   ArrowRight,
   CheckCircle2,
   Loader2,
+  Mail,
   Map,
   RotateCcw,
   ShieldCheck,
@@ -19,7 +21,7 @@ import {
   getAdminDashboard,
   type AdminDashboard,
 } from "@/lib/api/admin";
-import { formatGHS } from "@/lib/format";
+import { formatGHS, formatGHSMoney } from "@/lib/format";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { cn } from "@/lib/utils";
 
@@ -244,12 +246,22 @@ function OrganizerFunnel({
     {
       label: "Incomplete",
       value: data.incompleteSetup,
-      href: "/admin-portal/users?role=organizer",
+      href: "/admin-portal/users?role=organizer&setup=incomplete",
     },
     {
-      label: "Pending",
+      label: "Needs review",
       value: data.pendingApproval,
-      href: "/admin-portal/users?queue=pending",
+      href: "/admin-portal/users?queue=pending_approval",
+    },
+    {
+      label: "Resubmitted",
+      value: data.resubmitted ?? 0,
+      href: "/admin-portal/users?queue=resubmitted",
+    },
+    {
+      label: "Rejected",
+      value: data.rejected,
+      href: "/admin-portal/users?queue=rejected",
     },
     {
       label: "Approved",
@@ -259,7 +271,7 @@ function OrganizerFunnel({
   ];
 
   return (
-    <div className="grid gap-0 sm:grid-cols-3">
+    <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-5">
       {steps.map((step, i) => (
         <Link
           key={step.label}
@@ -332,33 +344,68 @@ export default function AdminDashboardPage() {
   const attentionItems: AttentionItem[] = data
     ? (
         [
-          data.organizers.pendingApproval > 0 && {
-            href: "/admin-portal/users?queue=pending",
+          (data.organizers.resubmitted ?? 0) > 0 && {
+            href: "/admin-portal/users?queue=resubmitted",
             icon: ShieldCheck,
-            label: "Organizer approvals",
+            label: "Resubmitted",
+            count: data.organizers.resubmitted,
+            hint: "Rejected, then came back — review what you asked them to fix",
+            cta: "Prioritize these",
+            tone: "urgent" as const,
+          },
+          data.organizers.pendingApproval > 0 && {
+            href: "/admin-portal/users?queue=pending_approval",
+            icon: ShieldCheck,
+            label: "Needs review",
             count: data.organizers.pendingApproval,
-            hint: "National ID / KYC waiting on review",
-            cta: "Review queue",
+            hint: "First reviews and resubmits waiting on a decision",
+            cta: "Open queue",
+            tone: (data.organizers.resubmitted ?? 0) > 0 ? ("warn" as const) : ("urgent" as const),
+          },
+          data.organizers.rejected > 0 && {
+            href: "/admin-portal/users?queue=rejected",
+            icon: Users,
+            label: "Rejected",
+            count: data.organizers.rejected,
+            hint: "Waiting on the organizer to update and resubmit",
+            cta: "View rejected",
+            tone: "warn" as const,
+          },
+          data.withdrawals.counts.pending +
+            data.withdrawals.counts.processing >
+            0 && {
+            href: "/admin-portal/withdrawals?queue=awaiting",
+            icon: Wallet,
+            label: "Withdrawals awaiting you",
+            count:
+              data.withdrawals.counts.pending +
+              data.withdrawals.counts.processing,
+            hint: data.withdrawals.counts.pending
+              ? `${data.withdrawals.counts.pending} need review — send MoMo outside the app`
+              : "Mark paid once you’ve sent MoMo",
+            cta: "Open queue",
             tone: "urgent" as const,
           },
           data.withdrawals.counts.failed > 0 && {
-            href: "/admin-portal/withdrawals?status=failed",
+            href: "/admin-portal/withdrawals?queue=rejected",
             icon: Wallet,
-            label: "Failed withdrawals",
+            label: "Rejected withdrawals",
             count: data.withdrawals.counts.failed,
             hint: data.withdrawals.amounts.failed
-              ? `${formatGHS(data.withdrawals.amounts.failed)} stuck in payout`
-              : "Retry or sync from the payouts queue",
-            cta: "Open payouts",
-            tone: "urgent" as const,
+              ? `${formatGHS(data.withdrawals.amounts.failed)} unlocked for organizers`
+              : "Funds unlocked — organizer can request again",
+            cta: "View rejected",
+            tone: "warn" as const,
           },
           data.cancellations.awaitingReview > 0 && {
-            href: "/admin-portal/trips",
+            href: "/admin-portal/refunds?queue=awaiting",
             icon: RotateCcw,
-            label: "Cancellations to review",
+            label: "Refunds awaiting review",
             count: data.cancellations.awaitingReview,
-            hint: "Refund requests awaiting a decision",
-            cta: "Review requests",
+            hint: data.cancellations.amounts?.refunded
+              ? `${formatGHSMoney(data.cancellations.amounts.refunded)} already refunded`
+              : "Refund requests awaiting a decision",
+            cta: "Open refunds",
             tone: "warn" as const,
           },
         ] as const
@@ -537,7 +584,7 @@ export default function AdminDashboardPage() {
             >
               Platform pulse
             </h2>
-            <div className="grid gap-5 border-y border-[#e5e5e5] py-7 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+            <div className="grid gap-5 border-y border-[#e5e5e5] py-7 sm:grid-cols-2 lg:grid-cols-5 lg:gap-0">
               <MetricLink
                 label="Travelers"
                 value={data.travelers.total}
@@ -566,7 +613,26 @@ export default function AdminDashboardPage() {
                 href="/admin-portal/trips"
                 delay={0.22}
               />
+              <MetricLink
+                label="Refunded"
+                value={data.cancellations.counts.refunded}
+                hint={formatGHSMoney(data.cancellations.amounts.refunded)}
+                href="/admin-portal/refunds?status=refunded"
+                delay={0.26}
+              />
             </div>
+            <Link
+              href="/admin-portal/messages"
+              className="mt-4 inline-flex items-center gap-2 text-sm font-medium"
+              style={{ color: "#171717" }}
+            >
+              <Mail className="h-4 w-4" style={{ color: "#737373" }} />
+              {data.messages.campaigns} campaign
+              {data.messages.campaigns === 1 ? "" : "s"}
+              <span style={{ color: "#a3a3a3" }}>·</span>
+              {data.messages.delivered} delivered
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </section>
 
           {/* Trips + money */}
@@ -651,17 +717,17 @@ export default function AdminDashboardPage() {
                         data.withdrawals.amounts.processing,
                       ],
                       [
-                        "Pending",
+                        "Pending review",
                         data.withdrawals.counts.pending,
                         data.withdrawals.amounts.pending,
                       ],
                       [
-                        "Paid out",
+                        "Paid",
                         data.withdrawals.counts.success,
                         data.withdrawals.amounts.success,
                       ],
                       [
-                        "Failed",
+                        "Rejected",
                         data.withdrawals.counts.failed,
                         data.withdrawals.amounts.failed,
                       ],
@@ -684,7 +750,7 @@ export default function AdminDashboardPage() {
                         className="text-sm font-semibold tabular-nums"
                         style={{
                           color:
-                            label === "Failed" && count > 0
+                            label === "Rejected" && count > 0
                               ? "#dc2626"
                               : "#171717",
                         }}
@@ -716,7 +782,7 @@ export default function AdminDashboardPage() {
                   </h2>
                 </div>
                 <p className="text-xs tabular-nums" style={{ color: "#a3a3a3" }}>
-                  {data.organizers.rejected} rejected
+                  {data.organizers.incompleteSetup} incomplete setup
                 </p>
               </div>
               <div
@@ -742,9 +808,28 @@ export default function AdminDashboardPage() {
                 {(
                   [
                     {
-                      href: "/admin-portal/users?queue=pending",
+                      href: "/admin-portal/users?queue=pending_approval",
                       icon: ShieldCheck,
                       label: "Approvals queue",
+                    },
+                    {
+                      href: "/admin-portal/refunds?queue=awaiting",
+                      icon: RotateCcw,
+                      label: data.cancellations.amounts?.refunded
+                        ? `Refunds · ${formatGHSMoney(data.cancellations.amounts.refunded)} sent`
+                        : "Refunds queue",
+                    },
+                    {
+                      href: "/admin-portal/messages",
+                      icon: Mail,
+                      label: data.messages?.delivered
+                        ? `Messages · ${data.messages.delivered} delivered`
+                        : "Messages",
+                    },
+                    {
+                      href: "/admin-portal/activity",
+                      icon: Activity,
+                      label: "Activity feed",
                     },
                     {
                       href: "/admin-portal/trips",
@@ -752,9 +837,9 @@ export default function AdminDashboardPage() {
                       label: "All trips",
                     },
                     {
-                      href: "/admin-portal/withdrawals",
+                      href: "/admin-portal/withdrawals?queue=awaiting",
                       icon: Wallet,
-                      label: "Payout pipeline",
+                      label: "Payout queue",
                     },
                     {
                       href: "/admin-portal/users",

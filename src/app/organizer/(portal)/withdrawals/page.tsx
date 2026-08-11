@@ -56,15 +56,15 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
-const POLL_MS = 10_000;
+const POLL_MS = 20_000;
 
 type WithdrawalRow = PayoutWithdrawal & {
   tripTitle: string;
 };
 
-function statusMeta(status: string) {
+function statusMeta(status: string, failureReason?: string | null) {
   const normalized = normalizeWithdrawalStatus(status);
-  const copy = withdrawalStatusCopy(status);
+  const copy = withdrawalStatusCopy(status, failureReason);
   if (normalized === "completed")
     return {
       label: copy.label,
@@ -255,19 +255,30 @@ const TABLE_COLUMNS = [
   columnHelper.accessor("status", {
     header: "Status",
     cell: (info) => {
-      const meta = statusMeta(info.getValue());
+      const row = info.row.original;
+      const meta = statusMeta(row.status, row.failureReason);
       return (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-          style={{
-            background: meta.bg,
-            color: meta.color,
-            borderColor: meta.border,
-          }}
-        >
-          <meta.Icon className="h-3 w-3" />
-          {meta.label}
-        </span>
+        <div>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+            style={{
+              background: meta.bg,
+              color: meta.color,
+              borderColor: meta.border,
+            }}
+          >
+            <meta.Icon className="h-3 w-3" />
+            {meta.label}
+          </span>
+          {normalizeWithdrawalStatus(row.status) === "failed" && row.failureReason ? (
+            <p
+              className="mt-1 max-w-[180px] text-[11px] leading-snug"
+              style={{ color: "var(--coral)" }}
+            >
+              {row.failureReason}
+            </p>
+          ) : null}
+        </div>
       );
     },
   }),
@@ -293,10 +304,10 @@ const TABLE_COLUMNS = [
 type StatusFilter = "all" | "completed" | "processing" | "pending" | "failed";
 const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   all: "All",
-  completed: "Success",
+  completed: "Paid",
   processing: "Processing",
-  pending: "Pending",
-  failed: "Failed",
+  pending: "Pending review",
+  failed: "Rejected",
 };
 
 type DateRangeFilter = "all" | "7d" | "30d" | "90d";
@@ -372,6 +383,14 @@ export default function WithdrawalsPage() {
     }, POLL_MS);
     return () => window.clearInterval(id);
   }, [hasInFlight, loadWithdrawals]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      void loadWithdrawals({ silent: true });
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadWithdrawals]);
 
   const completed = useMemo(
     () =>
@@ -519,8 +538,8 @@ export default function WithdrawalsPage() {
             className="mt-1 text-[13px]"
             style={{ color: "var(--text-secondary)" }}
           >
-            Withdraw to MoMo. Funds are held by VaybeEx — withdrawals are paid
-            from our Paystack balance to your MoMo.
+            Request a payout to MoMo. An admin reviews it and sends the money.
+            Pending requests lock that amount until they are paid or rejected.
           </p>
         </div>
         <button
@@ -531,7 +550,7 @@ export default function WithdrawalsPage() {
           style={{ background: "var(--primary)", color: "#fbf7f1" }}
         >
           <ArrowDownToLine className="h-4 w-4" />
-          Withdraw to MoMo
+          Request payout
         </button>
       </div>
 
@@ -568,27 +587,27 @@ export default function WithdrawalsPage() {
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={Wallet}
-              label="Landed on MoMo"
+              label="Paid"
               value={formatCurrency(completedTotal)}
-              sub={`${completed.length} successful transfer${completed.length !== 1 ? "s" : ""}`}
+              sub={`${completed.length} paid to MoMo`}
               iconBg="var(--primary-dim)"
               iconColor="var(--primary)"
               trend="up"
             />
             <StatCard
               icon={Clock}
-              label="In progress"
+              label="Awaiting admin"
               value={formatCurrency(inFlightTotal)}
-              sub={`${inFlightCount} pending / processing`}
+              sub={`${inFlightCount} pending review / processing`}
               iconBg="rgba(208,138,60,0.1)"
               iconColor="var(--amber)"
               trend={inFlightTotal > 0 ? "neutral" : "up"}
             />
             <StatCard
               icon={AlertCircle}
-              label="Failed"
+              label="Rejected"
               value={formatCurrency(failedTotal)}
-              sub={`${failed.length} transfer${failed.length !== 1 ? "s" : ""}`}
+              sub={`${failed.length} rejected`}
               iconBg="rgba(181,82,58,0.1)"
               iconColor="var(--coral)"
               trend={failedTotal > 0 ? "down" : "up"}
@@ -662,17 +681,17 @@ export default function WithdrawalsPage() {
                 <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
                   {[
                     {
-                      label: "Success",
+                      label: "Paid",
                       value: completedTotal,
                       color: "#2e7d52",
                     },
                     {
-                      label: "In progress",
+                      label: "Awaiting admin",
                       value: inFlightTotal,
                       color: "var(--amber)",
                     },
                     {
-                      label: "Failed",
+                      label: "Rejected",
                       value: failedTotal,
                       color: "var(--coral)",
                     },
@@ -806,7 +825,7 @@ export default function WithdrawalsPage() {
                     }
                     description={
                       withdrawals.length === 0
-                        ? "When you cash out earnings, transfers will appear in this list."
+                        ? "When you request a payout, it will appear in this list."
                         : globalSearch
                           ? "Try a different search term."
                           : "Try another status or date range."

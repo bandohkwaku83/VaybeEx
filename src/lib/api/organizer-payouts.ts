@@ -65,7 +65,7 @@ export type PayoutPaymentMethods = {
 
 export type MomoProvider = "mtn" | "vodafone" | "airteltigo";
 
-/** Lifecycle: pending → processing → success | failed (Paystack MoMo transfer). */
+/** Lifecycle: pending → processing → success | failed (admin pays MoMo outside the app). */
 export type WithdrawalStatus =
   | "pending"
   | "processing"
@@ -177,7 +177,8 @@ export type ListPayoutMembersParams = {
 };
 
 export type CreateTripWithdrawalInput = {
-  amount: number;
+  /** Omit to request the full availableToWithdraw. */
+  amount?: number;
   momoProvider: MomoProvider;
   momoNumber: string;
   accountName?: string;
@@ -295,39 +296,70 @@ export function normalizeWithdrawalStatus(
   return "pending";
 }
 
-/** Funds locked while Paystack transfer is outstanding. */
+/** Funds locked while a request is awaiting or being paid by admin. */
 export function isWithdrawalInFlight(status: string): boolean {
   const normalized = normalizeWithdrawalStatus(status);
   return normalized === "pending" || normalized === "processing";
 }
 
-export function withdrawalStatusCopy(status: string): {
-  label: string;
-  description: string;
-} {
+export function organizerWithdrawalCopy(
+  status: string,
+  failureReason?: string | null
+): { title: string; hint: string } {
   switch (normalizeWithdrawalStatus(status)) {
     case "pending":
       return {
-        label: "Pending",
-        description: "Withdrawal created — funds locked while we set up MoMo.",
+        title: "Pending review",
+        hint: "An admin will send this to your MoMo",
       };
     case "processing":
       return {
-        label: "Processing",
-        description: "Paystack transfer started — waiting for MoMo confirmation.",
+        title: "Processing",
+        hint: "Payment is being sent",
       };
     case "completed":
       return {
-        label: "Success",
-        description: "Transfer succeeded — funds should be on your MoMo.",
+        title: "Paid",
+        hint: "Check your Mobile Money wallet",
       };
     case "failed":
       return {
-        label: "Failed",
-        description:
-          "Transfer failed. Try again, or contact support if this keeps happening.",
+        title: "Rejected",
+        hint: failureReason?.trim() || "This request was rejected. You can request again.",
+      };
+    default:
+      return {
+        title: "Pending review",
+        hint: "An admin will send this to your MoMo",
       };
   }
+}
+
+/** Dashboard chips — same statuses, slightly different success label. */
+export function dashboardWithdrawalLabel(status: string) {
+  switch (normalizeWithdrawalStatus(status)) {
+    case "pending":
+      return "Pending review";
+    case "processing":
+      return "Processing";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Rejected";
+    default:
+      return "Pending review";
+  }
+}
+
+export function withdrawalStatusCopy(
+  status: string,
+  failureReason?: string | null
+): {
+  label: string;
+  description: string;
+} {
+  const copy = organizerWithdrawalCopy(status, failureReason);
+  return { label: copy.title, description: copy.hint };
 }
 
 function mapTripListItem(raw: unknown): PayoutTripListItem {
@@ -655,7 +687,7 @@ export async function createTripWithdrawal(
       method: "POST",
       headers: bearerHeaders(),
       body: JSON.stringify({
-        amount: input.amount,
+        ...(input.amount != null ? { amount: input.amount } : {}),
         momoProvider: input.momoProvider,
         momoNumber: input.momoNumber,
         ...(input.accountName?.trim()

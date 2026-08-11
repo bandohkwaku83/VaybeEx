@@ -11,6 +11,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { VerifiedBadge } from "@/components/trips/verified-badge";
+import { kycFromAuthUser } from "@/lib/organizer-kyc";
 
 const links = [
   { href: "/organizer/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -60,7 +61,9 @@ interface OrganizerSidebarProps {
 
 export function OrganizerSidebar({ collapsed, onToggle }: OrganizerSidebarProps) {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const kyc = kycFromAuthUser(user);
+  const canPublish = kyc.canPublish;
 
   return (
     <aside
@@ -161,11 +164,11 @@ export function OrganizerSidebar({ collapsed, onToggle }: OrganizerSidebarProps)
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-        {!collapsed && (
+        {!collapsed && canPublish ? (
           <div className="mb-3 flex items-center gap-2">
             <VerifiedBadge />
           </div>
-        )}
+        ) : null}
 
         <FooterLink href="/organizer" icon={BookOpen} label="Organizer guide" collapsed={collapsed} />
         <FooterLink href="/" icon={Compass} label="Traveler site" collapsed={collapsed} />

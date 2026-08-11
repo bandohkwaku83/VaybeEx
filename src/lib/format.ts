@@ -3,6 +3,10 @@ import { format, formatDistanceToNow, parseISO, differenceInDays } from "date-fn
 export const formatGHS = (n: number) =>
   `GHS ${n.toLocaleString("en-GH", { maximumFractionDigits: 0 })}`;
 
+/** Exact money for refunds / ledger amounts. */
+export const formatGHSMoney = (amount: number | string | null | undefined) =>
+  `GHS ${Number(amount ?? 0).toFixed(2)}`;
+
 export const formatDateShort = (iso: string) => format(parseISO(iso), "d MMM yyyy");
 
 export const formatDateRange = (startISO: string, endISO: string) => {

@@ -6,7 +6,9 @@ import { Suspense } from "react";
 import {
   ArrowDownToLine,
   LayoutDashboard,
+  Mail,
   Map,
+  RotateCcw,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -15,13 +17,14 @@ import { cn } from "@/lib/utils";
 const items = [
   { href: "/admin-portal", label: "Home", icon: LayoutDashboard, exact: true },
   {
-    href: "/admin-portal/users?queue=pending",
+    href: "/admin-portal/users?queue=pending_approval",
     label: "Approvals",
     icon: ShieldCheck,
     match: (pathname: string, search: string) =>
       pathname === "/admin-portal/users" &&
       (search.includes("queue=pending") ||
-        search.includes("queue=pending_approval")),
+        search.includes("queue=resubmitted") ||
+        search.includes("queue=rejected")),
   },
   {
     href: "/admin-portal/users",
@@ -32,20 +35,25 @@ const items = [
       if (pathname === "/admin-portal/users") {
         return (
           !search.includes("queue=pending") &&
-          !search.includes("queue=pending_approval")
+          !search.includes("queue=resubmitted") &&
+          !search.includes("queue=rejected")
         );
       }
       return true;
     },
   },
+  { href: "/admin-portal/messages", label: "Msgs", icon: Mail },
   { href: "/admin-portal/trips", label: "Trips", icon: Map },
+  { href: "/admin-portal/refunds", label: "Refunds", icon: RotateCcw },
   { href: "/admin-portal/withdrawals", label: "Payouts", icon: ArrowDownToLine },
 ] as const;
 
 function MobileNavInner({
   pendingApprovalCount = 0,
+  resubmittedCount = 0,
 }: {
   pendingApprovalCount?: number;
+  resubmittedCount?: number;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -67,8 +75,9 @@ function MobileNavInner({
                 : pathname === item.href ||
                   pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
-          const showBadge =
-            item.label === "Approvals" && pendingApprovalCount > 0;
+          const badgeCount =
+            pendingApprovalCount > 0 ? pendingApprovalCount : resubmittedCount;
+          const showBadge = item.label === "Approvals" && badgeCount > 0;
           return (
             <li key={item.href} className="min-w-0 flex-1">
               <Link
@@ -88,7 +97,7 @@ function MobileNavInner({
                       className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[8px] font-bold text-white"
                       style={{ background: "#dc2626" }}
                     >
-                      {pendingApprovalCount > 9 ? "9+" : pendingApprovalCount}
+                      {badgeCount > 9 ? "9+" : badgeCount}
                     </span>
                   )}
                 </span>
@@ -104,12 +113,17 @@ function MobileNavInner({
 
 export function AdminMobileNav({
   pendingApprovalCount = 0,
+  resubmittedCount = 0,
 }: {
   pendingApprovalCount?: number;
+  resubmittedCount?: number;
 }) {
   return (
     <Suspense fallback={null}>
-      <MobileNavInner pendingApprovalCount={pendingApprovalCount} />
+      <MobileNavInner
+        pendingApprovalCount={pendingApprovalCount}
+        resubmittedCount={resubmittedCount}
+      />
     </Suspense>
   );
 }

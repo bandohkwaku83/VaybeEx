@@ -41,7 +41,7 @@ function tripStatusTag(status: string) {
   const tone = styles[status] ?? { bg: "#f5f5f5", color: "#525252" };
   return (
     <Tag
-      bordered={false}
+      variant="filled"
       className="capitalize"
       style={{
         background: tone.bg,

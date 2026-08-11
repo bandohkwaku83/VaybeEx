@@ -7,7 +7,13 @@ import { Alert, Avatar, Input, Select, Table, Tag, Button, Space } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import { SearchOutlined } from "@ant-design/icons";
 import { ApiError } from "@/lib/api/client";
-import { listAdminUsers, type AdminUser } from "@/lib/api/admin";
+import {
+  getAdminUserReview,
+  listAdminUsers,
+  parseAdminReviewQueue,
+  type AdminReviewQueue,
+  type AdminUser,
+} from "@/lib/api/admin";
 import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { formatDateShort, formatRelativeTime } from "@/lib/format";
 
@@ -24,7 +30,7 @@ function SoftTag({
 }) {
   return (
     <Tag
-      bordered={false}
+      variant="filled"
       style={{
         background: bg,
         color,
@@ -39,7 +45,11 @@ function SoftTag({
 
 function statusTag(user: AdminUser) {
   if (user.role === "organizer") {
-    const status = user.status || "unset";
+    const review = getAdminUserReview(user);
+    if (review.isResubmission) {
+      return <SoftTag label="Resubmitted" bg="#fff7ed" color="#c2410c" />;
+    }
+    const status = review.status || user.status || "unset";
     if (status === "pending" && user.onboardingCompleted) {
       return (
         <SoftTag label="Pending approval" bg="#fffbeb" color="#b45309" />
@@ -63,20 +73,31 @@ function statusTag(user: AdminUser) {
   return <SoftTag label="Unverified" bg="#f5f5f5" color="#737373" />;
 }
 
+const QUEUE_TABS: { key: AdminReviewQueue; label: string }[] = [
+  { key: "pending_approval", label: "Needs review" },
+  { key: "resubmitted", label: "Resubmitted" },
+  { key: "rejected", label: "Rejected" },
+];
+
+function queueDetailQuery(queue: AdminReviewQueue) {
+  return `?from=${queue}`;
+}
+
 function UsersPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const queueRaw = searchParams.get("queue");
-  const isQueue =
-    queueRaw === "pending" || queueRaw === "pending_approval";
+  const queue = parseAdminReviewQueue(searchParams.get("queue"));
+  const isQueue = Boolean(queue);
   const roleParam = (searchParams.get("role") as RoleTab | null) || "all";
   const statusParam = searchParams.get("status") || "";
+  const setupParam = searchParams.get("setup") || "";
   const qParam = searchParams.get("q") || "";
 
   const [q, setQ] = useState(qParam);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [resubmittedCount, setResubmittedCount] = useState(0);
   const [roleCounts, setRoleCounts] = useState({ traveler: 0, organizer: 0 });
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -110,11 +131,14 @@ function UsersPageInner() {
         q: qParam || undefined,
         role: isQueue ? undefined : roleTab === "all" ? undefined : roleTab,
         status: isQueue ? undefined : statusParam || undefined,
-        queue: isQueue ? "pending_approval" : undefined,
+        queue: queue ?? undefined,
+        onboardingCompleted:
+          !isQueue && setupParam === "incomplete" ? false : undefined,
       });
       const data = res.data;
       setUsers(data?.users ?? []);
       setPendingApprovalCount(data?.pendingApprovalCount ?? 0);
+      setResubmittedCount(data?.resubmittedCount ?? 0);
       setRoleCounts(data?.roleCounts ?? { traveler: 0, organizer: 0 });
       setTotal(data?.pagination.total ?? 0);
     } catch (err) {
@@ -124,7 +148,7 @@ function UsersPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [isQueue, page, pageSize, qParam, roleTab, statusParam]);
+  }, [isQueue, page, pageSize, qParam, queue, roleTab, setupParam, statusParam]);
 
   useEffect(() => {
     setQ(qParam);
@@ -132,7 +156,7 @@ function UsersPageInner() {
 
   useEffect(() => {
     setPage(1);
-  }, [isQueue, roleTab, statusParam, qParam]);
+  }, [isQueue, queue, roleTab, setupParam, statusParam, qParam]);
 
   useEffect(() => {
     void load();
@@ -143,9 +167,11 @@ function UsersPageInner() {
       {
         title: "Person",
         key: "person",
-        render: (_, user) => (
+        render: (_, user) => {
+          const review = getAdminUserReview(user);
+          return (
           <Link
-            href={`/admin-portal/users/${user.id}${isQueue ? "?from=approvals" : ""}`}
+            href={`/admin-portal/users/${user.id}${queue ? queueDetailQuery(queue) : ""}`}
             className="flex items-center gap-3"
           >
             <Avatar
@@ -174,9 +200,15 @@ function UsersPageInner() {
                   {user.businessName}
                 </span>
               ) : null}
+              {review.isResubmission && review.previousRejectionReason ? (
+                <span className="mt-1 block text-xs leading-snug" style={{ color: "#c2410c" }}>
+                  Last ask: {review.previousRejectionReason}
+                </span>
+              ) : null}
             </span>
           </Link>
-        ),
+          );
+        },
       },
       {
         title: "Role",
@@ -209,8 +241,26 @@ function UsersPageInner() {
             "—"
           ),
       },
+      {
+        title: "Last seen",
+        key: "lastSeen",
+        width: 180,
+        render: (_, user) =>
+          user.lastLoginAt ? (
+            <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              <div>{formatRelativeTime(user.lastLoginAt)}</div>
+              {user.lastLoginDevice?.label ? (
+                <div className="truncate" title={user.lastLoginDevice.label}>
+                  {user.lastLoginDevice.label}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            "—"
+          ),
+      },
     ],
-    [isQueue]
+    [queue]
   );
 
   const pagination: TablePaginationConfig = {
@@ -233,31 +283,78 @@ function UsersPageInner() {
             {isQueue ? "Approvals" : "People"}
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            {isQueue
-              ? "Organizers waiting on National ID review"
-              : "Travelers and organizers on VaybeEx"}
+            {queue === "resubmitted"
+              ? "Rejected, then came back — check what you asked them to fix"
+              : queue === "rejected"
+                ? "Waiting on the organizer to update and resubmit"
+                : isQueue
+                  ? "First reviews and resubmits waiting on a decision"
+                  : "Travelers and organizers on VaybeEx"}
           </p>
         </div>
-        {!isQueue && pendingApprovalCount > 0 && (
+        {!isQueue && (resubmittedCount > 0 || pendingApprovalCount > 0) && (
           <Link
-            href="/admin-portal/users?queue=pending"
+            href={
+              resubmittedCount > 0
+                ? "/admin-portal/users?queue=resubmitted"
+                : "/admin-portal/users?queue=pending_approval"
+            }
             className="text-sm font-medium"
             style={{ color: "var(--coral)" }}
           >
-            {pendingApprovalCount} in KYC queue →
+            {resubmittedCount > 0
+              ? `${resubmittedCount} resubmitted →`
+              : `${pendingApprovalCount} in KYC queue →`}
           </Link>
         )}
       </div>
 
-      {!isQueue && pendingApprovalCount > 0 && (
+      {!isQueue && (resubmittedCount > 0 || pendingApprovalCount > 0) && (
         <div className="mb-5 hidden lg:block">
           <Link
-            href="/admin-portal/users?queue=pending"
+            href={
+              resubmittedCount > 0
+                ? "/admin-portal/users?queue=resubmitted"
+                : "/admin-portal/users?queue=pending_approval"
+            }
             className="text-sm font-medium"
             style={{ color: "var(--coral)" }}
           >
-            {pendingApprovalCount} in KYC queue →
+            {resubmittedCount > 0
+              ? `${resubmittedCount} resubmitted →`
+              : `${pendingApprovalCount} in KYC queue →`}
           </Link>
+        </div>
+      )}
+
+      {isQueue && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {QUEUE_TABS.map((tab) => {
+            const active = queue === tab.key;
+            const count =
+              tab.key === "pending_approval"
+                ? pendingApprovalCount
+                : tab.key === "resubmitted"
+                  ? resubmittedCount
+                  : undefined;
+            return (
+              <Link
+                key={tab.key}
+                href={`/admin-portal/users?queue=${tab.key}`}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium"
+                style={{
+                  background: active ? "#171717" : "#fff",
+                  color: active ? "#fff" : "#404040",
+                  boxShadow: active ? "none" : "inset 0 0 0 1px #e5e5e5",
+                }}
+              >
+                {tab.label}
+                {count != null ? (
+                  <span className="tabular-nums opacity-80">{count}</span>
+                ) : null}
+              </Link>
+            );
+          })}
         </div>
       )}
 
@@ -331,17 +428,22 @@ function UsersPageInner() {
         dataSource={users}
         loading={loading}
         pagination={pagination}
-        scroll={{ x: 720 }}
+        scroll={{ x: 900 }}
         locale={{
-          emptyText: isQueue
-            ? "No organizers waiting for approval."
-            : "No users match your filters.",
+          emptyText:
+            queue === "resubmitted"
+              ? "No resubmitted applications."
+              : queue === "rejected"
+                ? "No rejected organizers."
+                : isQueue
+                  ? "No organizers waiting for approval."
+                  : "No users match your filters.",
         }}
         onRow={(user) => ({
           style: { cursor: "pointer" },
           onClick: () => {
             router.push(
-              `/admin-portal/users/${user.id}${isQueue ? "?from=approvals" : ""}`
+              `/admin-portal/users/${user.id}${queue ? queueDetailQuery(queue) : ""}`
             );
           },
         })}

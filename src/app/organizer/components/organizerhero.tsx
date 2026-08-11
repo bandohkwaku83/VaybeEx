@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, MapPin, Users, TrendingUp } from "lucide-react";
@@ -193,11 +194,14 @@ export default function OrganizerHero() {
           className="absolute inset-0 h-full w-full"
           style={{ willChange: "transform" }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={organizerHero.src}
+          <Image
+            src={organizerHero}
             alt="Resort cottages by a calm pond with lush tropical greenery"
-            className="h-full w-full object-cover"
+            fill
+            priority
+            placeholder="blur"
+            sizes="100vw"
+            className="object-cover"
           />
         </div>
 

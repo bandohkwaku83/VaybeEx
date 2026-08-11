@@ -2,8 +2,8 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
+import { MediaImage } from "@/components/ui/media-image";
 import {
   ArrowLeft,
   Calendar,
@@ -25,6 +25,11 @@ import {
   Eye,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  kycFromAuthUser,
+  organizerCannotPublishReason,
+} from "@/lib/organizer-kyc";
 import gsap from "gsap";
 import { RefundRequestsSection } from "@/components/organizer/refund-requests-section";
 import { Button } from "@/components/ui/button";
@@ -172,6 +177,8 @@ export default function ManageTripPage({
   const { id } = use(params);
   const searchParams = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
+  const { user } = useAuth();
+  const kyc = kycFromAuthUser(user);
   const { getTrip, updateTripStatus, refreshTrip, isLoading, isSaving } =
     useOrganizerTrips();
   const trip = getTrip(id);
@@ -367,6 +374,10 @@ export default function ManageTripPage({
   }
 
   const handleStatusChange = async (status: TripStatus) => {
+    if ((status === "live" || status === "scheduled") && !kyc.canPublish) {
+      toast.error(organizerCannotPublishReason(kyc));
+      return;
+    }
     if (status === "scheduled") {
       setScheduleAt(
         toDatetimeLocalValue(trip?.scheduledPublishAt || undefined)
@@ -385,6 +396,10 @@ export default function ManageTripPage({
   };
 
   const handleConfirmSchedule = async () => {
+    if (!kyc.canPublish) {
+      toast.error(organizerCannotPublishReason(kyc));
+      return;
+    }
     if (!scheduleAt.trim()) {
       toast.error("Select a publish date and time.");
       return;
@@ -472,20 +487,13 @@ export default function ManageTripPage({
         style={{ borderColor: "var(--border)", background: "var(--surface)" }}
       >
         <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg sm:h-24 sm:w-20">
-          <Image
-            src={trip.image || "/images/cta-image.jpg"}
+          <MediaImage
+            src={trip.image}
             alt=""
             fill
             className="object-cover"
             sizes="80px"
             priority
-            unoptimized={
-              Boolean(
-                trip.image &&
-                  (trip.image.startsWith("http://") ||
-                    trip.image.startsWith("https://"))
-              )
-            }
           />
         </div>
 
@@ -758,7 +766,7 @@ export default function ManageTripPage({
                         key={img}
                         className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg"
                       >
-                        <Image
+                        <MediaImage
                           src={img}
                           alt=""
                           fill

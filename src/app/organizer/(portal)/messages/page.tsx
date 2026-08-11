@@ -56,6 +56,8 @@ import {
   type PaymentFilter,
 } from "@/lib/api/broadcasts";
 import { cn, formatDate } from "@/lib/utils";
+import { getOrganizerProfile } from "@/lib/organizer-profile";
+import { useAuth } from "@/hooks/use-auth";
 
 const organizerAntdTheme = {
   token: {
@@ -387,9 +389,27 @@ function BroadcastDrawer({
   );
 }
 
+function withBrandFooter(text: string, brand: string) {
+  const signOff = `from ${brand}`;
+  const trimmed = text.replace(/\s+$/, "");
+  if (trimmed.endsWith(signOff)) return trimmed;
+  if (!trimmed) return signOff;
+  return `${trimmed}\n\n${signOff}`;
+}
+
 export default function CommunicationPage() {
   const searchParams = useSearchParams();
   const tripFromUrl = searchParams.get("trip");
+  const { user } = useAuth();
+  const brandName = useMemo(() => {
+    try {
+      const profile = getOrganizerProfile();
+      return profile.businessName.trim() || user?.name?.trim() || "VaybeEx";
+    } catch {
+      return user?.name?.trim() || "VaybeEx";
+    }
+  }, [user?.name]);
+  const signOff = `from ${brandName}`;
 
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(true);
@@ -423,12 +443,16 @@ export default function CommunicationPage() {
   const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
 
   const selectedTrip = trips.find((t) => t.id === tripId);
+  const messageWithFooter = useMemo(
+    () => withBrandFooter(message, brandName),
+    [brandName, message]
+  );
 
-  const smsMeta = useMemo(() => analyzeSms(message), [message]);
+  const smsMeta = useMemo(() => analyzeSms(messageWithFooter), [messageWithFooter]);
   const charsInSegment =
-    message.length === 0
+    messageWithFooter.length === 0
       ? 0
-      : message.length % smsMeta.charsPerSms || smsMeta.charsPerSms;
+      : messageWithFooter.length % smsMeta.charsPerSms || smsMeta.charsPerSms;
 
   const sendableCount = useMemo(() => {
     if (!audience) return 0;
@@ -670,7 +694,7 @@ export default function CommunicationPage() {
       });
       const est = await estimateBroadcast({
         tripId,
-        message,
+        message: messageWithFooter,
         audience: audiencePayload,
       });
       if (est.recipientCount < 1) {
@@ -714,7 +738,7 @@ export default function CommunicationPage() {
         {
           tripId,
           channel: "sms",
-          message,
+          message: messageWithFooter,
           audience: audiencePayload,
         },
         key
@@ -1232,7 +1256,7 @@ export default function CommunicationPage() {
                   </div>
 
                   <Textarea
-                    className="min-h-[160px] resize-y rounded-xl text-[14px] leading-relaxed"
+                    className="min-h-[160px] resize-y rounded-b-none rounded-t-xl text-[14px] leading-relaxed"
                     style={{ borderColor: "var(--border)" }}
                     placeholder="Hi {FirstName}, write your update here…"
                     value={message}
@@ -1241,6 +1265,16 @@ export default function CommunicationPage() {
                       setActiveTpl(null);
                     }}
                   />
+                  <p
+                    className="rounded-b-xl border border-t-0 px-3 py-2 text-[12px]"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--bg, #faf7f3)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {signOff}
+                  </p>
 
                   <div
                     className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px]"

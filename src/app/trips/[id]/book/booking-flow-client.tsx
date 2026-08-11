@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
-import Image from "next/image";
+import { MediaImage } from "@/components/ui/media-image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -28,8 +28,10 @@ import { ApiError } from "@/lib/api/client";
 import {
   buildSelectedAddOns,
   createBooking,
+  findActiveBookingForTrip,
   getPaymentInputBounds,
   getPaystackConfig,
+  payBooking,
   previewBooking,
   type BookingGuestInput,
   type BookingPreview,
@@ -38,7 +40,7 @@ import {
 } from "@/lib/api/bookings";
 import { useAuth } from "@/hooks/use-auth";
 import { cn, formatCurrency, formatDateRange } from "@/lib/utils";
-import type { Trip } from "@/lib/types";
+import type { Booking, Trip } from "@/lib/types";
 
 const STEPS = [
   { id: "party", label: "Party" },
@@ -254,11 +256,29 @@ function BookingFlow({
     useState<PaymentInputBounds | null>(null);
   const [amountTouched, setAmountTouched] = useState(false);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [existingBooking, setExistingBooking] = useState<
+    Booking | null | undefined
+  >(undefined);
   const hydratedDefaults = useRef(false);
 
   useEffect(() => {
-    void trackTripEvent(trip.id, "checkout_start").catch(() => {});
+    let cancelled = false;
+    void findActiveBookingForTrip(trip.id)
+      .then((booking) => {
+        if (!cancelled) setExistingBooking(booking);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingBooking(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [trip.id]);
+
+  useEffect(() => {
+    if (existingBooking !== null) return;
+    void trackTripEvent(trip.id, "checkout_start").catch(() => {});
+  }, [trip.id, existingBooking]);
 
   useEffect(() => {
     // Load once for Inline/Popup readiness; checkout still redirects via auth URL.
@@ -494,6 +514,18 @@ function BookingFlow({
 
     setSubmitting(true);
     try {
+      const alreadyBooked =
+        existingBooking ?? (await findActiveBookingForTrip(trip.id));
+      if (alreadyBooked) {
+        setExistingBooking(alreadyBooked);
+        toast.info(
+          alreadyBooked.paymentStatus === "paid"
+            ? "You already have a booking for this trip."
+            : "You already reserved this trip. Continue from your existing booking."
+        );
+        return;
+      }
+
       const origin = window.location.origin;
       const callbackUrl = `${origin}/booking/callback?return=${encodeURIComponent(
         `${bookBaseHref}/confirm`
@@ -521,6 +553,61 @@ function BookingFlow({
       toast.success(res.message || "Redirecting to Paystack…");
       window.location.href = authUrl;
     } catch (err) {
+      if (
+        err instanceof ApiError &&
+        (err.status === 409 ||
+          err.code === "BOOKING_ALREADY_EXISTS" ||
+          /already (have a )?book/i.test(err.message))
+      ) {
+        toast.info(
+          err.message ||
+            "You already have a booking for this trip. Opening your dashboard."
+        );
+        router.push("/dashboard");
+        return;
+      }
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Could not start payment. Please try again.";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResumeExisting = async () => {
+    if (!existingBooking) return;
+    if (existingBooking.paymentStatus === "paid") {
+      router.push("/dashboard");
+      return;
+    }
+    const chargeAmount =
+      existingBooking.remainingBalance && existingBooking.remainingBalance > 0
+        ? existingBooking.remainingBalance
+        : Math.max(0, existingBooking.amount - existingBooking.amountPaid);
+    if (!(chargeAmount > 0)) {
+      router.push("/dashboard");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const origin = window.location.origin;
+      const callbackUrl = `${origin}/booking/callback?return=${encodeURIComponent(
+        `${bookBaseHref}/confirm`
+      )}`;
+      const res = await payBooking(existingBooking.id, {
+        callbackUrl,
+        paymentAmount: chargeAmount,
+      });
+      const authUrl = res.data?.paystackAuthorizationUrl;
+      if (!authUrl) {
+        toast.error("Payment link was not returned. Please try again.");
+        return;
+      }
+      toast.success(res.message || "Redirecting to Paystack…");
+      window.location.href = authUrl;
+    } catch (err) {
       const message =
         err instanceof ApiError
           ? err.message
@@ -535,6 +622,91 @@ function BookingFlow({
     (step === 0 && partyValid(bookingType, guests, partySize)) ||
     step === 1 ||
     (step === 2 && Boolean(whatsapp.trim()));
+
+  if (existingBooking === undefined) {
+    return (
+      <div
+        className="flex min-h-[60vh] items-center justify-center"
+        style={{ background: "var(--bg)" }}
+      >
+        <Loader2
+          className="h-6 w-6 animate-spin"
+          style={{ color: "var(--primary)" }}
+        />
+      </div>
+    );
+  }
+
+  if (existingBooking) {
+    const paidInFull = existingBooking.paymentStatus === "paid";
+    const due =
+      existingBooking.remainingBalance && existingBooking.remainingBalance > 0
+        ? existingBooking.remainingBalance
+        : Math.max(0, existingBooking.amount - existingBooking.amountPaid);
+    return (
+      <div
+        className="relative min-h-[70vh] overflow-hidden"
+        style={{ background: "var(--bg)" }}
+      >
+        <div className="relative mx-auto max-w-md px-5 pb-14 pt-24 sm:px-6 sm:pt-28">
+          <button
+            type="button"
+            onClick={goBackToTrip}
+            className="mb-8 inline-flex items-center gap-1.5 text-sm font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to trip
+          </button>
+          <SectionHeading
+            title={paidInFull ? "You're already booked" : "Finish this booking"}
+            subtitle={
+              paidInFull
+                ? `${trip.title} is already on your bookings. A new reservation would create a duplicate.`
+                : `You already reserved ${trip.title}. Pay the remaining balance on that booking instead of starting over.`
+            }
+          />
+          {!paidInFull && due > 0 && (
+            <p
+              className="mb-6 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Remaining:{" "}
+              <span className="font-semibold" style={{ color: "var(--text)" }}>
+                {formatCurrency(due)}
+              </span>
+            </p>
+          )}
+          <div className="space-y-3">
+            <Button
+              type="button"
+              onClick={() => void handleResumeExisting()}
+              disabled={submitting}
+              className="h-12 w-full rounded-xl font-semibold"
+              style={{ background: "var(--primary)", color: "#fbf7f1" }}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Processing…
+                </>
+              ) : paidInFull ? (
+                "View my bookings"
+              ) : (
+                `Pay ${formatCurrency(due)}`
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/dashboard")}
+              className="h-12 w-full rounded-xl"
+            >
+              Go to dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isWaitlist && step === 0) {
     return (
@@ -717,7 +889,7 @@ function BookingFlow({
         {/* Trip context strip */}
         <div className="mb-10 flex items-center gap-4">
           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl sm:h-20 sm:w-20">
-            <Image
+            <MediaImage
               src={trip.image}
               alt=""
               fill
@@ -1333,7 +1505,7 @@ function BookingFlow({
                 }}
               >
                 <div className="relative h-36 overflow-hidden">
-                  <Image
+                  <MediaImage
                     src={trip.image}
                     alt={trip.title}
                     fill

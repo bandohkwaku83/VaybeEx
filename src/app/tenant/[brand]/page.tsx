@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { MediaImage } from "@/components/ui/media-image";
 import { ArrowRight, Check, MapPin, Star } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HistoryBackButton } from "@/components/ui/history-back-button";
@@ -361,7 +361,7 @@ function BrandTripGrid({
             className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(42,27,15,0.08)] ring-1 ring-black/[0.05] transition-transform duration-300 hover:-translate-y-0.5"
           >
             <div className="relative aspect-[4/3] overflow-hidden">
-              <Image
+              <MediaImage
                 src={trip.image}
                 alt=""
                 fill

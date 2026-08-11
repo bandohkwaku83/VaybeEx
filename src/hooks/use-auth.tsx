@@ -30,6 +30,12 @@ import {
 } from "@/lib/api/organizer-auth";
 import { syncOrganizerProfileCache } from "@/lib/api/organizer-profile";
 import { getTravelerMe, mapTravelerSession } from "@/lib/api/traveler-auth";
+import {
+  extractOrganizerKyc,
+  isOrganizerKycCode,
+  kycToLegacyOrganizerStatus,
+  type OrganizerKyc,
+} from "@/lib/organizer-kyc";
 
 export type User = StoredAuthUser;
 
@@ -38,6 +44,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (user: User) => void;
+  setKyc: (kyc: OrganizerKyc) => void;
+  refreshOrganizerSession: () => Promise<OrganizerKyc | null>;
   logout: () => Promise<void>;
   requireAuth: (action: () => void, redirectPath?: string) => void;
   /** Favorites / traveler-only actions. Organizers are sent to traveler login. */
@@ -55,10 +63,28 @@ function clearLocalSession(setUser: (user: User | null) => void) {
 function isOrganizerSession(user: User | null) {
   return (
     user?.role === "organizer" ||
+    Boolean(user?.kyc) ||
     user?.organizerStatus === "pending" ||
     user?.organizerStatus === "verified" ||
     user?.organizerStatus === "rejected"
   );
+}
+
+function applyKycToUser(user: User, kyc: OrganizerKyc): User {
+  return {
+    ...user,
+    role: "organizer",
+    kyc,
+    organizerStatus: kycToLegacyOrganizerStatus(kyc),
+    rejectionReason: kyc.rejectionReason ?? undefined,
+  };
+}
+
+function isHardOrganizerAuthFailure(error: unknown) {
+  if (!(error instanceof ApiError)) return false;
+  if (error.status === 401) return true;
+  if (error.status !== 403) return false;
+  return !isOrganizerKycCode(error.code);
 }
 
 function isTravelerSession(user: User | null) {
@@ -156,14 +182,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               syncOrganizerProfileCache(me);
             }
           } catch (error) {
-            if (
-              error instanceof ApiError &&
-              (error.status === 401 || error.status === 403)
-            ) {
+            if (isHardOrganizerAuthFailure(error)) {
               clearOrganizerToken();
               if (!travelerToken) {
                 clearStoredAuthUser();
                 if (!cancelled) setUser(null);
+              }
+            } else if (error instanceof ApiError) {
+              const kyc = extractOrganizerKyc(error.data);
+              if (kyc && seed && !cancelled) {
+                const next = applyKycToUser(seed, kyc);
+                setUser(next);
+                setStoredAuthUser(next);
               }
             }
             // Network blips keep the seeded session.
@@ -184,10 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return;
             }
           } catch (error) {
-            if (
-              error instanceof ApiError &&
-              (error.status === 401 || error.status === 403)
-            ) {
+            if (isHardOrganizerAuthFailure(error)) {
               clearOrganizerToken();
             } else if (stored && isOrganizerSession(stored) && !cancelled) {
               setUser({ ...stored, role: "organizer" });
@@ -244,6 +271,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(next);
     setStoredAuthUser(next);
   }, []);
+
+  const setKyc = useCallback((kyc: OrganizerKyc) => {
+    setUser((prev) => {
+      if (!prev) {
+        const next = applyKycToUser(
+          { name: "", email: "", role: "organizer" },
+          kyc
+        );
+        setStoredAuthUser(next);
+        return next;
+      }
+      const next = applyKycToUser(prev, kyc);
+      setStoredAuthUser(next);
+      return next;
+    });
+  }, []);
+
+  const refreshOrganizerSession = useCallback(async () => {
+    const organizerToken = getOrganizerToken();
+    if (!organizerToken) return null;
+    try {
+      const response = await getOrganizerMe();
+      const me = response.data;
+      if (!me) return null;
+      const next = mapOrganizerSession(me);
+      setUser(next);
+      setStoredAuthUser(next);
+      syncOrganizerProfileCache(me);
+      return next.kyc ?? null;
+    } catch (error) {
+      if (isHardOrganizerAuthFailure(error)) {
+        clearOrganizerToken();
+        if (!getTravelerToken()) {
+          clearStoredAuthUser();
+          setUser(null);
+        }
+        return null;
+      }
+      if (error instanceof ApiError) {
+        const kyc = extractOrganizerKyc(error.data);
+        if (kyc) {
+          setUser((prev) => {
+            const base = prev ?? { name: "", email: "", role: "organizer" as const };
+            const next = applyKycToUser(base, kyc);
+            setStoredAuthUser(next);
+            return next;
+          });
+          return kyc;
+        }
+      }
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!onOrganizerRoute()) return;
+
+    const onFocus = () => {
+      if (getOrganizerToken()) void refreshOrganizerSession();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onFocus();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refreshOrganizerSession]);
 
   const logout = useCallback(async () => {
     const organizerToken = getOrganizerToken();
@@ -353,6 +451,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        setKyc,
+        refreshOrganizerSession,
         logout,
         requireAuth,
         requireTravelerAuth,

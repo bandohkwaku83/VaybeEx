@@ -17,6 +17,10 @@ import { OrganizerPortalTabs } from "@/components/organizer/portal-tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api/client";
 import {
+  handleOrganizerKycError,
+  ORGANIZER_SETUP_PATH,
+} from "@/lib/organizer-kyc";
+import {
   mapOrganizerSession,
   updateOrganizerPassword,
 } from "@/lib/api/organizer-auth";
@@ -839,7 +843,9 @@ export default function OrganizerSettingsPage() {
         }
         if (error instanceof ApiError && error.status === 403) {
           toast.error(error.message || "Complete setup to edit your profile.");
-          router.push("/organizer/onboarding");
+          if (!handleOrganizerKycError(error, router)) {
+            router.push(ORGANIZER_SETUP_PATH);
+          }
           return;
         }
         const local = getOrganizerProfile();
@@ -946,12 +952,9 @@ export default function OrganizerSettingsPage() {
           toast.error(
             error.message || "Complete verification to update your profile."
           );
-          const msg = (error.message || "").toLowerCase();
-          router.push(
-            msg.includes("onboard") || msg.includes("setup")
-              ? "/organizer/onboarding"
-              : "/organizer/verify"
-          );
+          if (!handleOrganizerKycError(error, router)) {
+            router.push(ORGANIZER_SETUP_PATH);
+          }
           throw error;
         }
         toast.error(error.message || "Could not update profile.");

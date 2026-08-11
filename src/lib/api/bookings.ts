@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 import { getTravelerToken } from "./auth-token";
-import { resolveMediaUrl } from "./media";
+import { FALLBACK_TRIP_IMAGE, resolveMediaUrl } from "./media";
 import type { Booking, PaymentMethod } from "@/lib/types";
 
 export type BookingStatusFilter =
@@ -294,7 +294,7 @@ export function mapBookingFromApi(raw: Record<string, unknown>): Booking {
           trip.coverImage ??
           ""
       ) || null
-    ) ?? "/images/cta-image.jpg";
+    ) ?? FALLBACK_TRIP_IMAGE;
 
   const amount = Number(
     pricing?.totalAmount ??
@@ -669,16 +669,48 @@ export async function getBooking(bookingId: string) {
   };
 }
 
+/** Confirmed or unpaid-in-progress — not cancelled / waitlisted. */
+export function isActiveTripBooking(booking: Booking): boolean {
+  return booking.status === "confirmed" || booking.status === "pending";
+}
+
+/** Prefer a paid seat, then a deposit, then an unpaid checkout. */
+export function pickActiveBookingForTrip(
+  bookings: Booking[],
+  tripId: string
+): Booking | null {
+  const matches = bookings.filter(
+    (booking) => booking.tripId === tripId && isActiveTripBooking(booking)
+  );
+  if (!matches.length) return null;
+  const rank = (booking: Booking) =>
+    booking.paymentStatus === "paid"
+      ? 0
+      : booking.paymentStatus === "partial"
+        ? 1
+        : 2;
+  return [...matches].sort((a, b) => rank(a) - rank(b))[0];
+}
+
+export async function findActiveBookingForTrip(
+  tripId: string
+): Promise<Booking | null> {
+  const response = await listMyBookings({ tripId, limit: 50 });
+  return pickActiveBookingForTrip(response.data.bookings, tripId);
+}
+
 /** GET /api/bookings/me */
 export async function listMyBookings(params?: {
   status?: BookingStatusFilter;
   page?: number;
   limit?: number;
+  tripId?: string;
 }) {
   const query = new URLSearchParams();
   if (params?.status && params.status !== "all") {
     query.set("status", params.status);
   }
+  if (params?.tripId) query.set("tripId", params.tripId);
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
   const qs = query.toString();

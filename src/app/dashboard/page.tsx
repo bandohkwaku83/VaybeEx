@@ -4,7 +4,7 @@
 
 import { RequireAuth } from "@/components/auth/require-auth";
 import { CancelBookingDialog } from "@/components/dashboard/cancel-booking-dialog";
-import Image from "next/image";
+import { MediaImage } from "@/components/ui/media-image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import gsap from "gsap";
@@ -139,7 +139,7 @@ function BookingCard({
     return (
       <div className="dash-reveal group flex gap-4 border-b border-border py-5 last:border-b-0 sm:gap-5">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden bg-bg-secondary sm:h-24 sm:w-28">
-          <Image
+          <MediaImage
             src={booking.image}
             alt={booking.tripTitle}
             fill
@@ -208,7 +208,7 @@ function BookingCard({
   return (
     <article className="dash-reveal group flex flex-col">
       <Link href={`/trips/${booking.tripId}`} className="relative aspect-[5/4] overflow-hidden bg-bg-secondary">
-        <Image
+        <MediaImage
           src={booking.image}
           alt={booking.tripTitle}
           fill
@@ -431,7 +431,7 @@ function NextTripHero({ trip, daysUntil }: { trip: Booking; daysUntil: number })
   return (
     <div className="dash-hero-anim relative overflow-hidden">
       <div className="relative min-h-[240px] sm:min-h-[280px]">
-        <Image
+        <MediaImage
           src={trip.image}
           alt={trip.tripTitle}
           fill
@@ -497,10 +497,12 @@ function DashboardEmpty({
   return (
     <div className="dash-reveal relative overflow-hidden">
       <div className="relative min-h-[20rem] sm:min-h-[22rem]">
-        <img
+        <MediaImage
           src="/images/beautiful-nature.jpg"
           alt=""
-          className="absolute inset-0 h-full w-full object-cover"
+          fill
+          sizes="(max-width: 1280px) 100vw, 1280px"
+          className="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg)] via-[var(--bg)]/92 to-[var(--bg)]/55" />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-transparent to-[var(--bg)]/40" />
@@ -880,7 +882,7 @@ function DashboardContent() {
                         className="dash-reveal flex items-center gap-4 py-4"
                       >
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden bg-bg-secondary sm:h-16 sm:w-20">
-                          <Image
+                          <MediaImage
                             src={b.image}
                             alt=""
                             fill

@@ -13,6 +13,7 @@ import {
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { FadeInUp } from "@/components/ui/fadeInUp";
+import { MediaImage } from "@/components/ui/media-image";
 import { listPublicTrips } from "@/lib/api/public-trips";
 import { formatGHS, formatDateRange, tripTypeLabel } from "@/lib/format";
 import { getTripDetailHref } from "@/lib/tenant";
@@ -85,12 +86,14 @@ function ExpeditionItem({
       <a href={href} className="block outline-none">
         <div className="relative aspect-[3/4] sm:aspect-[3/2]">
           {/* Base image — dissolves to clear at the bottom */}
-          <img
+          <MediaImage
             src={trip.image}
             alt={trip.title}
-            loading={priority ? "eager" : "lazy"}
+            fill
+            priority={priority}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className={cn(
-              "absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]",
+              "object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]",
               !bookable && "opacity-90",
             )}
             style={{
@@ -124,10 +127,12 @@ function ExpeditionItem({
                 "linear-gradient(to top, black 0%, black 25%, transparent 100%)",
             }}
           >
-            <img
+            <MediaImage
               src={trip.image}
               alt=""
-              className="absolute inset-x-0 bottom-0 h-[200%] w-full scale-110 object-cover object-bottom opacity-70 blur-2xl"
+              fill
+              sizes="(max-width: 640px) 100vw, 33vw"
+              className="scale-110 object-cover object-bottom opacity-70 blur-2xl"
             />
             <div className="absolute inset-0 bg-black/40" />
           </div>
@@ -383,10 +388,12 @@ function ExpeditionsEmpty({
   return (
     <div className="grid items-stretch gap-6 lg:grid-cols-2 lg:gap-10">
       <div className="relative aspect-[4/5] overflow-hidden bg-bg-secondary sm:aspect-[5/4] lg:aspect-auto lg:min-h-[26rem]">
-        <img
+        <MediaImage
           src="/images/beautiful-nature.jpg"
           alt=""
-          className="absolute inset-0 h-full w-full scale-110 object-cover blur-md"
+          fill
+          sizes="(max-width: 1024px) 100vw, 50vw"
+          className="scale-110 object-cover blur-md"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
         <p className="absolute bottom-5 left-5 right-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/85">
@@ -397,17 +404,21 @@ function ExpeditionsEmpty({
       <div className="flex flex-col justify-between gap-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="relative aspect-[4/3] overflow-hidden bg-bg-secondary">
-            <img
+            <MediaImage
               src="/images/city-from-high.jpg"
               alt=""
-              className="absolute inset-0 h-full w-full scale-110 object-cover blur-md"
+              fill
+              sizes="25vw"
+              className="scale-110 object-cover blur-md"
             />
           </div>
           <div className="relative aspect-[4/3] overflow-hidden bg-bg-secondary">
-            <img
+            <MediaImage
               src="/images/high-shot.jpg"
               alt=""
-              className="absolute inset-0 h-full w-full scale-110 object-cover blur-md"
+              fill
+              sizes="25vw"
+              className="scale-110 object-cover blur-md"
             />
           </div>
         </div>

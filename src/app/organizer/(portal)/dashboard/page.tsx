@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
   ArrowUpRight,
+  Bell,
   Calendar,
   Eye,
   MapPin,
@@ -20,6 +21,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { MediaImage } from "@/components/ui/media-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -34,8 +36,22 @@ import {
   type OrganizerDashboardData,
   type RevenuePulseMonth,
 } from "@/lib/api/organizer-dashboard";
+import {
+  dashboardWithdrawalLabel,
+  isWithdrawalInFlight,
+  normalizeWithdrawalStatus,
+} from "@/lib/api/organizer-payouts";
 import { formatDateRange } from "@/lib/format";
 import { formatDate, cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  extractOrganizerKyc,
+  handleOrganizerKycError,
+  kycFromAuthUser,
+  ORGANIZER_KYC_CODES,
+  ORGANIZER_SETUP_PATH,
+  organizerCannotPublishReason,
+} from "@/lib/organizer-kyc";
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
@@ -65,19 +81,17 @@ function tripStatusStyle(status: string) {
   }
 }
 
-function withdrawalStatusStyle(status: string, label: string) {
-  const key = `${status} ${label}`.toLowerCase();
-  if (key.includes("fail")) {
-    return { background: "rgba(181,82,58,0.12)", color: "#b5523a" };
+function withdrawalStatusStyle(status: string) {
+  switch (normalizeWithdrawalStatus(status)) {
+    case "failed":
+      return { background: "rgba(181,82,58,0.12)", color: "#b5523a" };
+    case "completed":
+      return { background: "rgba(46,125,82,0.14)", color: "#2e7d52" };
+    case "processing":
+      return { background: "rgba(208,138,60,0.18)", color: "#d08a3c" };
+    default:
+      return { background: "rgba(208,138,60,0.1)", color: "#c48a4a" };
   }
-  if (key.includes("success") || key.includes("complete")) {
-    return { background: "rgba(46,125,82,0.14)", color: "#2e7d52" };
-  }
-  if (key.includes("process")) {
-    return { background: "rgba(208,138,60,0.18)", color: "#d08a3c" };
-  }
-  // pending / light orange
-  return { background: "rgba(208,138,60,0.1)", color: "#c48a4a" };
 }
 
 function formatBookedLabel(trip: DashboardTripItem) {
@@ -154,10 +168,13 @@ function TripThumbCard({
         style={{ borderColor: "var(--border)", background: "var(--surface)" }}
       >
         <div className="relative aspect-[16/10] overflow-hidden">
-          <img
-            src={trip.coverImage || "/images/beautiful-nature.jpg"}
+          <MediaImage
+            src={trip.coverImage}
+            fallback="/images/beautiful-nature.jpg"
             alt=""
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
           <div
             className="absolute inset-0"
@@ -247,7 +264,8 @@ function WithdrawalRow({
   withdrawal: DashboardWithdrawal;
   index: number;
 }) {
-  const badge = withdrawalStatusStyle(withdrawal.status, withdrawal.label);
+  const badge = withdrawalStatusStyle(withdrawal.status);
+  const statusLabel = dashboardWithdrawalLabel(withdrawal.status);
   return (
     <li
       className="flex items-center gap-3 border-b px-5 py-3.5 transition-colors last:border-b-0"
@@ -282,7 +300,7 @@ function WithdrawalRow({
           {formatDashboardGhs(withdrawal.amount)}
         </p>
         <Badge className="mt-1 border-0" style={badge}>
-          {withdrawal.label}
+          {statusLabel}
         </Badge>
       </div>
     </li>
@@ -291,22 +309,25 @@ function WithdrawalRow({
 
 export default function OrganizerDashboard() {
   const router = useRouter();
+  const { user, setKyc } = useAuth();
+  const kyc = kycFromAuthUser(user);
+  const canPublish = kyc.canPublish;
   const [data, setData] = useState<OrganizerDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hour] = useState(() => new Date().getHours());
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsLoading(true);
+  const loadDashboard = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setIsLoading(true);
       try {
         const dashboard = await getOrganizerDashboard({
           tripsLimit: 5,
           withdrawalsLimit: 5,
         });
-        if (!cancelled) setData(dashboard);
+        setData(dashboard);
+        if (dashboard.kyc) setKyc(dashboard.kyc);
       } catch (error) {
-        if (cancelled) return;
+        if (opts?.silent) return;
         if (error instanceof ApiError && error.status === 401) {
           toast.error("Session expired. Please sign in again.");
           router.push(
@@ -314,24 +335,59 @@ export default function OrganizerDashboard() {
           );
           return;
         }
+        if (error instanceof ApiError && error.status === 403) {
+          const extracted = extractOrganizerKyc(error.data);
+          if (extracted) setKyc(extracted);
+          if (error.code !== ORGANIZER_KYC_CODES.REJECTED) {
+            handleOrganizerKycError(error, router);
+            return;
+          }
+        }
         toast.error(
           error instanceof ApiError
             ? error.message
             : "Could not load dashboard"
         );
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!opts?.silent) setIsLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
+    },
+    [router, setKyc]
+  );
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  const hasInFlightWithdrawal = useMemo(
+    () =>
+      (data?.recentWithdrawals ?? []).some((w) =>
+        isWithdrawalInFlight(w.status)
+      ),
+    [data?.recentWithdrawals]
+  );
+
+  useEffect(() => {
+    if (!hasInFlightWithdrawal) return;
+    const id = window.setInterval(() => {
+      void loadDashboard({ silent: true });
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, [hasInFlightWithdrawal, loadDashboard]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      void loadDashboard({ silent: true });
     };
-  }, [router]);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadDashboard]);
 
   const firstName =
     data?.organizer.fullName?.split(" ")[0]?.trim() || "there";
   const greeting = greetingForHour(hour);
   const pendingRefunds = data?.quickActions.pendingRefunds ?? 0;
+  const unreadNotifications = data?.quickActions.unreadNotifications ?? 0;
   const trips = data?.trips.items ?? [];
   const activeTrips = data?.stats.activeTrips.value ?? 0;
   const revenueGrowth = formatGrowth(data?.stats.revenue.growthPercent);
@@ -391,13 +447,14 @@ export default function OrganizerDashboard() {
 
   const quickActions = [
     {
-      href: "/organizer/trips/new",
+      href: canPublish ? "/organizer/trips/new" : ORGANIZER_SETUP_PATH,
       label: "Create trip",
-      desc: "Launch a new listing",
+      desc: canPublish ? "Launch a new listing" : "Available after approval",
       icon: Plus,
       accent: "var(--primary)",
       dim: "var(--primary-dim)",
       badge: null as number | null,
+      disabled: !canPublish,
     },
     {
       href: "/organizer/messages",
@@ -407,6 +464,7 @@ export default function OrganizerDashboard() {
       accent: "var(--gold)",
       dim: "var(--gold-dim)",
       badge: null,
+      disabled: false,
     },
     {
       href: "/organizer/payouts",
@@ -416,6 +474,7 @@ export default function OrganizerDashboard() {
       accent: "var(--amber)",
       dim: "rgba(208,138,60,0.14)",
       badge: null,
+      disabled: false,
     },
     {
       href: "/organizer/refunds",
@@ -428,6 +487,7 @@ export default function OrganizerDashboard() {
           ? "rgba(181,82,58,0.12)"
           : "var(--primary-dim)",
       badge: pendingRefunds > 0 ? pendingRefunds : null,
+      disabled: false,
     },
   ];
 
@@ -455,13 +515,18 @@ export default function OrganizerDashboard() {
         <div
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-[42%] md:block"
           style={{
-            backgroundImage: "url(/images/beautiful-nature.jpg)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
             maskImage: "linear-gradient(90deg, transparent 0%, black 35%)",
             WebkitMaskImage: "linear-gradient(90deg, transparent 0%, black 35%)",
           }}
-        />
+        >
+          <MediaImage
+            src="/images/beautiful-nature.jpg"
+            alt=""
+            fill
+            sizes="42vw"
+            className="object-cover"
+          />
+        </div>
         <div
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-[42%] md:block"
           style={{
@@ -494,22 +559,53 @@ export default function OrganizerDashboard() {
                   ? `You have ${activeTrips} live trip${activeTrips === 1 ? "" : "s"} filling seats right now.`
                   : "Your next expedition starts with a listing travelers can book today."}
             </p>
+            {unreadNotifications > 0 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new Event("organizer:open-notifications"))
+                }
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={{
+                  background: "var(--primary-dim)",
+                  color: "var(--primary)",
+                }}
+              >
+                <Bell className="h-3.5 w-3.5" />
+                {unreadNotifications} unread notification
+                {unreadNotifications === 1 ? "" : "s"}
+              </button>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
-              asChild
+              asChild={canPublish}
+              disabled={!canPublish}
               className="px-5"
               style={{
                 background: "var(--gradient-brand)",
                 color: "#fbf7f1",
                 boxShadow: "var(--glow-gold)",
+                opacity: canPublish ? 1 : 0.55,
               }}
+              onClick={
+                canPublish
+                  ? undefined
+                  : () => toast.error(organizerCannotPublishReason(kyc))
+              }
             >
-              <Link href="/organizer/trips/new">
-                <Plus className="h-4 w-4" />
-                Create trip
-              </Link>
+              {canPublish ? (
+                <Link href="/organizer/trips/new">
+                  <Plus className="h-4 w-4" />
+                  Create trip
+                </Link>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Create trip
+                </>
+              )}
             </Button>
             <Button
               asChild
@@ -525,6 +621,51 @@ export default function OrganizerDashboard() {
           </div>
         </div>
       </motion.section>
+
+      {kyc.status === "rejected" && (
+        <div
+          className="mb-6 rounded-2xl border p-4"
+          style={{
+            borderColor: "rgba(181,82,58,0.28)",
+            background: "rgba(181,82,58,0.08)",
+          }}
+        >
+          <p className="text-sm font-semibold" style={{ color: "var(--coral)" }}>
+            Application not approved.
+          </p>
+          {kyc.rejectionReason ? (
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text)" }}>
+              {kyc.rejectionReason}
+            </p>
+          ) : null}
+          {kyc.canResubmit ? (
+            <Link
+              href={ORGANIZER_SETUP_PATH}
+              className="mt-3 inline-flex text-sm font-semibold"
+              style={{ color: "var(--primary)" }}
+            >
+              Update and resubmit
+            </Link>
+          ) : null}
+        </div>
+      )}
+
+      {kyc.status === "pending" && (
+        <div
+          className="mb-6 rounded-2xl border p-4"
+          style={{
+            borderColor: "rgba(208,138,60,0.35)",
+            background:
+              "linear-gradient(90deg, rgba(208,138,60,0.12), rgba(208,138,60,0.04))",
+          }}
+        >
+          <p className="text-sm font-semibold" style={{ color: "var(--amber)" }}>
+            {kyc.resubmissionCount > 0
+              ? "We received your update and are reviewing it again."
+              : "Your profile is under review. We’ll email you when there’s a decision."}
+          </p>
+        </div>
+      )}
 
       {pendingRefunds > 0 && (
         <motion.div
@@ -672,11 +813,17 @@ export default function OrganizerDashboard() {
               transition={{ delay: 0.15 + i * 0.04, duration: 0.4 }}
             >
               <Link
-                href={action.href}
+                href={action.disabled ? "#" : action.href}
+                onClick={(e) => {
+                  if (!action.disabled) return;
+                  e.preventDefault();
+                  toast.error(organizerCannotPublishReason(kyc));
+                }}
                 className="group relative block min-h-[108px] overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(86,47,24,0.35)] sm:min-h-[116px] sm:p-5"
                 style={{
                   borderColor: "var(--border)",
                   background: "var(--surface)",
+                  opacity: action.disabled ? 0.6 : 1,
                 }}
               >
                 {action.badge != null && (
@@ -753,8 +900,18 @@ export default function OrganizerDashboard() {
           <OrganizerEmptyState
             icon={Calendar}
             title="No trips yet"
-            description="Publish your first expedition and start taking bookings."
-            action={{ href: "/organizer/trips/new", label: "+ Create your first trip" }}
+            description={
+              canPublish
+                ? "Publish your first expedition and start taking bookings."
+                : organizerCannotPublishReason(kyc)
+            }
+            action={
+              canPublish
+                ? { href: "/organizer/trips/new", label: "+ Create your first trip" }
+                : kyc.canResubmit
+                  ? { href: ORGANIZER_SETUP_PATH, label: "Update and resubmit" }
+                  : undefined
+            }
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -883,7 +1040,7 @@ export default function OrganizerDashboard() {
             <OrganizerEmptyState
               icon={Wallet}
               title="No withdrawals yet"
-              description="When you cash out earnings, recent transfers will appear here."
+              description="When you request a payout, recent requests will appear here."
               action={{ href: "/organizer/payouts", label: "Go to payouts" }}
               framed={false}
               className="py-10 sm:py-12"

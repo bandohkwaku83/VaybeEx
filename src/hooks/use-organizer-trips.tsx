@@ -24,6 +24,8 @@ import { getOrganizerProfile } from "@/lib/organizer-profile";
 import type { TripForm } from "@/lib/trip-form-utils";
 import type { Trip, TripStatus } from "@/lib/types";
 import { useAuth } from "@/hooks/use-auth";
+import { handleOrganizerKycError } from "@/lib/organizer-kyc";
+import { useRouter } from "next/navigation";
 
 /** @deprecated Prefer trip.organizerId from the API. Kept for legacy imports. */
 export const ORGANIZER_ID = "org-1";
@@ -71,6 +73,7 @@ function contactFromSession(email?: string) {
 
 export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -169,6 +172,7 @@ export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
         upsertTrip(response.data);
         return response.data;
       } catch (err) {
+        handleOrganizerKycError(err, router);
         const message =
           err instanceof ApiError
             ? err.message
@@ -179,7 +183,7 @@ export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
         setIsSaving(false);
       }
     },
-    [upsertTrip, user?.email]
+    [upsertTrip, user?.email, router]
   );
 
   const updateTrip = useCallback(
@@ -206,6 +210,7 @@ export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
         upsertTrip(response.data);
         return response.data;
       } catch (err) {
+        handleOrganizerKycError(err, router);
         const message =
           err instanceof ApiError
             ? err.message
@@ -216,7 +221,7 @@ export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
         setIsSaving(false);
       }
     },
-    [upsertTrip, user?.email]
+    [upsertTrip, user?.email, router]
   );
 
   const updateTripStatus = useCallback(
@@ -279,6 +284,7 @@ export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err) {
+        handleOrganizerKycError(err, router);
         const message =
           err instanceof ApiError
             ? err.message
@@ -290,7 +296,7 @@ export function OrganizerTripsProvider({ children }: { children: ReactNode }) {
         setIsSaving(false);
       }
     },
-    [trips, upsertTrip]
+    [trips, upsertTrip, router]
   );
 
   const removeTrip = useCallback(async (id: string) => {

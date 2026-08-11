@@ -49,9 +49,12 @@ import { ApiError } from "@/lib/api/client";
 import {
   exportTripPayoutMembers,
   getTripPayoutDetail,
+  isWithdrawalInFlight,
   listPayoutTrips,
   listTripPayoutMembers,
   mapPayoutMemberToAttendee,
+  normalizeWithdrawalStatus,
+  organizerWithdrawalCopy,
   type PayoutPaymentFilter,
   type PayoutPeriodFilter,
   type PayoutTripListItem,
@@ -86,11 +89,13 @@ const dateRangeLabels: Record<DateRangeFilter, string> = {
   "90d": "Last 90 days",
 };
 
-function payoutStatusMeta(status: string) {
-  const s = status.toLowerCase();
-  if (s === "completed" || s === "success") {
+function payoutStatusMeta(status: string, failureReason?: string | null) {
+  const copy = organizerWithdrawalCopy(status, failureReason);
+  const s = normalizeWithdrawalStatus(status);
+  if (s === "completed") {
     return {
-      label: "Success",
+      label: copy.title,
+      hint: copy.hint,
       color: "var(--gold)",
       bg: "var(--gold-dim)",
       Icon: CheckCircle2,
@@ -98,14 +103,25 @@ function payoutStatusMeta(status: string) {
   }
   if (s === "processing") {
     return {
-      label: "Processing",
+      label: copy.title,
+      hint: copy.hint,
       color: "var(--amber)",
       bg: "rgba(208,138,60,0.14)",
       Icon: Clock,
     };
   }
+  if (s === "failed") {
+    return {
+      label: copy.title,
+      hint: copy.hint,
+      color: "var(--coral)",
+      bg: "rgba(181,82,58,0.1)",
+      Icon: AlertCircle,
+    };
+  }
   return {
-    label: "Pending",
+    label: copy.title,
+    hint: copy.hint,
     color: "var(--text-tertiary)",
     bg: "var(--bg-secondary)",
     Icon: AlertCircle,
@@ -406,6 +422,32 @@ export default function PayoutsPage() {
     void loadTrips();
   }, [loadTrips]);
 
+  const hasInFlightWithdrawal = useMemo(() => {
+    if (!detail) return false;
+    const rows = [
+      ...(detail.withdrawal ? [detail.withdrawal] : []),
+      ...(detail.withdrawals ?? []),
+    ];
+    return rows.some((w) => isWithdrawalInFlight(w.status));
+  }, [detail]);
+
+  useEffect(() => {
+    if (!selectedTripId || !hasInFlightWithdrawal) return;
+    const id = window.setInterval(() => {
+      setRefreshKey((k) => k + 1);
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, [selectedTripId, hasInFlightWithdrawal]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (!selectedTripId) return;
+      setRefreshKey((k) => k + 1);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [selectedTripId]);
+
   useEffect(() => {
     if (!selectedTripId) {
       setDetail(null);
@@ -699,7 +741,7 @@ export default function PayoutsPage() {
                   style={{ background: "var(--primary)", color: "#fbf7f1" }}
                 >
                   <ArrowDownToLine className="h-4 w-4" />
-                  Withdraw{" "}
+                  Request{" "}
                   {formatCurrency(detail!.availableToWithdraw, currency)}
                 </Button>
               )}
@@ -838,7 +880,10 @@ export default function PayoutsPage() {
                       )}
                       {latestWithdrawal ? (
                         (() => {
-                          const meta = payoutStatusMeta(latestWithdrawal.status);
+                          const meta = payoutStatusMeta(
+                            latestWithdrawal.status,
+                            latestWithdrawal.failureReason
+                          );
                           return (
                             <>
                               <p
@@ -878,6 +923,21 @@ export default function PayoutsPage() {
                                   {meta.label}
                                 </span>
                               </div>
+                              {meta.hint ? (
+                                <p
+                                  className="mt-1.5 text-[11px] leading-snug"
+                                  style={{
+                                    color:
+                                      normalizeWithdrawalStatus(
+                                        latestWithdrawal.status
+                                      ) === "failed"
+                                        ? "var(--coral)"
+                                        : "var(--text-tertiary)",
+                                  }}
+                                >
+                                  {meta.hint}
+                                </p>
+                              ) : null}
                             </>
                           );
                         })()
@@ -887,8 +947,8 @@ export default function PayoutsPage() {
                           style={{ color: "var(--text-tertiary)" }}
                         >
                           {(detail?.availableToWithdraw ?? 0) > 0
-                            ? "Ready to withdraw — request a transfer when you’re ready."
-                            : "No withdrawal scheduled for this trip yet."}
+                            ? "Ready to request a payout. An admin will send it to your MoMo."
+                            : "No payout requested for this trip yet."}
                         </p>
                       )}
                     </CardContent>
@@ -1184,7 +1244,10 @@ export default function PayoutsPage() {
           tripTitle={selectedTrip.title}
           availableToWithdraw={detail?.availableToWithdraw ?? 0}
           currency={currency}
-          onSuccess={() => setRefreshKey((k) => k + 1)}
+          onSuccess={() => {
+            setRefreshKey((k) => k + 1);
+            void loadTrips();
+          }}
         />
       )}
     </div>

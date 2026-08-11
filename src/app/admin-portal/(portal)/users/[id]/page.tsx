@@ -34,13 +34,23 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
 import {
+  activityLabel,
   approveOrganizer,
   getAdminUser,
+  getAdminUserReview,
+  parseAdminReviewQueue,
   rejectOrganizer,
+  type AdminActivityItem,
+  type AdminReviewQueue,
   type AdminUser,
 } from "@/lib/api/admin";
 import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
-import { formatDateShort, formatGHS, formatRelativeTime } from "@/lib/format";
+import {
+  formatDateShort,
+  formatGHS,
+  formatGHSMoney,
+  formatRelativeTime,
+} from "@/lib/format";
 import { tripSpecialtyLabel } from "@/lib/trip-specialties";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +82,11 @@ function SoftPill({
 
 function statusPill(user: AdminUser) {
   if (user.role === "organizer") {
-    const status = user.status || "unset";
+    const review = getAdminUserReview(user);
+    if (review.isResubmission) {
+      return <SoftPill label="Resubmitted" bg="#fff7ed" color="#c2410c" />;
+    }
+    const status = review.status || user.status || "unset";
     if (status === "pending" && user.onboardingCompleted) {
       return <SoftPill label="Pending approval" bg="#fffbeb" color="#b45309" />;
     }
@@ -183,16 +197,63 @@ function StatBlock({
   );
 }
 
+function ActivityRow({ item }: { item: AdminActivityItem }) {
+  return (
+    <li className="flex gap-3 border-b border-[#f0f0f0] py-3.5 last:border-0">
+      <span
+        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+        style={{ background: "#d4d4d4" }}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium" style={{ color: "#171717" }}>
+          {item.summary || activityLabel(item.action)}
+        </p>
+        <p className="mt-0.5 text-xs" style={{ color: "#a3a3a3" }}>
+          {activityLabel(item.action)}
+          {item.action === "logged_in"
+            ? item.loginAt || item.createdAt
+              ? ` · ${formatRelativeTime(item.loginAt || item.createdAt)}`
+              : ""
+            : item.createdAt
+              ? ` · ${formatRelativeTime(item.createdAt)}`
+              : ""}
+          {item.device?.label ? ` · ${item.device.label}` : ""}
+          {item.ip ? ` · ${item.ip}` : ""}
+          {item.trip?.title ? ` · ${item.trip.title}` : ""}
+        </p>
+        {item.cancellationId ? (
+          <Link
+            href={`/admin-portal/refunds/${item.cancellationId}`}
+            className="mt-1 inline-block text-xs font-medium hover:underline"
+            style={{ color: "#171717" }}
+          >
+            View refund
+          </Link>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
 function UserDetailInner() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = params.id;
 
-  const fromApprovals = searchParams.get("from") === "approvals";
-  const backHref = fromApprovals
-    ? "/admin-portal/users?queue=pending"
+  const fromQueue =
+    parseAdminReviewQueue(searchParams.get("from")) ??
+    (searchParams.get("from") === "approvals" ? "pending_approval" : null);
+  const backHref = fromQueue
+    ? `/admin-portal/users?queue=${fromQueue}`
     : "/admin-portal/users";
+
+  const queueLabel = (queue: AdminReviewQueue) =>
+    queue === "resubmitted"
+      ? "Resubmitted"
+      : queue === "rejected"
+        ? "Rejected"
+        : "Approvals";
 
   const [user, setUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -221,20 +282,30 @@ function UserDetailInner() {
     void load();
   }, [load]);
 
-  const canDecide =
-    user?.role === "organizer" &&
-    user.onboardingCompleted &&
-    user.status === "pending";
+  const review = user ? getAdminUserReview(user) : null;
+  const canApprove = Boolean(review?.canApprove);
+  const canReject = Boolean(review?.canReject);
+  const canDecide = canApprove || canReject;
+  const rejectReasonOk = rejectReason.trim().length >= 8;
 
   const onApprove = async () => {
-    if (!user) return;
+    if (!user || !review?.canApprove) return;
     setActing(true);
     try {
       const res = await approveOrganizer(user.id);
-      toast.success(res.message || "Organizer approved");
+      const code = res.code;
+      const previouslyRejected = Boolean(res.data?.previouslyRejected);
+      toast.success(
+        res.message ||
+          (code === "ORGANIZER_ALREADY_APPROVED"
+            ? "Already approved"
+            : previouslyRejected
+              ? "Updated application approved"
+              : "Organizer approved")
+      );
       setUser(res.data?.user ?? user);
-      if (fromApprovals) {
-        router.push("/admin-portal/users?queue=pending");
+      if (fromQueue) {
+        router.push(`/admin-portal/users?queue=${fromQueue}`);
       }
     } catch (err) {
       toast.error(
@@ -246,18 +317,29 @@ function UserDetailInner() {
   };
 
   const onReject = async () => {
-    if (!user) return;
+    if (!user || !review?.canReject) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 8) {
+      toast.error("Add a rejection reason (at least 8 characters).");
+      return;
+    }
     setActing(true);
     try {
-      const res = await rejectOrganizer(user.id, {
-        reason: rejectReason.trim() || undefined,
-      });
-      toast.success(res.message || "Application rejected");
+      const res = await rejectOrganizer(user.id, { reason });
+      const code = res.code;
+      toast.success(
+        res.message ||
+          (code === "ORGANIZER_REJECTION_UPDATED"
+            ? "Rejection reason updated"
+            : code === "ORGANIZER_ALREADY_REJECTED"
+              ? "Already rejected"
+              : "Application rejected")
+      );
       setRejectOpen(false);
       setRejectReason("");
       setUser(res.data?.user ?? user);
-      if (fromApprovals) {
-        router.push("/admin-portal/users?queue=pending");
+      if (fromQueue) {
+        router.push(`/admin-portal/users?queue=${fromQueue}`);
       }
     } catch (err) {
       toast.error(
@@ -314,6 +396,11 @@ function UserDetailInner() {
   const tripStats = user.stats?.trips;
   const bookingStats = user.stats?.bookings;
   const withdrawalStats = user.stats?.withdrawals;
+  const refundStats = user.stats?.refunds;
+  const refundsHref = isOrganizer
+    ? `/admin-portal/refunds?organizerId=${user.id}`
+    : `/admin-portal/refunds?travelerId=${user.id}`;
+  const activityHref = `/admin-portal/activity?userId=${user.id}`;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -328,7 +415,7 @@ function UserDetailInner() {
           style={{ color: "#737373" }}
         >
           <ArrowLeft className="h-4 w-4" />
-          {fromApprovals ? "Approvals" : "People"}
+          {fromQueue ? queueLabel(fromQueue) : "People"}
         </Link>
         <span style={{ color: "#d4d4d4" }}>/</span>
         <span className="truncate text-sm font-medium" style={{ color: "#171717" }}>
@@ -387,7 +474,7 @@ function UserDetailInner() {
                 ) : null}
               </p>
 
-              {(user.phone || user.location || user.createdAt) && (
+              {(user.phone || user.location || user.createdAt || user.lastLoginAt) && (
                 <div
                   className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm"
                   style={{ color: "#737373" }}
@@ -425,6 +512,19 @@ function UserDetailInner() {
                       </span>
                     </span>
                   ) : null}
+                  {user.lastLoginAt ? (
+                    <>
+                      {user.createdAt ? (
+                        <span style={{ color: "#d4d4d4" }}>·</span>
+                      ) : null}
+                      <span>
+                        Last seen {formatRelativeTime(user.lastLoginAt)}
+                        {user.lastLoginDevice?.label
+                          ? ` · ${user.lastLoginDevice.label}`
+                          : ""}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -434,7 +534,7 @@ function UserDetailInner() {
             <div className="flex shrink-0 gap-2 sm:pt-0.5">
               <Button
                 variant="outline"
-                disabled={acting}
+                disabled={acting || !canReject}
                 onClick={() => setRejectOpen(true)}
                 className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
               >
@@ -442,7 +542,7 @@ function UserDetailInner() {
                 Reject
               </Button>
               <Button
-                disabled={acting}
+                disabled={acting || !canApprove}
                 onClick={() => void onApprove()}
                 className="bg-[#171717] text-white hover:bg-neutral-800"
               >
@@ -451,14 +551,13 @@ function UserDetailInner() {
                 ) : (
                   <Check className="mr-1.5 h-4 w-4" />
                 )}
-                Approve
+                {review?.isResubmission ? "Approve resubmission" : "Approve"}
               </Button>
             </div>
           ) : null}
         </div>
       </motion.header>
 
-      {/* Pending review banner */}
       {canDecide ? (
         <motion.div
           {...fadeUp}
@@ -477,20 +576,63 @@ function UserDetailInner() {
           </span>
           <div className="min-w-0">
             <p className="text-[15px] font-semibold text-white">
-              Awaiting your decision
+              {review?.isResubmission
+                ? "Resubmission — check what you asked them to fix"
+                : "Awaiting your decision"}
             </p>
             <p
               className="mt-1 text-sm leading-relaxed"
               style={{ color: "rgba(255,255,255,0.55)" }}
             >
-              Review their National ID and profile below, then approve or reject
-              this organizer application.
+              {review?.isResubmission
+                ? "They came back after a rejection. Confirm the previous issue is resolved, then approve or reject again."
+                : "Review their National ID and profile below, then approve or reject this organizer application."}
+            </p>
+            {review?.isResubmission && review.resubmissionCount > 0 ? (
+              <p className="mt-2 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                Resubmitted {review.resubmissionCount} time
+                {review.resubmissionCount === 1 ? "" : "s"}
+                {review.resubmittedAt
+                  ? ` · ${formatRelativeTime(review.resubmittedAt)}`
+                  : ""}
+              </p>
+            ) : null}
+          </div>
+        </motion.div>
+      ) : null}
+
+      {review?.isResubmission && review.previousRejectionReason ? (
+        <motion.div
+          {...fadeUp}
+          transition={{ delay: 0.08, duration: 0.45, ease }}
+          className="mt-5 flex gap-3 rounded-2xl p-4 sm:p-5"
+          style={{
+            background: "#fff7ed",
+            boxShadow: "inset 0 0 0 1px rgba(194,65,12,0.18)",
+          }}
+        >
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: "#ffedd5", color: "#c2410c" }}
+          >
+            <ShieldAlert className="h-4.5 w-4.5" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-semibold" style={{ color: "#9a3412" }}>
+              What you asked them to fix
+            </p>
+            <p
+              className="mt-1 text-sm leading-relaxed"
+              style={{ color: "#c2410c" }}
+            >
+              {review.previousRejectionReason}
             </p>
           </div>
         </motion.div>
       ) : null}
 
-      {user.rejectionReason ? (
+      {(review?.rejectionReason || user.rejectionReason) &&
+      review?.status === "rejected" ? (
         <motion.div
           {...fadeUp}
           transition={{ delay: 0.08, duration: 0.45, ease }}
@@ -514,7 +656,7 @@ function UserDetailInner() {
               className="mt-1 text-sm leading-relaxed"
               style={{ color: "#b91c1c" }}
             >
-              {user.rejectionReason}
+              {review?.rejectionReason || user.rejectionReason}
             </p>
           </div>
         </motion.div>
@@ -579,6 +721,28 @@ function UserDetailInner() {
             ) : null}
             {user.authProvider ? (
               <FieldRow label="Auth">{user.authProvider}</FieldRow>
+            ) : null}
+            {user.lastLoginAt ? (
+              <FieldRow label="Last seen">
+                {formatDateShort(user.lastLoginAt)}
+                <span className="ml-1.5 text-xs font-normal" style={{ color: "#a3a3a3" }}>
+                  {formatRelativeTime(user.lastLoginAt)}
+                </span>
+              </FieldRow>
+            ) : null}
+            {user.lastLoginDevice?.label ? (
+              <FieldRow label="Device">
+                {user.lastLoginDevice.label}
+                {user.lastLoginIp ? (
+                  <span className="ml-1.5 font-mono text-xs font-normal" style={{ color: "#a3a3a3" }}>
+                    {user.lastLoginIp}
+                  </span>
+                ) : null}
+              </FieldRow>
+            ) : user.lastLoginIp ? (
+              <FieldRow label="Last IP" copyValue={user.lastLoginIp}>
+                {user.lastLoginIp}
+              </FieldRow>
             ) : null}
             {user.reviewedAt ? (
               <FieldRow label="Reviewed">
@@ -761,36 +925,50 @@ function UserDetailInner() {
             >
               Activity
             </h2>
-            {isOrganizer ? (
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href={`/admin-portal/trips?organizerId=${user.id}`}
-                  className="group inline-flex items-center gap-1 text-sm font-semibold"
-                  style={{ color: "#171717" }}
-                >
-                  Trips
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-                <Link
-                  href={`/admin-portal/withdrawals?organizerId=${user.id}`}
-                  className="group inline-flex items-center gap-1 text-sm font-semibold"
-                  style={{ color: "#171717" }}
-                >
-                  Payouts
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </div>
-            ) : null}
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={activityHref}
+                className="group inline-flex items-center gap-1 text-sm font-semibold"
+                style={{ color: "#171717" }}
+              >
+                View all activity
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href={refundsHref}
+                className="group inline-flex items-center gap-1 text-sm font-semibold"
+                style={{ color: "#171717" }}
+              >
+                View refunds
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              {isOrganizer ? (
+                <>
+                  <Link
+                    href={`/admin-portal/trips?organizerId=${user.id}`}
+                    className="group inline-flex items-center gap-1 text-sm font-semibold"
+                    style={{ color: "#171717" }}
+                  >
+                    Trips
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  <Link
+                    href={`/admin-portal/withdrawals?organizerId=${user.id}`}
+                    className="group inline-flex items-center gap-1 text-sm font-semibold"
+                    style={{ color: "#171717" }}
+                  >
+                    Payouts
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </>
+              ) : null}
+            </div>
           </div>
 
           <div
             className={cn(
               "mt-5 grid gap-6",
-              tripStats && bookingStats
-                ? "sm:grid-cols-2 lg:grid-cols-4"
-                : tripStats || bookingStats
-                  ? "sm:grid-cols-2 lg:grid-cols-3"
-                  : "sm:grid-cols-2"
+              "sm:grid-cols-2 lg:grid-cols-4"
             )}
           >
             {tripStats ? (
@@ -811,7 +989,7 @@ function UserDetailInner() {
               <StatBlock
                 label="Paid out"
                 value={formatGHS(withdrawalStats.totalAmount)}
-                hint={`${withdrawalStats.success} success · ${withdrawalStats.failed} failed`}
+                hint={`${withdrawalStats.success} paid · ${withdrawalStats.failed} rejected`}
               />
             ) : null}
             {bookingStats ? (
@@ -821,24 +999,93 @@ function UserDetailInner() {
                 hint={`${bookingStats.confirmed} confirmed · ${bookingStats.cancelled} cancelled`}
               />
             ) : null}
+            {refundStats ? (
+              <StatBlock
+                label="Refunds"
+                value={refundStats.total}
+                hint={`${refundStats.refunded} sent · ${formatGHSMoney(refundStats.refundedAmount)}`}
+              />
+            ) : null}
           </div>
         </motion.section>
-      ) : isOrganizer ? (
+      ) : (
         <motion.div
           {...fadeUp}
           transition={{ delay: 0.18, duration: 0.45, ease }}
-          className="mt-5"
+          className="mt-5 flex flex-wrap gap-4"
         >
           <Link
-            href={`/admin-portal/withdrawals?organizerId=${user.id}`}
+            href={activityHref}
             className="group inline-flex items-center gap-1.5 text-sm font-semibold"
             style={{ color: "#171717" }}
           >
-            View payouts
+            View all activity
             <ExternalLink className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
+          <Link
+            href={refundsHref}
+            className="group inline-flex items-center gap-1.5 text-sm font-semibold"
+            style={{ color: "#171717" }}
+          >
+            View refunds
+            <ExternalLink className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+          {isOrganizer ? (
+            <Link
+              href={`/admin-portal/withdrawals?organizerId=${user.id}`}
+              className="group inline-flex items-center gap-1.5 text-sm font-semibold"
+              style={{ color: "#171717" }}
+            >
+              View payouts
+              <ExternalLink className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ) : null}
         </motion.div>
-      ) : null}
+      )}
+
+      <motion.section
+        {...fadeUp}
+        transition={{ delay: 0.22, duration: 0.45, ease }}
+        className="mt-5 rounded-2xl p-5 sm:p-6"
+        style={{
+          background: "#fff",
+          boxShadow: "inset 0 0 0 1px #e5e5e5",
+        }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2
+              className="font-display text-base font-semibold tracking-tight"
+              style={{ color: "#171717" }}
+            >
+              Recent activity
+            </h2>
+            <p className="mt-1 text-sm" style={{ color: "#737373" }}>
+              Last {user.recentActivity?.length ?? 0} events on this account
+            </p>
+          </div>
+          <Link
+            href={activityHref}
+            className="group inline-flex items-center gap-1 text-sm font-semibold"
+            style={{ color: "#171717" }}
+          >
+            View all
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+
+        {(user.recentActivity?.length ?? 0) > 0 ? (
+          <ol className="mt-5 space-y-0">
+            {user.recentActivity!.map((item) => (
+              <ActivityRow key={item.id} item={item} />
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-5 text-sm" style={{ color: "#a3a3a3" }}>
+            No recent activity recorded.
+          </p>
+        )}
+      </motion.section>
 
       {/* Sticky mobile actions — sits above bottom tab bar */}
       {canDecide ? (
@@ -851,14 +1098,14 @@ function UserDetailInner() {
             <div className="mx-auto flex max-w-6xl gap-2">
               <Button
                 variant="outline"
-                disabled={acting}
+                disabled={acting || !canReject}
                 onClick={() => setRejectOpen(true)}
                 className="flex-1 border-red-200 text-red-600"
               >
                 Reject
               </Button>
               <Button
-                disabled={acting}
+                disabled={acting || !canApprove}
                 onClick={() => void onApprove()}
                 className="flex-1 bg-[#171717] text-white"
               >
@@ -867,7 +1114,7 @@ function UserDetailInner() {
                 ) : (
                   <Check className="mr-1.5 h-4 w-4" />
                 )}
-                Approve
+                {review?.isResubmission ? "Approve resubmission" : "Approve"}
               </Button>
             </div>
           </div>
@@ -879,22 +1126,26 @@ function UserDetailInner() {
           <DialogHeader>
             <DialogTitle>Reject application</DialogTitle>
             <DialogDescription>
-              Optionally tell the organizer why (shown on their account).
+              A reason is required. The organizer sees this on their account and
+              in the rejection email.
             </DialogDescription>
           </DialogHeader>
           <Textarea
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="e.g. ID unclear — please resubmit a clearer photo"
+            placeholder="e.g. National ID photo is unclear. Please upload a sharper image."
             rows={4}
             maxLength={500}
           />
+          <p className="text-xs" style={{ color: rejectReasonOk ? "#737373" : "#b91c1c" }}>
+            {rejectReason.trim().length}/8 characters minimum
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectOpen(false)}>
               Cancel
             </Button>
             <Button
-              disabled={acting}
+              disabled={acting || !rejectReasonOk}
               onClick={() => void onReject()}
               className="bg-[#b91c1c] text-white hover:bg-red-800"
             >

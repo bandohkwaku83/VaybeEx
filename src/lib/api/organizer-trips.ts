@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 import { getOrganizerToken } from "./auth-token";
-import { resolveMediaUrl } from "./media";
+import { FALLBACK_TRIP_IMAGE, resolveMediaUrl } from "./media";
 import type {
   ItineraryDay,
   RefundPolicy,
@@ -11,7 +11,7 @@ import type {
 import type { TripForm } from "@/lib/trip-form-utils";
 import { tripPathSlug } from "@/lib/tenant-host";
 
-const PLACEHOLDER_IMAGE = "/images/cta-image.jpg";
+const PLACEHOLDER_IMAGE = FALLBACK_TRIP_IMAGE;
 
 export type DepositDueOption =
   | "at_booking"

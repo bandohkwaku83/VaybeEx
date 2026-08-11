@@ -21,6 +21,7 @@ export default function robots(): MetadataRoute.Robots {
           "/organizer/settings",
           "/organizer/verification",
           "/organizer/onboarding",
+          "/organizer/profile",
           "/organizer/pending",
           "/organizer/verify",
           "/login/verify",

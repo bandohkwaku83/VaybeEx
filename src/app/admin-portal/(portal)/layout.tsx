@@ -13,6 +13,7 @@ import { getAdminDashboard } from "@/lib/api/admin";
 function AdminPortalShell({ children }: { children: React.ReactNode }) {
   const { collapsed, toggle } = useAdminSidebarCollapsed();
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [resubmittedCount, setResubmittedCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -21,6 +22,7 @@ function AdminPortalShell({ children }: { children: React.ReactNode }) {
         const res = await getAdminDashboard();
         if (!cancelled) {
           setPendingApprovalCount(res.data?.organizers.pendingApproval ?? 0);
+          setResubmittedCount(res.data?.organizers.resubmitted ?? 0);
         }
       } catch {
         /* badge is best-effort */
@@ -43,12 +45,19 @@ function AdminPortalShell({ children }: { children: React.ReactNode }) {
           collapsed={collapsed}
           onToggle={toggle}
           pendingApprovalCount={pendingApprovalCount}
+          resubmittedCount={resubmittedCount}
         />
       </Suspense>
       <div className="flex min-h-screen flex-1 flex-col overflow-auto">
-        <AdminTopbar pendingApprovalCount={pendingApprovalCount} />
+        <AdminTopbar
+          pendingApprovalCount={pendingApprovalCount}
+          resubmittedCount={resubmittedCount}
+        />
         <div className="flex-1 pb-20 lg:pb-0">{children}</div>
-        <AdminMobileNav pendingApprovalCount={pendingApprovalCount} />
+        <AdminMobileNav
+          pendingApprovalCount={pendingApprovalCount}
+          resubmittedCount={resubmittedCount}
+        />
       </div>
     </div>
   );

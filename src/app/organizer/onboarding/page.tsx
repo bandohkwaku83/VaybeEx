@@ -31,7 +31,15 @@ import {
   syncOrganizerProfileCache,
   type TripSpecialtyOption,
 } from "@/lib/api/organizer-profile";
-import { mapOrganizerSession } from "@/lib/api/organizer-auth";
+import { getOrganizerMe, mapOrganizerSession } from "@/lib/api/organizer-auth";
+import {
+  handleOrganizerKycError,
+  kycFromAuthUser,
+  ORGANIZER_DASHBOARD_PATH,
+  ORGANIZER_KYC_CODES,
+  ORGANIZER_SETTINGS_PATH,
+  ORGANIZER_VERIFICATION_PATH,
+} from "@/lib/organizer-kyc";
 import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { TRIP_SPECIALTY_OPTIONS } from "@/lib/trip-specialties";
 import {
@@ -130,8 +138,11 @@ function stepHint(id: StepId): string {
 
 function OnboardingFlow() {
   const router = useRouter();
-  const { user, login } = useAuth();
+  const { user, login, setKyc } = useAuth();
+  const kyc = kycFromAuthUser(user);
+  const isResubmit = kyc.status === "rejected";
   const [current, setCurrent] = useState(0);
+  const [prefillReady, setPrefillReady] = useState(!isResubmit);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
@@ -164,22 +175,68 @@ function OnboardingFlow() {
   };
 
   useEffect(() => {
-    if (user) {
-      if (user.organizerStatus === "verified") {
-        router.replace("/organizer/dashboard");
-        return;
-      }
-      if (user.organizerStatus === "pending" || user.organizerStatus === "rejected") {
-        router.replace("/organizer/pending");
-        return;
-      }
-      setForm((prev) => ({
-        ...prev,
-        name: prev.name || user.name || "",
-        email: prev.email || user.email || "",
-      }));
+    if (!user) return;
+    const nextKyc = kycFromAuthUser(user);
+    if (nextKyc.status === "approved" || nextKyc.canPublish) {
+      router.replace(ORGANIZER_DASHBOARD_PATH);
+      return;
+    }
+    if (nextKyc.status === "pending" && nextKyc.onboardingCompleted) {
+      router.replace(ORGANIZER_VERIFICATION_PATH);
     }
   }, [user, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function prefill() {
+      try {
+        const response = await getOrganizerMe();
+        const me = response.data;
+        if (cancelled || !me) {
+          if (!cancelled) setPrefillReady(true);
+          return;
+        }
+        login(mapOrganizerSession(me));
+        syncOrganizerProfileCache(me);
+        const mapped = mapOrganizerProfileToForm(me);
+        if (cancelled) return;
+        setForm((prev) => ({
+          ...prev,
+          name: mapped.fullName || user?.name || prev.name,
+          email: mapped.email || user?.email || prev.email,
+          phone: mapped.phone || prev.phone,
+          whatsapp: mapped.whatsapp || prev.whatsapp,
+          location: mapped.location || prev.location,
+          businessName: mapped.businessName || prev.businessName,
+          brandSlug: mapped.brandSlug || prev.brandSlug,
+          bio: mapped.aboutYou || prev.bio,
+        }));
+        if (mapped.tripSpecialties.length) setSpecialties(mapped.tripSpecialties);
+        if (mapped.profilePhotoUrl) setProfilePicture(mapped.profilePhotoUrl);
+        if (mapped.brandLogoUrl) setBrandLogo(mapped.brandLogoUrl);
+        if (mapped.brandSlug) setBrandSlugTouched(true);
+      } catch (error) {
+        if (handleOrganizerKycError(error, router, { replace: true })) {
+          return;
+        }
+        if (user) {
+          setForm((prev) => ({
+            ...prev,
+            name: prev.name || user.name || "",
+            email: prev.email || user.email || "",
+          }));
+        }
+      } finally {
+        if (!cancelled) setPrefillReady(true);
+      }
+    }
+    void prefill();
+    return () => {
+      cancelled = true;
+    };
+    // Prefill once from /me so rejected organizers see their last profile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,13 +267,17 @@ function OnboardingFlow() {
   ).length;
   const flowProgressPct = Math.round(((current + 1) / STEPS.length) * 100);
   const completionPct = Math.round((completedCount / STEPS.length) * 100);
-  const currentStepValid = stepValid(
-    STEPS[current].id,
-    form,
-    profilePicture,
-    nationalId
-  );
-  const allComplete = completedCount === STEPS.length;
+  const verifyReady = isResubmit ? !!nationalIdFile : !!nationalId;
+  const currentStepValid =
+    STEPS[current].id === "verify"
+      ? verifyReady
+      : stepValid(STEPS[current].id, form, profilePicture, nationalId);
+  const allComplete =
+    STEPS.filter((s) =>
+      s.id === "verify"
+        ? verifyReady
+        : stepValid(s.id, form, profilePicture, nationalId)
+    ).length === STEPS.length;
   const isLast = current === STEPS.length - 1;
 
   const animateTo = (nextIdx: number) => {
@@ -252,7 +313,15 @@ function OnboardingFlow() {
   const finish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!allComplete || submitting) return;
-    if (!profilePictureFile || !nationalIdFile) {
+    if (!nationalIdFile) {
+      toast.error(
+        isResubmit
+          ? "Upload a new national ID photo to resubmit."
+          : "Please upload your profile photo and national ID."
+      );
+      return;
+    }
+    if (!isResubmit && !profilePictureFile) {
       toast.error("Please upload your profile photo and national ID.");
       return;
     }
@@ -283,7 +352,7 @@ function OnboardingFlow() {
         brandSlug: slugCheck.value,
         aboutYou: form.bio.trim(),
         tripSpecialties: specialties,
-        profilePhoto: profilePictureFile,
+        profilePhoto: profilePictureFile ?? undefined,
         brandLogo: brandLogoFile,
         nationalIdPhoto: nationalIdFile,
       });
@@ -293,8 +362,7 @@ function OnboardingFlow() {
 
       if (response.data) {
         syncOrganizerProfileCache(response.data);
-        login(
-          mapOrganizerSession({
+        const session = mapOrganizerSession({
             id: response.data.id ?? "organizer",
             fullName: response.data.fullName ?? form.name.trim(),
             email:
@@ -315,8 +383,14 @@ function OnboardingFlow() {
             tripSpecialties: response.data.tripSpecialties ?? specialties,
             whatsapp: response.data.whatsapp,
             location: response.data.location ?? form.location.trim(),
-          })
-        );
+            kyc: response.data.kyc,
+            canPublish: response.data.canPublish,
+            canResubmit: response.data.canResubmit,
+            resubmittedAt: response.data.resubmittedAt,
+            resubmissionCount: response.data.resubmissionCount,
+          });
+        login(session);
+        if (session.kyc) setKyc(session.kyc);
       } else {
         const mapped = mapOrganizerProfileToForm(undefined, {
           fullName: form.name.trim(),
@@ -353,12 +427,31 @@ function OnboardingFlow() {
           });
         }
       }
+      const code = response.code;
+      if (code === ORGANIZER_KYC_CODES.ALREADY_APPROVED) {
+        toast.success(response.message || "Your account is already approved.");
+        router.replace(ORGANIZER_SETTINGS_PATH);
+        return;
+      }
+      if (code === ORGANIZER_KYC_CODES.ALREADY_PENDING) {
+        toast.message(response.message || "Your application is already in review.");
+        router.replace(ORGANIZER_VERIFICATION_PATH);
+        return;
+      }
       toast.success(
         response.message ||
-          "Profile submitted. Waiting for admin approval before you can create trips."
+          (code === ORGANIZER_KYC_CODES.RESUBMITTED
+            ? "Update submitted. We’ll review it again."
+            : "Profile submitted. Waiting for admin approval before you can create trips.")
       );
-      router.push("/organizer/pending");
+      router.push(ORGANIZER_VERIFICATION_PATH);
     } catch (error) {
+      if (handleOrganizerKycError(error, router)) {
+        const message =
+          error instanceof ApiError ? error.message : "Something went wrong.";
+        toast.error(message);
+        return;
+      }
       const message =
         error instanceof ApiError
           ? error.status === 409
@@ -374,6 +467,17 @@ function OnboardingFlow() {
 
   const step = STEPS[current];
   const StepIcon = step.icon;
+
+  if (!prefillReady) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center text-sm"
+        style={{ background: "var(--bg)", color: "var(--text-secondary)" }}
+      >
+        Loading your profile…
+      </div>
+    );
+  }
 
   return (
     <div
@@ -547,6 +651,28 @@ function OnboardingFlow() {
           {/* Form column */}
           <form onSubmit={finish} className="flex flex-1 flex-col">
             <div ref={panelRef} className="mx-auto w-full max-w-xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+              {isResubmit && kyc.rejectionReason ? (
+                <div
+                  className="mb-6 rounded-2xl border px-4 py-3.5 text-sm"
+                  style={{
+                    background: "rgba(181,82,58,0.06)",
+                    borderColor: "rgba(181,82,58,0.22)",
+                  }}
+                >
+                  <p
+                    className="text-[11px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--coral)" }}
+                  >
+                    Application not approved
+                  </p>
+                  <p className="mt-1.5 leading-relaxed" style={{ color: "var(--text)" }}>
+                    {kyc.rejectionReason}
+                  </p>
+                  <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    Update the details below and upload a new ID photo to resubmit.
+                  </p>
+                </div>
+              ) : null}
               <p
                 className="text-xs font-bold uppercase tracking-[0.18em]"
                 style={{ color: "var(--gold)" }}
@@ -951,7 +1077,11 @@ function OnboardingFlow() {
                   <div className="space-y-5">
                     <FileUploadZone
                       label="National ID card"
-                      description="Front of your Ghana Card or passport photo page. JPG or PNG."
+                      description={
+                        isResubmit
+                          ? "Required: upload a new, sharper photo of your Ghana Card or passport."
+                          : "Front of your Ghana Card or passport photo page. JPG or PNG."
+                      }
                       accept="image/*"
                       variant="image"
                       aspectRatio="video"
@@ -1016,7 +1146,13 @@ function OnboardingFlow() {
                     }}
                   >
                     <Check className="mr-1.5 h-4 w-4" />
-                    {submitting ? "Submitting…" : "Submit application"}
+                    {submitting
+                      ? isResubmit
+                        ? "Resubmitting…"
+                        : "Submitting…"
+                      : isResubmit
+                        ? "Resubmit application"
+                        : "Submit application"}
                   </Button>
                 ) : (
                   <Button
