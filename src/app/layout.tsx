@@ -1,30 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/hooks/use-auth";
+import { GoogleAuthProvider } from "@/components/auth/google-auth-provider";
 import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
+import { ConditionalFooter } from "@/components/layout/conditional-footer";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+ const bricolage = Bricolage_Grotesque({
+  variable: "--font-display",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
-});
-
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   title: "VaybeEx — Discover & Book Group Trips",
   description: "Curated group travel experiences across Ghana and West Africa. Book adventures and track your trips.",
+  icons: {
+    icon: [{ url: "/images/web_logo.png", type: "image/png" }],
+    apple: [{ url: "/images/web_logo.png", type: "image/png" }],
+    shortcut: ["/images/web_logo.png"],
+  },
 };
 
 export default function RootLayout({
@@ -35,14 +37,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${jakarta.variable} h-full overflow-x-clip antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-stone-50">
+      <body className="min-h-full flex flex-col overflow-x-clip bg-stone-50 overscroll-x-none" suppressHydrationWarning>
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <Toaster position="top-right" richColors />
+          <GoogleAuthProvider>
+            <Navbar />
+            <main className="flex-1 overflow-x-clip">{children}</main>
+            <ConditionalFooter />
+            <Toaster position="top-right" richColors />
+          </GoogleAuthProvider>
         </AuthProvider>
       </body>
     </html>

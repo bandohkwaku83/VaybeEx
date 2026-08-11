@@ -9,19 +9,19 @@ import type { TripFilters } from "@/lib/types";
 
 const slides = [
   {
-    image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200&h=1400&fit=crop",
+    image: "/images/hero1.png",
     title: "Reach your travel potential.",
     subtitle:
       "Discover verified organizers, book with flexible payments, and join unforgettable group experiences across Ghana.",
   },
   {
-    image: "https://images.unsplash.com/photo-1551632811-561732d1e306?w=1200&h=1400&fit=crop",
+    image: "/images/hero2.png",
     title: "You will feel well nurtured here.",
     subtitle:
       "From coastal retreats to mountain treks — every trip is handpicked, every organizer verified.",
   },
   {
-    image: "https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1200&h=1400&fit=crop",
+    image: "/images/hero3.png",
     title: "Travel should not be a matter of luck.",
     subtitle:
       "Benefit from transparent pricing, seat tracking, and trusted group travel — all in one place.",
@@ -73,7 +73,7 @@ export function HeroCarousel({ onSearch }: HeroCarouselProps) {
                 <button
                   type="button"
                   onClick={goToTrips}
-                  className="btn-gradient inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold uppercase tracking-wider text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="btn-gradient inline-flex items-center gap-2 rounded-none px-8 py-3.5 text-sm font-semibold uppercase tracking-wider text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   Get started
                   <ArrowRight className="h-4 w-4" />

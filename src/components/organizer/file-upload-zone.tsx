@@ -127,20 +127,30 @@ export function FileUploadZone({
 
 interface GalleryUploadProps {
   images: string[];
-  onChange: (images: string[]) => void;
+  onChange: (images: string[], files?: File[]) => void;
   max?: number;
 }
 
 export function GalleryUpload({ images, onChange, max = 6 }: GalleryUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<File[]>([]);
 
-  const addImages = (files: FileList) => {
+  const addImages = (fileList: FileList) => {
     const remaining = max - images.length;
-    const newUrls = Array.from(files).slice(0, remaining).map((f) => URL.createObjectURL(f));
-    onChange([...images, ...newUrls]);
+    const nextFiles = Array.from(fileList).slice(0, remaining);
+    const newUrls = nextFiles.map((f) => URL.createObjectURL(f));
+    const nextImages = [...images, ...newUrls];
+    const mergedFiles = [...files, ...nextFiles].slice(0, max);
+    setFiles(mergedFiles);
+    onChange(nextImages, mergedFiles);
   };
 
-  const remove = (index: number) => onChange(images.filter((_, i) => i !== index));
+  const remove = (index: number) => {
+    const nextImages = images.filter((_, i) => i !== index);
+    const nextFiles = files.filter((_, i) => i !== index);
+    setFiles(nextFiles);
+    onChange(nextImages, nextFiles);
+  };
 
   return (
     <div className="space-y-2">

@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Heart, LogIn, LogOut, Menu, Phone, Search, User, X } from "lucide-react";
+import { Heart, LogOut, Menu, User, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  getBrandFromHost,
+  getRootAbsoluteUrl,
+} from "@/lib/tenant-host";
 import { cn } from "@/lib/utils";
 
 const publicNavLinks = [
@@ -18,17 +23,30 @@ const authNavLinks = [
   { href: "/wishlist", label: "Wishlist" },
 ];
 
+/** On organizer subdomains, send platform links to the apex host. */
+function useApexHref() {
+  const [onTenant, setOnTenant] = useState(false);
+
+  useEffect(() => {
+    setOnTenant(Boolean(getBrandFromHost(window.location.host)));
+  }, []);
+
+  return (path: string) =>
+    onTenant ? getRootAbsoluteUrl(path) : path;
+}
+
 export function Navbar() {
   const pathname = usePathname();
+  const apexHref = useApexHref();
   const { isAuthenticated, user, logout } = useAuth();
-  const navLinks = isAuthenticated
+  const isTraveler = user?.role === "traveler";
+  const navLinks = isAuthenticated && isTraveler
     ? [...publicNavLinks, ...authNavLinks]
     : publicNavLinks;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const isOrganizer = pathname.startsWith("/organizer");
-  const isHome = pathname === "/";
-  const overlay = isHome && !scrolled;
+  const isOrganizerLanding = pathname === "/organizer";
+  const lightOverlay = isOrganizerLanding && !scrolled;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -37,92 +55,147 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  if (isOrganizer) return null;
+  // Hide on organizer portal/auth routes — the landing page (`/organizer`) keeps the main nav.
+  if (pathname.startsWith("/organizer") && !isOrganizerLanding) return null;
+  if (pathname.startsWith("/admin-portal") || pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/login")) return null;
 
   return (
     <header
-      className={cn(
-        "fixed top-0 z-50 w-full transition-all duration-300",
-        overlay
-          ? "border-b border-white/10 bg-transparent"
-          : "border-b border-stone-200/80 bg-white/90 backdrop-blur-xl shadow-sm"
-      )}
+      className={cn("fixed top-0 z-50 w-full")}
+      style={{
+        borderBottom: scrolled
+          ? "1px solid var(--border-strong)"
+          : "1px solid transparent",
+        background: scrolled ? "rgba(251, 247, 241, 0.92)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px) saturate(160%)" : "none",
+        WebkitBackdropFilter: scrolled ? "blur(20px) saturate(160%)" : "none",
+        boxShadow: scrolled
+          ? "0 1px 32px rgba(86, 47, 24, 0.1)"
+          : "none",
+        transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm transition-colors",
-              overlay ? "bg-white/15 backdrop-blur-sm group-hover:bg-white/25" : "bg-teal-600 group-hover:bg-teal-700"
-            )}
-          >
-            <Compass className="h-5 w-5" />
-          </div>
-          <span
-            className={cn(
-              "text-xl font-bold tracking-tight transition-colors",
-              overlay ? "text-white" : "text-stone-900"
-            )}
-          >
-            Vaybe<span className={overlay ? "text-teal-300" : "text-teal-600"}>Ex</span>
-          </span>
+
+        {/* ── Logo ── */}
+        <Link href={apexHref("/")} className="group flex items-center gap-2">
+          <BrandLogo
+            size="md"
+            withWordmark
+            wordmarkClassName="text-[1.2rem]"
+            wordmarkStyle={{
+              color: lightOverlay ? "#fbf7f1" : "var(--text)",
+              letterSpacing: "-0.03em",
+            }}
+            className="transition-transform duration-300 group-hover:scale-[1.03]"
+          />
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                overlay
-                  ? pathname === link.href
-                    ? "bg-white/15 text-white"
-                    : "text-white/80 hover:bg-white/10 hover:text-white"
-                  : pathname === link.href
-                    ? "bg-teal-50 text-teal-700"
-                    : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
+        {/* ── Desktop Nav ── */}
+        <nav
+          className="hidden items-center lg:flex"
+          style={{
+            background: "#ffffff",
+            border: "0.5px solid var(--border)",
+            borderRadius: "9999px",
+            padding: "4px 6px",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            gap: "2px",
+          }}
+        >
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={apexHref(link.href)}
+                className="relative flex items-center transition-colors"
+                style={{
+                  color: isActive ? "var(--text)" : "var(--text-secondary)",
+                  borderRadius: "9999px",
+                  padding: "6px 16px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  letterSpacing: "0.01em",
+                  background: isActive ? "rgba(107, 63, 29, 0.08)" : "transparent",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLAnchorElement).style.color = "var(--text)";
+                    (e.currentTarget as HTMLAnchorElement).style.background =
+                      "rgba(107, 63, 29, 0.06)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)";
+                    (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                  }
+                }}
+              >
+                {link.label}
+                {/* Signature warm glow indicator */}
+                {isActive && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      bottom: "2px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: "20px",
+                      height: "2px",
+                      background: "var(--gradient-warm)",
+                      borderRadius: "9999px",
+                      boxShadow: "var(--glow-gold)",
+                    }}
+                  />
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="hidden items-center md:flex">
-          {overlay && (
-            <>
-              <div className="flex items-center gap-1 border-r border-white/15 px-4 text-sm text-white/80">
-                <Search className="h-4 w-4" />
-              </div>
-              <div className="flex items-center gap-2 border-r border-white/15 px-4 text-sm text-white/90">
-                <Phone className="h-3.5 w-3.5" />
-                <span className="hidden lg:inline">+233 20 123 4567</span>
-              </div>
-            </>
-          )}
-          <div className={cn("flex items-center gap-2", overlay && "pl-4")}>
-            {isAuthenticated && (
+        {/* ── Right side (lg+; tablet/mobile use the hamburger menu) ── */}
+        <div className="hidden items-center gap-2 lg:flex">
+            {isAuthenticated && isTraveler && (
               <Button
                 variant="ghost"
                 size="icon"
-                className={overlay ? "text-white hover:bg-white/10 hover:text-white" : ""}
+                style={{
+                  color: "#000000",
+                  transition: "all 0.2s ease",
+                }}
+                className="hover:!text-[#333333] hover:!bg-[rgba(0,0,0,0.06)]"
                 asChild
               >
-                <Link href="/wishlist">
+                <Link href={apexHref("/wishlist")}>
                   <Heart className="h-4 w-4" />
                 </Link>
               </Button>
             )}
+
             {isAuthenticated ? (
               <>
                 <div
-                  className={cn(
-                    buttonVariants({ size: "sm", variant: overlay ? "outline" : "default" }),
-                    overlay
-                      ? "border-white/30 bg-white/10 text-white hover:bg-white/10 hover:text-white"
-                      : "hover:bg-teal-600"
-                  )}
+                  className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(107,63,29,0.12), rgba(196,134,76,0.1))",
+                    border: "0.5px solid var(--border-strong)",
+                    color: "#000000",
+                    borderRadius: "0",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    ((e.currentTarget as HTMLDivElement).style.boxShadow = "var(--glow-gold)")
+                  }
+                  onMouseLeave={(e) =>
+                    ((e.currentTarget as HTMLDivElement).style.boxShadow = "none")
+                  }
                 >
                   <User className="h-4 w-4" />
                   <span className="hidden sm:inline">{user?.name.split(" ")[0]}</span>
@@ -130,7 +203,8 @@ export function Navbar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={overlay ? "text-white hover:bg-white/10 hover:text-white" : ""}
+                  style={{ color: "#000000", transition: "all 0.2s ease" }}
+                  className="hover:!text-[#333333] hover:!bg-[rgba(0,0,0,0.06)]"
                   onClick={logout}
                   title="Sign out"
                 >
@@ -138,62 +212,132 @@ export function Navbar() {
                 </Button>
               </>
             ) : (
-              <Button
-                size="sm"
-                variant={overlay ? "outline" : "default"}
-                className={
-                  overlay
-                    ? "border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                    : ""
-                }
-                asChild
-              >
-                <Link href={`/login?redirect=${encodeURIComponent(pathname)}`}>
-                  <LogIn className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sign in</span>
-                </Link>
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Sign up as a traveler"
+                  style={{
+                    background: "transparent",
+                    color: lightOverlay ? "#fbf7f1" : "#000000",
+                    border: lightOverlay
+                      ? "0.5px solid rgba(251,247,241,0.45)"
+                      : "0.5px solid var(--border-strong)",
+                    borderRadius: "0",
+                    fontWeight: 600,
+                    fontSize: "0.8125rem",
+                    letterSpacing: "0.01em",
+                  }}
+                  asChild
+                >
+                  <Link
+                    href={apexHref(
+                      `/login?mode=signup&redirect=${encodeURIComponent(pathname === "/organizer" ? "/" : pathname)}`
+                    )}
+                  >
+                    Traveler
+                  </Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Sign up as an organizer"
+                  style={{
+                    background: "var(--gradient-teal)",
+                    color: "#fbf7f1",
+                    border: "none",
+                    borderRadius: "0",
+                    fontWeight: 600,
+                    boxShadow: "var(--glow-teal)",
+                    fontSize: "0.8125rem",
+                    letterSpacing: "0.01em",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                  onMouseEnter={(e) => {
+                    const el = e.currentTarget as HTMLButtonElement;
+                    el.style.opacity = "0.9";
+                    el.style.boxShadow = "var(--glow-teal-strong)";
+                    el.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    const el = e.currentTarget as HTMLButtonElement;
+                    el.style.opacity = "1";
+                    el.style.boxShadow = "var(--glow-teal)";
+                    el.style.transform = "translateY(0)";
+                  }}
+                  asChild
+                >
+                  <Link
+                    href={apexHref(
+                      `/organizer/login?mode=signup&redirect=${encodeURIComponent("/organizer/onboarding")}`
+                    )}
+                  >
+                    Organizer
+                  </Link>
+                </Button>
+              </>
             )}
-          </div>
         </div>
 
+        {/* ── Mobile / tablet hamburger (below lg) ── */}
         <Button
           variant="ghost"
           size="icon"
-          className={cn("md:hidden", overlay && "text-white hover:bg-white/10")}
+          className="lg:hidden"
+          style={{
+            color: lightOverlay ? "#fbf7f1" : "#000000",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget as HTMLButtonElement;
+            el.style.color = lightOverlay ? "#ffffff" : "#333333";
+            el.style.background = lightOverlay
+              ? "rgba(251, 247, 241, 0.12)"
+              : "rgba(0, 0, 0, 0.06)";
+          }}
+          onMouseLeave={(e) => {
+            const el = e.currentTarget as HTMLButtonElement;
+            el.style.color = lightOverlay ? "#fbf7f1" : "#000000";
+            el.style.background = "transparent";
+          }}
           onClick={() => setMobileOpen(!mobileOpen)}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
       </div>
 
+      {/* ── Mobile / tablet dropdown ── */}
       {mobileOpen && (
         <div
-          className={cn(
-            "border-t px-4 py-4 space-y-2 md:hidden",
-            overlay ? "border-white/10 bg-[#1e3636]/95 backdrop-blur-xl" : "border-stone-200 bg-white"
-          )}
+          className="px-4 py-4 space-y-1 lg:hidden"
+          style={{
+            background: "rgba(251, 247, 241, 0.98)",
+            backdropFilter: "blur(24px) saturate(160%)",
+            WebkitBackdropFilter: "blur(24px) saturate(160%)",
+            borderTop: "0.5px solid var(--border)",
+            boxShadow: "0 20px 50px rgba(86, 47, 24, 0.18)",
+          }}
         >
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
-                overlay
-                  ? pathname === link.href
-                    ? "bg-white/15 text-white"
-                    : "text-white/80"
-                  : pathname === link.href
-                    ? "bg-teal-50 text-teal-700"
-                    : "text-stone-600"
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
-          <Separator overlay={overlay} />
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={apexHref(link.href)}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
+                style={{
+                  color: isActive ? "var(--primary)" : "var(--text-secondary)",
+                  background: isActive ? "rgba(107, 63, 29, 0.1)" : "transparent",
+                }}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+
+          <Separator />
+
           {isAuthenticated ? (
             <button
               type="button"
@@ -201,26 +345,37 @@ export function Navbar() {
                 logout();
                 setMobileOpen(false);
               }}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
-                overlay ? "text-white/80" : "text-stone-600"
-              )}
+              className="flex w-full items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
+              style={{ color: "var(--text-secondary)" }}
             >
               <LogOut className="h-4 w-4" />
               Sign out
             </button>
           ) : (
-            <Link
-              href={`/login?redirect=${encodeURIComponent(pathname)}`}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
-                overlay ? "text-white/80" : "text-stone-600"
-              )}
-            >
-              <LogIn className="h-4 w-4" />
-              Sign in
-            </Link>
+            <>
+              <Link
+                href={apexHref(
+                  `/login?mode=signup&redirect=${encodeURIComponent(pathname === "/organizer" ? "/" : pathname)}`
+                )}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+                title="Sign up as a traveler"
+              >
+                Traveler
+              </Link>
+              <Link
+                href={apexHref(
+                  `/organizer/login?mode=signup&redirect=${encodeURIComponent("/organizer/onboarding")}`
+                )}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-none px-3 py-2.5 text-sm font-medium transition-colors"
+                style={{ color: "var(--primary)", fontWeight: 500 }}
+                title="Sign up as an organizer"
+              >
+                Organizer
+              </Link>
+            </>
           )}
         </div>
       )}
@@ -228,6 +383,11 @@ export function Navbar() {
   );
 }
 
-function Separator({ overlay }: { overlay: boolean }) {
-  return <div className={cn("h-px my-2", overlay ? "bg-white/15" : "bg-stone-200")} />;
+function Separator() {
+  return (
+    <div
+      className="my-2 h-px"
+      style={{ background: "var(--border)" }}
+    />
+  );
 }

@@ -3,34 +3,38 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { OrganizerLandingHeader } from "@/components/organizer/landing-header";
+import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
 import { OtpInput } from "@/components/organizer/otp-input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
+import { setOrganizerToken } from "@/lib/api/auth-token";
+import { ApiError } from "@/lib/api/client";
 import {
-  clearOrganizerOtp,
-  DEMO_OTP,
-  sendOrganizerOtp,
+  mapOrganizerSession,
+  resendOrganizerOtp,
   verifyOrganizerOtp,
-} from "@/lib/organizer-auth-mock";
+} from "@/lib/api/organizer-auth";
+import { syncOrganizerProfileCache } from "@/lib/api/organizer-profile";
+
+const OTP_LENGTH = 4;
 
 function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const email = searchParams.get("email") ?? "";
-  const redirect = searchParams.get("redirect") ?? "/organizer/onboarding";
+  const redirect = searchParams.get("redirect") ?? "/organizer/profile/setup";
 
   const [otp, setOtp] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     if (!email) {
-      router.replace("/organizer/login?mode=signup&redirect=/organizer/onboarding");
+      router.replace("/organizer/login?mode=signup&redirect=/organizer/profile/setup");
     }
   }, [email, router]);
 
@@ -40,103 +44,158 @@ function VerifyEmailForm() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length !== 6 || isVerifying) return;
+    if (otp.length !== OTP_LENGTH || isVerifying) return;
 
     setIsVerifying(true);
 
-    if (!verifyOrganizerOtp(email, otp)) {
-      toast.error("Invalid or expired code. Please try again.");
-      setIsVerifying(false);
-      return;
-    }
+    try {
+      const response = await verifyOrganizerOtp({
+        email,
+        code: otp,
+      });
 
-    clearOrganizerOtp(email);
-    login({ name: "", email });
-    toast.success("Email verified! Let's set up your profile.");
-    router.push(redirect);
+      const { user, token } = response.data ?? {};
+      if (token) setOrganizerToken(token);
+
+      if (user) {
+        login(mapOrganizerSession(user));
+        syncOrganizerProfileCache(user);
+      } else {
+        login({ name: "", email });
+      }
+
+      toast.success(response.message);
+      router.push(redirect.startsWith("/organizer") ? redirect : "/organizer/profile/setup");
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "Something went wrong. Please try again.";
+      toast.error(message);
+      setIsVerifying(false);
+    }
   };
 
-  const handleResend = () => {
-    if (resendCooldown > 0) return;
-    sendOrganizerOtp(email);
-    setResendCooldown(30);
-    toast.success("New verification code sent");
+  const handleResend = async () => {
+    if (resendCooldown > 0 || isResending) return;
+
+    setIsResending(true);
+    try {
+      const response = await resendOrganizerOtp({ email });
+      toast.success(response.message);
+      setResendCooldown(60);
+      setOtp("");
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "Something went wrong. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsResending(false);
+    }
   };
 
   if (!email) return null;
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md shadow-lg border-teal-100">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-600 text-white">
-            <Mail className="h-6 w-6" />
-          </div>
-          <CardTitle className="text-2xl">Verify your email</CardTitle>
-          <p className="text-sm text-stone-500 mt-2">
-            We sent a 6-digit code to{" "}
-            <span className="font-medium text-stone-700">{email}</span>
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleVerify} className="space-y-6">
-            <OtpInput value={otp} onChange={setOtp} disabled={isVerifying} />
+    <AuthSplitLayout
+      eyebrow="Almost there"
+      title="Verify your email"
+      subtitle={
+        <>
+          We sent a {OTP_LENGTH}-digit code to{" "}
+          <span className="font-semibold" style={{ color: "var(--text)" }}>
+            {email}
+          </span>
+          . Enter it below to continue setting up your organizer profile.
+        </>
+      }
+      imageSrc="/images/high-shot.jpg"
+      imageAlt="Aerial view of Ghana landscape"
+      backHref="/organizer/login?mode=signup"
+      backLabel="Back to sign up"
+      brandHref="/organizer"
+      brandSubline="For Organizers"
+      visualBadge="Organizer portal"
+      visualQuote="Share the places you know. Build trips people want to join."
+      visualCaption="Everything you need to list, manage, and grow your travel business."
+    >
+      <form onSubmit={handleVerify} className="space-y-6">
+        <OtpInput
+          value={otp}
+          onChange={setOtp}
+          length={OTP_LENGTH}
+          disabled={isVerifying}
+        />
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              disabled={otp.length !== 6 || isVerifying}
-            >
-              <ShieldCheck className="h-4 w-4" />
-              Verify email
-            </Button>
-          </form>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={otp.length !== OTP_LENGTH || isVerifying}
+          className="h-12 w-full text-sm font-semibold"
+          style={{
+            background: "var(--gradient-brand)",
+            color: "#fbf7f1",
+            boxShadow: "var(--glow-gold)",
+          }}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          {isVerifying ? "Verifying..." : "Verify email"}
+        </Button>
+      </form>
 
-          <div className="mt-6 text-center space-y-3">
-            <p className="text-sm text-stone-500">
-              Didn&apos;t receive a code?{" "}
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={resendCooldown > 0}
-                className="text-teal-600 hover:underline disabled:text-stone-400 disabled:no-underline"
-              >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
-              </button>
-            </p>
+      <div className="mt-6 space-y-4 text-center">
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          Didn&apos;t receive a code?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resendCooldown > 0 || isResending}
+            className="font-medium transition-colors hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              color:
+                resendCooldown > 0 || isResending
+                  ? "var(--text-tertiary)"
+                  : "var(--primary)",
+            }}
+          >
+            {isResending
+              ? "Sending..."
+              : resendCooldown > 0
+                ? `Resend in ${resendCooldown}s`
+                : "Resend code"}
+          </button>
+        </p>
 
-            <p className="text-xs text-stone-400 rounded-lg bg-stone-50 px-3 py-2">
-              Demo code: <span className="font-mono font-medium text-stone-600">{DEMO_OTP}</span>
-            </p>
-
-            <Link
-              href={`/organizer/login?mode=signup&redirect=${encodeURIComponent(redirect)}`}
-              className="text-sm text-stone-400 hover:text-teal-600 inline-flex items-center gap-1"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Use a different email
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        <Link
+          href={`/organizer/login?mode=signup&redirect=${encodeURIComponent(redirect)}`}
+          className="inline-flex items-center gap-1.5 text-sm transition-colors hover:text-[var(--primary)]"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Use a different email
+        </Link>
+      </div>
+    </AuthSplitLayout>
   );
 }
 
 export default function OrganizerVerifyPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-teal-50 to-stone-50">
-      <OrganizerLandingHeader />
-      <Suspense
-        fallback={
-          <div className="flex flex-1 items-center justify-center text-stone-500">Loading...</div>
-        }
-      >
-        <VerifyEmailForm />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div
+          className="flex min-h-screen items-center justify-center"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Loading...
+        </div>
+      }
+    >
+      <VerifyEmailForm />
+    </Suspense>
   );
 }

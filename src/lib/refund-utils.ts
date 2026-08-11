@@ -91,6 +91,7 @@ export function estimateRefund(trip: Trip, booking: Booking): RefundEstimate {
 }
 
 export function formatRefundPolicyLabel(trip: Trip): string {
+  if (trip.refundPolicySummary?.trim()) return trip.refundPolicySummary.trim();
   if (trip.refundPolicy === "none") return "Non-refundable";
   if (trip.refundPolicy === "full") {
     return `Full refund up to ${trip.refundDeadlineDays} days before departure`;

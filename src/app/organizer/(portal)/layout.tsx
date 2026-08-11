@@ -1,44 +1,86 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { RequireOrganizerAuth } from "@/components/auth/require-organizer-auth";
-import { OrganizerSidebar } from "@/components/organizer/sidebar";
+import { OrganizerSidebar, useSidebarCollapsed } from "@/components/organizer/sidebar";
+import { OrganizerTopbar } from "@/components/organizer/topbar";
+import {
+  OrganizerMobileBottomNav,
+  OrganizerMobileDrawer,
+} from "@/components/organizer/mobile-nav";
 import { OrganizerTripsProvider } from "@/hooks/use-organizer-trips";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  kycFromAuthUser,
+  ORGANIZER_SETUP_PATH,
+  ORGANIZER_VERIFICATION_PATH,
+} from "@/lib/organizer-kyc";
 
-function PendingGate({ children }: { children: React.ReactNode }) {
+function PortalGate({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading && user?.organizerStatus === "pending") {
-      router.replace("/organizer/pending");
-    }
-  }, [user, isLoading, router]);
+    if (isLoading || !user) return;
 
-  if (isLoading || user?.organizerStatus === "pending") {
+    const kyc = kycFromAuthUser(user);
+    if (!kyc.onboardingCompleted) {
+      router.replace(ORGANIZER_SETUP_PATH);
+      return;
+    }
+    if (kyc.status === "pending") {
+      router.replace(ORGANIZER_VERIFICATION_PATH);
+    }
+  }, [user, isLoading, router, pathname]);
+
+  if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-stone-500">
-        Loading...
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "#f5f5f5" }}>
+        <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--primary)" }} />
       </div>
     );
   }
 
-  return children;
+  const kyc = kycFromAuthUser(user);
+  if (!kyc.onboardingCompleted || kyc.status === "pending") {
+    return null;
+  }
+
+  return <>{children}</>;
 }
 
 export default function OrganizerPortalLayout({ children }: { children: React.ReactNode }) {
+  const { collapsed, toggle } = useSidebarCollapsed();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <RequireOrganizerAuth>
-      <PendingGate>
+      <PortalGate>
         <OrganizerTripsProvider>
-          <div className="flex min-h-screen">
-            <OrganizerSidebar />
-            <div className="flex-1 overflow-auto">{children}</div>
+          <div className="flex min-h-screen" style={{ background: "#f5f5f5" }}>
+            <OrganizerSidebar collapsed={collapsed} onToggle={toggle} />
+            <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-auto">
+              <OrganizerTopbar
+                menuOpen={mobileMenuOpen}
+                onMenuToggle={() => setMobileMenuOpen((v) => !v)}
+              />
+              <div className="flex-1 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:pb-0">
+                {children}
+              </div>
+            </div>
           </div>
+          <OrganizerMobileDrawer
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+          />
+          <OrganizerMobileBottomNav
+            onOpenMenu={() => setMobileMenuOpen(true)}
+          />
         </OrganizerTripsProvider>
-      </PendingGate>
+      </PortalGate>
     </RequireOrganizerAuth>
   );
 }

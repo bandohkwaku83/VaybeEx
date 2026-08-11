@@ -1,12 +1,22 @@
-import type { RefundPolicy, Trip, TripCategory, TripStatus } from "./types";
+import type { ItineraryDay, RefundPolicy, Trip, TripCategory, TripStatus } from "./types";
+import { tripPathSlug } from "./tenant-host";
 
 export type { RefundPolicy };
 export type Difficulty = "easy" | "moderate" | "challenging";
 
+export interface TripFormItineraryDay {
+  day: number;
+  title: string;
+  activities: string;
+}
+
 export interface TripForm {
   title: string;
+  /** Editable public URL path (trip slug). */
+  slug: string;
   destination: string;
-  category: TripCategory | "";
+  /** Trip category value from /organizer/trips/options (or legacy TripCategory). */
+  category: string;
   startDate: string;
   endDate: string;
   description: string;
@@ -20,28 +30,25 @@ export interface TripForm {
   returnTime: string;
   meetingPoint: string;
   difficulty: Difficulty;
-  ageMin: string;
-  ageMax: string;
   price: string;
-  earlyBirdPrice: string;
-  earlyBirdDeadline: string;
+  offerCouplePrice: boolean;
+  couplePrice: string;
+  offerGroupPrice: boolean;
+  groupPrice: string;
+  groupSize: string;
   depositAmount: string;
-  depositRules: string;
   refundPolicy: RefundPolicy;
   refundDeadlineDays: string;
   refundPercentage: string;
   coverImage: string | null;
-  flyer: string | null;
   gallery: string[];
-  contactPhone: string;
-  contactEmail: string;
-  tags: string;
-  visibility: string;
+  itinerary: TripFormItineraryDay[];
   status: TripStatus;
 }
 
 export const INITIAL_TRIP_FORM: TripForm = {
   title: "",
+  slug: "",
   destination: "",
   category: "",
   startDate: "",
@@ -50,30 +57,26 @@ export const INITIAL_TRIP_FORM: TripForm = {
   highlights: "",
   included: "",
   excluded: "",
-  minCapacity: "",
+  minCapacity: "1",
   maxCapacity: "",
   departurePoint: "",
   departureTime: "",
   returnTime: "",
   meetingPoint: "",
   difficulty: "moderate",
-  ageMin: "",
-  ageMax: "",
   price: "",
-  earlyBirdPrice: "",
-  earlyBirdDeadline: "",
+  offerCouplePrice: false,
+  couplePrice: "",
+  offerGroupPrice: false,
+  groupPrice: "",
+  groupSize: "5",
   depositAmount: "",
-  depositRules: "",
   refundPolicy: "partial",
   refundDeadlineDays: "14",
   refundPercentage: "50",
   coverImage: null,
-  flyer: null,
   gallery: [],
-  contactPhone: "",
-  contactEmail: "",
-  tags: "",
-  visibility: "public",
+  itinerary: [{ day: 1, title: "", activities: "" }],
   status: "draft",
 };
 
@@ -88,7 +91,7 @@ export const TRIP_CATEGORIES: TripCategory[] = [
 
 export const TRIP_STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
   { value: "draft", label: "Draft — only you can see" },
-  { value: "scheduled", label: "Scheduled — publish on start date" },
+  { value: "scheduled", label: "Scheduled — publish on a chosen date" },
   { value: "live", label: "Live — visible to all travelers" },
   { value: "completed", label: "Completed — trip has finished" },
   { value: "cancelled", label: "Cancelled — no longer available" },
@@ -109,26 +112,62 @@ function parseLines(text: string) {
     .filter(Boolean);
 }
 
+function formItineraryToTrip(days: TripFormItineraryDay[]): ItineraryDay[] {
+  return days
+    .map((d, i) => ({
+      day: d.day || i + 1,
+      title: d.title.trim() || `Day ${i + 1}`,
+      activities: parseLines(d.activities),
+    }))
+    .filter((d) => d.title || d.activities.length > 0);
+}
+
 export function tripToForm(trip: Trip): TripForm {
   return {
     ...INITIAL_TRIP_FORM,
     title: trip.title,
+    slug: trip.slug?.trim() || tripPathSlug(trip.title),
     destination: trip.destination,
     category: trip.category,
     startDate: trip.startDate,
     endDate: trip.endDate,
     description: trip.description,
+    highlights: (trip.highlights ?? []).join("\n"),
     included: trip.included.join("\n"),
     excluded: trip.excluded.join("\n"),
-    minCapacity: String(trip.minCapacity),
-    maxCapacity: String(trip.capacity),
+    minCapacity: String(trip.minCapacity ?? 1),
+    maxCapacity:
+      trip.isUnlimitedCapacity || trip.capacity == null
+        ? ""
+        : String(trip.capacity),
+    departurePoint: trip.departurePoint ?? "",
+    departureTime: trip.departureTime ?? "",
+    returnTime: trip.returnTime ?? "",
+    meetingPoint: trip.meetingPoint ?? "",
+    difficulty: trip.difficulty ?? "moderate",
     price: String(trip.price),
+    offerCouplePrice:
+      trip.offerCouplePrice ?? (trip.couplePrice != null && trip.couplePrice > 0),
+    couplePrice: trip.couplePrice != null ? String(trip.couplePrice) : "",
+    offerGroupPrice:
+      trip.offerGroupPrice ?? (trip.groupPrice != null && trip.groupPrice > 0),
+    groupPrice: trip.groupPrice != null ? String(trip.groupPrice) : "",
+    groupSize: trip.groupSize != null ? String(trip.groupSize) : "5",
     depositAmount: String(trip.depositAmount),
     refundPolicy: trip.refundPolicy,
     refundDeadlineDays: String(trip.refundDeadlineDays),
-    refundPercentage: trip.refundPercentage != null ? String(trip.refundPercentage) : "",
+    refundPercentage:
+      trip.refundPercentage != null ? String(trip.refundPercentage) : "50",
     coverImage: trip.image,
-    gallery: trip.images.length > 1 ? trip.images.slice(1) : [],
+    gallery: (trip.images.length > 1 ? trip.images.slice(1) : []).slice(0, 6),
+    itinerary:
+      trip.itinerary.length > 0
+        ? trip.itinerary.map((d) => ({
+            day: d.day,
+            title: d.title,
+            activities: d.activities.join("\n"),
+          }))
+        : [{ day: 1, title: "", activities: "" }],
     status: trip.status,
   };
 }
@@ -152,20 +191,44 @@ export function buildTripUpdates(
       : (existing?.images ?? []);
 
   return {
-    title: form.title,
-    destination: form.destination,
-    category: form.category as TripCategory,
+    title: form.title.trim(),
+    slug: tripPathSlug(form.slug.trim() || form.title.trim()),
+    destination: form.destination.trim(),
+    category: (form.category || existing?.category || "adventure") as TripCategory,
     startDate: form.startDate,
     endDate: form.endDate,
-    description: form.description,
+    description: form.description.trim(),
+    highlights: parseLines(form.highlights),
     included: parseLines(form.included),
     excluded: parseLines(form.excluded),
+    itinerary: formItineraryToTrip(form.itinerary),
+    difficulty: form.difficulty,
+    meetingPoint: form.meetingPoint.trim() || undefined,
+    departurePoint: form.departurePoint.trim() || undefined,
+    departureTime: form.departureTime || undefined,
+    returnTime: form.returnTime || undefined,
     minCapacity: Number(form.minCapacity) || existing?.minCapacity || 1,
-    capacity: Number(form.maxCapacity) || existing?.capacity || 10,
+    capacity: form.maxCapacity.trim()
+      ? Number(form.maxCapacity) || null
+      : null,
+    isUnlimitedCapacity: !form.maxCapacity.trim(),
     price: Number(form.price) || 0,
+    couplePrice:
+      form.offerCouplePrice && form.couplePrice.trim()
+        ? Number(form.couplePrice) || 0
+        : undefined,
+    groupPrice:
+      form.offerGroupPrice && form.groupPrice.trim()
+        ? Number(form.groupPrice) || 0
+        : undefined,
+    groupSize:
+      form.offerGroupPrice && form.groupSize.trim()
+        ? Number(form.groupSize) || undefined
+        : undefined,
     depositAmount: Number(form.depositAmount) || 0,
     refundPolicy: form.refundPolicy,
-    refundDeadlineDays: Number(form.refundDeadlineDays) || existing?.refundDeadlineDays || 14,
+    refundDeadlineDays:
+      Number(form.refundDeadlineDays) || existing?.refundDeadlineDays || 14,
     refundPercentage:
       form.refundPolicy === "partial"
         ? Number(form.refundPercentage) || existing?.refundPercentage || 50
@@ -199,8 +262,10 @@ export function buildNewTrip(
     reviews: [],
     views: 0,
     conversions: 0,
-    itinerary: [],
+    itinerary: updates.itinerary ?? [],
+    highlights: updates.highlights ?? [],
     title: updates.title ?? "",
+    slug: updates.slug,
     destination: updates.destination ?? "",
     category: updates.category ?? "adventure",
     image: updates.image ?? "",
@@ -208,8 +273,13 @@ export function buildNewTrip(
     startDate: updates.startDate ?? "",
     endDate: updates.endDate ?? "",
     price: updates.price ?? 0,
+    couplePrice: updates.couplePrice,
+    groupPrice: updates.groupPrice,
+    groupSize: updates.groupSize,
     depositAmount: updates.depositAmount ?? 0,
-    capacity: updates.capacity ?? 10,
+    capacity: updates.capacity ?? null,
+    isUnlimitedCapacity:
+      updates.isUnlimitedCapacity ?? updates.capacity == null,
     minCapacity: updates.minCapacity ?? 1,
     description: updates.description ?? "",
     included: updates.included ?? [],
@@ -219,5 +289,10 @@ export function buildNewTrip(
     refundPolicy: updates.refundPolicy ?? "partial",
     refundDeadlineDays: updates.refundDeadlineDays ?? 14,
     refundPercentage: updates.refundPercentage,
+    difficulty: updates.difficulty,
+    meetingPoint: updates.meetingPoint,
+    departurePoint: updates.departurePoint,
+    departureTime: updates.departureTime,
+    returnTime: updates.returnTime,
   };
 }

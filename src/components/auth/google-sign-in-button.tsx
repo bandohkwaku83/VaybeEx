@@ -1,6 +1,10 @@
 "use client";
 
+import { useGoogleOAuth } from "@react-oauth/google";
+import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { getGoogleClientId } from "@/components/auth/google-auth-provider";
 import { cn } from "@/lib/utils";
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -26,30 +30,184 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+            auto_select?: boolean;
+            cancel_on_tap_outside?: boolean;
+          }) => void;
+          prompt: (
+            momentListener?: (notification: {
+              isNotDisplayed: () => boolean;
+              isSkippedMoment: () => boolean;
+              isDismissedMoment: () => boolean;
+            }) => void
+          ) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: Record<string, unknown>
+          ) => void;
+          cancel: () => void;
+        };
+      };
+    };
+  }
+}
+
 interface GoogleSignInButtonProps {
-  onClick: () => void;
+  /** Called with the Google ID token (JWT), not an access token. */
+  onCredential: (idToken: string) => void | Promise<void>;
   disabled?: boolean;
   label?: string;
   className?: string;
 }
 
-export function GoogleSignInButton({
-  onClick,
+function requestGoogleIdToken(clientId: string, host: HTMLElement) {
+  return new Promise<string>((resolve, reject) => {
+    const google = window.google?.accounts?.id;
+    if (!google) {
+      reject(new Error("Google sign-in is still loading. Try again in a moment."));
+      return;
+    }
+
+    let settled = false;
+    const timeout = window.setTimeout(() => {
+      finish(undefined, new Error("Google sign-in timed out. Please try again."));
+    }, 120_000);
+
+    const finish = (credential?: string, error?: Error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      if (credential) resolve(credential);
+      else reject(error ?? new Error("Google sign-in was cancelled."));
+    };
+
+    google.initialize({
+      client_id: clientId,
+      callback: (response) => finish(response.credential),
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+
+    google.prompt((notification) => {
+      if (
+        notification.isNotDisplayed() ||
+        notification.isSkippedMoment() ||
+        notification.isDismissedMoment()
+      ) {
+        host.innerHTML = "";
+        google.renderButton(host, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "continue_with",
+          shape: "rectangular",
+          width: 320,
+        });
+        const btn = host.querySelector('div[role="button"]') as HTMLElement | null;
+        if (btn) btn.click();
+        else finish(undefined, new Error("Google sign-in unavailable."));
+      }
+    });
+  });
+}
+
+function GoogleSignInButtonInner({
+  onCredential,
   disabled,
   label = "Continue with Google",
   className,
 }: GoogleSignInButtonProps) {
+  const { scriptLoadedSuccessfully } = useGoogleOAuth();
+  const [busy, setBusy] = useState(false);
+  const hiddenHostRef = useRef<HTMLDivElement>(null);
+
+  const handleClick = useCallback(async () => {
+    const clientId = getGoogleClientId();
+    if (!clientId) {
+      toast.error("Google sign-in is not configured.");
+      return;
+    }
+    if (!scriptLoadedSuccessfully || !hiddenHostRef.current) {
+      toast.error("Google sign-in is still loading. Try again in a moment.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const idToken = await requestGoogleIdToken(clientId, hiddenHostRef.current);
+      await onCredential(idToken);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Google sign-in failed.";
+      if (!/cancelled/i.test(message)) toast.error(message);
+    } finally {
+      setBusy(false);
+      if (hiddenHostRef.current) hiddenHostRef.current.innerHTML = "";
+    }
+  }, [onCredential, scriptLoadedSuccessfully]);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className={cn(
+          "w-full border-stone-200 bg-white hover:bg-stone-50",
+          className
+        )}
+        onClick={() => void handleClick()}
+        disabled={disabled || busy || !scriptLoadedSuccessfully}
+      >
+        <GoogleIcon className="h-5 w-5" />
+        {busy ? "Connecting..." : label}
+      </Button>
+      <div
+        ref={hiddenHostRef}
+        aria-hidden
+        className="pointer-events-none fixed left-[-9999px] top-0 h-0 w-0 overflow-hidden opacity-0"
+      />
+    </>
+  );
+}
+
+function GoogleSignInButtonFallback({
+  label = "Continue with Google",
+  className,
+  disabled,
+}: Omit<GoogleSignInButtonProps, "onCredential">) {
   return (
     <Button
       type="button"
       variant="outline"
       size="lg"
-      className={cn("w-full border-stone-200 bg-white hover:bg-stone-50", className)}
-      onClick={onClick}
-      disabled={disabled}
+      className={cn(
+        "w-full border-stone-200 bg-white hover:bg-stone-50",
+        className
+      )}
+      disabled={disabled ?? true}
+      onClick={() =>
+        toast.error(
+          "Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to your environment to enable Google sign-in."
+        )
+      }
     >
       <GoogleIcon className="h-5 w-5" />
       {label}
     </Button>
   );
+}
+
+export function GoogleSignInButton(props: GoogleSignInButtonProps) {
+  if (!getGoogleClientId()) {
+    return <GoogleSignInButtonFallback {...props} />;
+  }
+  return <GoogleSignInButtonInner {...props} />;
 }

@@ -1,103 +1,290 @@
+/* eslint-disable react-hooks/static-components */
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { MediaImage } from "@/components/ui/media-image";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import gsap from "gsap";
 import {
   ArrowLeft,
-  Calendar,
+  Camera,
   Check,
+  ChevronLeft,
   ChevronRight,
   Clock,
-  Compass,
   Heart,
+  HeartHandshake,
   MapPin,
-  Mountain,
-  Palmtree,
   Share2,
   Shield,
-  Sparkles,
   Star,
   Users,
   X,
-  Binoculars,
-  Building2,
-  Landmark,
-  Utensils,
-  Bus,
-  Tent,
-  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { VerifiedBadge } from "@/components/trips/verified-badge";
-import { SeatCounter } from "@/components/trips/seat-counter";
 import { StarRating } from "@/components/trips/star-rating";
 import { useAuth } from "@/hooks/use-auth";
 import { useWishlist } from "@/hooks/use-wishlist";
+import { DEFAULT_PROFILE_IMAGE } from "@/lib/api/media";
 import { cn, formatCurrency, formatDateRange } from "@/lib/utils";
-import { getSpotsLeft } from "@/lib/mock-data";
+import { trackTripEvent } from "@/lib/api/public-trips";
 import { formatRefundPolicyLabel } from "@/lib/refund-utils";
-import type { Organizer, Trip, TripCategory } from "@/lib/types";
+import {
+  formatSpotsLeftLabel,
+  getSpotsLeft,
+  isTripBookable,
+  isTripFull,
+} from "@/lib/trip-capacity";
+import {
+  getTenantBrandHomeUrl,
+  getTripPublicSlug,
+} from "@/lib/tenant";
+import { getBrandFromHost } from "@/lib/tenant-host";
+import { tripSpecialtyLabel } from "@/lib/trip-specialties";
+import { findActiveBookingForTrip } from "@/lib/api/bookings";
+import type { Booking, Organizer, Trip } from "@/lib/types";
+
+function existingBookingCta(booking: Booking): { label: string; hint: string } {
+  if (booking.paymentStatus === "paid") {
+    return {
+      label: "You're booked",
+      hint: "This trip is already on your bookings",
+    };
+  }
+  if (booking.paymentStatus === "partial") {
+    return {
+      label: "Pay balance",
+      hint: "You already reserved this trip — pay the remaining balance",
+    };
+  }
+  return {
+    label: "Complete payment",
+    hint: "Finish paying to confirm your existing reservation",
+  };
+}
 
 interface TripDetailClientProps {
   trip: Trip;
   organizer: Organizer;
 }
 
-const CATEGORY_META: Record<
-  TripCategory,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  adventure: { label: "Adventure", icon: Mountain },
-  beach: { label: "Beach", icon: Palmtree },
-  cultural: { label: "Cultural", icon: Landmark },
-  wildlife: { label: "Wildlife", icon: Binoculars },
-  city: { label: "City", icon: Building2 },
-  wellness: { label: "Wellness", icon: Sparkles },
-};
+function formatClock(time?: string) {
+  if (!time) return null;
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h)) return time;
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
+}
 
-const INCLUDED_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  guide: Compass,
-  meal: Utensils,
-  transport: Bus,
-  camp: Tent,
-  insurance: Shield,
-  photo: Camera,
-};
+function Lightbox({
+  images,
+  startIndex,
+  onClose,
+}: {
+  images: string[];
+  startIndex: number;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(startIndex);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
-function getIncludedIcon(item: string) {
-  const lower = item.toLowerCase();
-  for (const [key, Icon] of Object.entries(INCLUDED_ICONS)) {
-    if (lower.includes(key)) return Icon;
+  useEffect(() => {
+    gsap.fromTo(
+      overlayRef.current,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.2, ease: "power2.out" }
+    );
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight")
+        setIndex((i) => (i + 1) % images.length);
+      if (e.key === "ArrowLeft")
+        setIndex((i) => (i - 1 + images.length) % images.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [images.length, onClose]);
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-[100] flex flex-col"
+      style={{ background: "rgba(10,6,3,0.94)" }}
+    >
+      <div className="flex shrink-0 items-center justify-between px-5 py-4">
+        <p className="text-sm" style={{ color: "rgba(251,247,241,0.7)" }}>
+          {index + 1} / {images.length}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-none"
+          style={{ background: "rgba(251,247,241,0.12)", color: "#fbf7f1" }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="relative flex flex-1 items-center justify-center px-12">
+        <div className="relative h-full max-h-[78vh] w-full max-w-5xl">
+          <MediaImage
+            key={images[index]}
+            src={images[index]}
+            alt=""
+            fill
+            className="object-contain"
+            priority
+            sizes="100vw"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setIndex((i) => (i - 1 + images.length) % images.length)
+          }
+          className="absolute left-3 flex h-10 w-10 items-center justify-center rounded-full"
+          style={{ background: "rgba(251,247,241,0.12)", color: "#fbf7f1" }}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setIndex((i) => (i + 1) % images.length)}
+          className="absolute right-3 flex h-10 w-10 items-center justify-center rounded-full"
+          style={{ background: "rgba(251,247,241,0.12)", color: "#fbf7f1" }}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Airbnb-style photo grid — inset, rounded, show-all control */
+function PhotoGallery({
+  images,
+  onOpen,
+}: {
+  images: string[];
+  onOpen: (i: number) => void;
+}) {
+  const pics = images.length ? images : ["/images/cta-image.jpg"];
+  const count = pics.length;
+
+  if (count === 1) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen(0)}
+        className="relative block h-[42vh] min-h-[280px] w-full overflow-hidden rounded-2xl sm:h-[52vh]"
+      >
+        <MediaImage
+          src={pics[0]}
+          alt=""
+          fill
+          className="object-cover"
+          priority
+          sizes="100vw"
+        />
+      </button>
+    );
   }
-  return Check;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      <div
+        className={cn(
+          "grid gap-1.5",
+          count === 2
+            ? "grid-cols-2"
+            : "grid-cols-1 sm:grid-cols-[1.4fr_1fr]"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(0)}
+          className="relative h-[280px] overflow-hidden sm:h-[420px]"
+        >
+          <MediaImage
+            src={pics[0]}
+            alt=""
+            fill
+            className="object-cover transition-transform duration-500 hover:scale-[1.02]"
+            priority
+            sizes="(max-width: 640px) 100vw, 60vw"
+          />
+        </button>
+
+        {count >= 3 ? (
+          <div className="hidden h-[280px] grid-cols-2 grid-rows-2 gap-1.5 sm:grid sm:h-[420px]">
+            {pics.slice(1, 5).map((src, i) => (
+              <button
+                key={src + i}
+                type="button"
+                onClick={() => onOpen(i + 1)}
+                className="relative h-full min-h-0 overflow-hidden"
+              >
+                <MediaImage
+                  src={src}
+                  alt=""
+                  fill
+                  className="object-cover transition-transform duration-500 hover:scale-[1.03]"
+                  sizes="25vw"
+                />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpen(1)}
+            className="relative hidden h-[420px] overflow-hidden sm:block"
+          >
+            <MediaImage
+              src={pics[1]}
+              alt=""
+              fill
+              className="object-cover transition-transform duration-500 hover:scale-[1.02]"
+              sizes="40vw"
+            />
+          </button>
+        )}
+      </div>
+
+      {count > 1 && (
+        <button
+          type="button"
+          onClick={() => onOpen(0)}
+          className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm backdrop-blur-md"
+          style={{
+            background: "rgba(255,255,255,0.92)",
+            borderColor: "var(--border-strong)",
+            color: "var(--text)",
+          }}
+        >
+          <Camera className="h-3.5 w-3.5" />
+          Show all {count} photos
+        </button>
+      )}
+    </div>
+  );
 }
 
-function getTripDuration(start: string, end: string) {
-  const days =
-    Math.ceil(
-      (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
-  return days;
-}
-
-function BookingCard({
+function BookingPanel({
   trip,
   isFull,
   onBook,
   onSave,
   onShare,
   wishlisted,
-  className,
+  existingBooking,
 }: {
   trip: Trip;
   isFull: boolean;
@@ -105,106 +292,278 @@ function BookingCard({
   onSave: () => void;
   onShare: () => void;
   wishlisted: boolean;
-  className?: string;
+  existingBooking: Booking | null;
 }) {
-  const fillPct = Math.round((trip.booked / trip.capacity) * 100);
+  const bookable = isTripBookable(trip);
+  const existingCta = existingBooking
+    ? existingBookingCta(existingBooking)
+    : null;
+  const spots = getSpotsLeft(trip);
+  const showCouple =
+    trip.offerCouplePrice !== false && trip.couplePrice != null;
+  const showGroup =
+    trip.offerGroupPrice !== false && trip.groupPrice != null;
 
   return (
-    <Card
-      className={cn(
-        "overflow-hidden border-stone-200/80 shadow-xl shadow-stone-200/50",
-        className
-      )}
-    >
-      <div className="h-1 bg-gradient-to-r from-teal-500 via-teal-400 to-amber-400" />
-      <CardContent className="p-6">
-        <div className="flex items-end justify-between gap-3">
+    <aside className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_30px_rgba(42,27,15,0.1)] ring-1 ring-black/[0.06]">
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-stone-400">
-              From
-            </p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-stone-900">
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className="font-display text-[1.75rem] font-bold leading-none tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
                 {formatCurrency(trip.price)}
               </span>
-              <span className="text-stone-400">/ person</span>
+              <span
+                className="text-sm"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                person
+              </span>
             </div>
+            <p
+              className="mt-2 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {existingCta
+                ? existingCta.hint
+                : bookable
+                  ? `${formatCurrency(trip.depositAmount)} due today to reserve`
+                  : trip.status === "completed"
+                    ? "This trip has already been completed"
+                    : "Booking is not available for this trip"}
+            </p>
           </div>
           {trip.rating > 0 && (
-            <div className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-sm">
-              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-              <span className="font-semibold text-stone-800">{trip.rating}</span>
-            </div>
+            <span
+              className="inline-flex items-center gap-1 text-sm font-semibold"
+              style={{ color: "var(--text)" }}
+            >
+              <Star
+                className="h-3.5 w-3.5 fill-current"
+                style={{ color: "var(--gold)" }}
+              />
+              {trip.rating}
+            </span>
           )}
         </div>
 
-        <p className="mt-2 text-sm text-stone-500">
-          {formatCurrency(trip.depositAmount)} deposit to secure your spot
+        <div
+          className="mt-5 flex items-center gap-2 rounded-xl border px-3.5 py-3"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <Users
+            className="h-4 w-4 shrink-0"
+            style={{
+              color:
+                spots === 0
+                  ? "var(--coral)"
+                  : spots != null && spots <= 5
+                    ? "var(--amber)"
+                    : "#2e7d52",
+            }}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-[11px] font-medium uppercase tracking-wide"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Spots left
+            </p>
+            <p
+              className="truncate text-sm font-semibold"
+              style={{
+                color:
+                  spots === 0
+                    ? "var(--coral)"
+                    : spots != null && spots <= 5
+                      ? "var(--amber)"
+                      : "var(--text)",
+              }}
+            >
+              {formatSpotsLeftLabel(trip)}
+            </p>
+          </div>
+        </div>
+
+        {(showCouple || showGroup) && (
+          <div className="mt-5">
+            <p
+              className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Pricing options
+            </p>
+            <div
+              className="overflow-hidden rounded-xl border"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div
+                className="flex items-center justify-between px-3.5 py-2.5 text-sm"
+                style={{ background: "var(--bg-secondary)" }}
+              >
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Per person
+                </span>
+                <span className="font-semibold" style={{ color: "var(--text)" }}>
+                  {formatCurrency(trip.price)}
+                </span>
+              </div>
+              {showCouple && (
+                <div
+                  className="flex items-center justify-between border-t px-3.5 py-2.5 text-sm"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <span
+                    className="inline-flex items-center gap-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <HeartHandshake
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--gold)" }}
+                    />
+                    Couple
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {formatCurrency(trip.couplePrice!)}
+                  </span>
+                </div>
+              )}
+              {showGroup && (
+                <div
+                  className="flex items-center justify-between border-t px-3.5 py-2.5 text-sm"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <span
+                    className="inline-flex items-center gap-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <Users
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--gold)" }}
+                    />
+                    Group of {trip.groupSize ?? "—"}
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {formatCurrency(trip.groupPrice!)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onBook}
+          disabled={!existingCta && !bookable}
+          className="mt-5 flex h-12 w-full items-center justify-center rounded-none text-sm font-semibold text-white transition-opacity hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ background: "var(--primary)" }}
+        >
+          {existingCta
+            ? existingCta.label
+            : !bookable
+              ? trip.status === "completed"
+                ? "Completed"
+                : "Unavailable"
+              : isFull
+                ? "Join waitlist"
+                : "Reserve"}
+        </button>
+
+        <p
+          className="mt-2.5 text-center text-xs"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          {existingCta
+            ? "Open your booking instead of creating another one"
+            : bookable
+              ? "You won't be charged the full amount yet"
+              : "Booking is closed for this trip"}
         </p>
 
-        <Separator className="my-5" />
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-stone-500">Availability</span>
-            <span className="font-medium text-stone-700">
-              {trip.booked}/{trip.capacity} booked
-            </span>
-          </div>
-          <Progress value={fillPct} className="h-2" />
-          <SeatCounter trip={trip} live className="w-full justify-center" />
-        </div>
-
-        <div className="mt-5 space-y-2.5">
-          <Button
-            className="w-full"
-            size={isFull ? "default" : "lg"}
-            variant={isFull ? "accent" : "default"}
-            onClick={onBook}
+        <div className="mt-4 flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={onSave}
+            className="inline-flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04]"
+            style={{ color: wishlisted ? "var(--coral)" : "var(--text)" }}
           >
-            {isFull ? "Join Waitlist" : "Book Now"}
-          </Button>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={onSave}>
-              <Heart
-                className={cn(
-                  "h-4 w-4",
-                  wishlisted && "fill-red-500 text-red-500"
-                )}
-              />
-              Save
-            </Button>
-            <Button variant="outline" onClick={onShare}>
-              <Share2 className="h-4 w-4" />
+            <Heart
+              className={cn("h-4 w-4", wishlisted && "fill-current")}
+              strokeWidth={1.75}
+            />
+            <span className="underline decoration-[1.5px] underline-offset-2">
+              {wishlisted ? "Saved" : "Save"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onShare}
+            className="inline-flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04]"
+            style={{ color: "var(--text)" }}
+          >
+            <Share2 className="h-4 w-4" strokeWidth={1.75} />
+            <span className="underline decoration-[1.5px] underline-offset-2">
               Share
-            </Button>
-          </div>
+            </span>
+          </button>
         </div>
+      </div>
 
-        <div className="mt-5 space-y-2.5 rounded-xl bg-stone-50 p-4">
-          <div className="flex items-start gap-2.5 text-sm text-stone-600">
-            <Shield className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" />
-            <span>{formatRefundPolicyLabel(trip)}</span>
-          </div>
-          <div className="flex items-start gap-2.5 text-sm text-stone-600">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" />
-            <span>No payment today — pay deposit to confirm</span>
-          </div>
-        </div>
+      <div
+        className="border-t px-6 py-4"
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--bg-secondary)",
+        }}
+      >
+        <p
+          className="flex items-start gap-2.5 text-sm leading-snug"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          <Shield
+            className="mt-0.5 h-4 w-4 shrink-0"
+            style={{ color: "var(--primary)" }}
+          />
+          {formatRefundPolicyLabel(trip)}
+        </p>
 
         {trip.addOns.length > 0 && (
-          <div className="mt-5">
-            <p className="text-xs font-medium uppercase tracking-wider text-stone-400">
-              Optional add-ons
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+            <p
+              className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Add-ons
             </p>
-            <ul className="mt-2 space-y-1.5">
-              {trip.addOns.slice(0, 3).map((addon) => (
+            <ul className="space-y-2">
+              {trip.addOns.map((addon) => (
                 <li
                   key={addon.id}
-                  className="flex items-center justify-between text-sm text-stone-600"
+                  className="flex items-center justify-between gap-3 text-sm"
                 >
-                  <span>{addon.name}</span>
-                  <span className="font-medium text-stone-800">
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {addon.name}
+                    <span
+                      className="ml-1 text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      · {addon.perPerson === false ? "booking" : "person"}
+                    </span>
+                  </span>
+                  <span
+                    className="font-semibold tabular-nums"
+                    style={{ color: "var(--text)" }}
+                  >
                     +{formatCurrency(addon.price)}
                   </span>
                 </li>
@@ -212,539 +571,845 @@ function BookingCard({
             </ul>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </aside>
   );
 }
 
 export function TripDetailClient({ trip, organizer }: TripDetailClientProps) {
   const router = useRouter();
-  const { requireAuth } = useAuth();
+  const { requireTravelerAuth, user, isLoading: authLoading } = useAuth();
   const { toggle, isWishlisted } = useWishlist();
   const [descExpanded, setDescExpanded] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [existingBooking, setExistingBooking] = useState<Booking | null>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
 
-  const spotsLeft = getSpotsLeft(trip);
-  const isFull = spotsLeft === 0;
-  const bookHref = `/trips/${trip.id}/book${isFull ? "?waitlist=true" : ""}`;
-  const duration = getTripDuration(trip.startDate, trip.endDate);
-  const CategoryIcon = CATEGORY_META[trip.category].icon;
-  const wishlisted = isWishlisted(trip.id);
+  const isFull = isTripFull(trip);
+  const bookable = isTripBookable(trip);
+  const existingCta = existingBooking
+    ? existingBookingCta(existingBooking)
+    : null;
+  const organizerHomeHref = organizer.brandSlug
+    ? getTenantBrandHomeUrl(organizer.brandSlug)
+    : `/organizers/${organizer.id}`;
+  const wishlisted = isWishlisted(trip.id, trip.isFavorited === true);
+  const highlights = trip.highlights?.length
+    ? trip.highlights
+    : trip.included.slice(0, 4);
+  const hasLogistics = Boolean(
+    trip.meetingPoint ||
+      trip.departurePoint ||
+      trip.departureTime ||
+      trip.returnTime
+  );
 
-  const handleBook = () =>
-    requireAuth(() => router.push(bookHref), bookHref);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user || user.role !== "traveler") {
+      setExistingBooking(null);
+      return;
+    }
+    let cancelled = false;
+    void findActiveBookingForTrip(trip.id)
+      .then((booking) => {
+        if (!cancelled) setExistingBooking(booking);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingBooking(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, trip.id]);
+
+  const handleBook = () => {
+    if (existingBooking) {
+      requireTravelerAuth(() => {
+        router.push("/dashboard");
+      }, "/dashboard");
+      return;
+    }
+
+    const onTenant =
+      typeof window !== "undefined" &&
+      Boolean(getBrandFromHost(window.location.host));
+    // Always same-origin: Next's router.push strips host from absolute tenant URLs
+    // (e.g. http://brand.localhost/slug/book → /slug/book on apex → 404).
+    const dest = onTenant
+      ? `/${getTripPublicSlug(trip)}/book${isFull ? "?waitlist=true" : ""}`
+      : `/trips/${trip.id}/book${isFull ? "?waitlist=true" : ""}`;
+
+    requireTravelerAuth(() => {
+      void trackTripEvent(trip.id, "book_click").catch(() => {});
+      router.push(dest);
+    }, dest);
+  };
+
 
   const handleSave = () =>
-    requireAuth(() => {
-      toggle(trip.id);
-      toast.success(wishlisted ? "Removed from wishlist" : "Saved to wishlist");
+    requireTravelerAuth(() => {
+      void (async () => {
+        const wasSaved = wishlisted;
+        try {
+          await toggle(trip.id);
+          toast.success(
+            wasSaved ? "Removed from wishlist" : "Saved to wishlist"
+          );
+        } catch {
+          /* hook toast */
+        }
+      })();
     });
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
+    void navigator.clipboard.writeText(window.location.href);
     toast.success("Link copied!");
   };
 
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".td-reveal",
+        { y: 18, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.55,
+          stagger: 0.06,
+          ease: "power3.out",
+        }
+      );
+    }, pageRef);
+    return () => ctx.revert();
+  }, []);
+
   return (
     <>
-      <div className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12">
-        {/* Back nav */}
-        <Link
-          href="/trips"
-          className="mb-5 inline-flex items-center gap-1.5 text-sm text-stone-500 transition-colors hover:text-teal-700"
+      <div
+        ref={pageRef}
+        className="mx-auto max-w-6xl px-4 pb-28 pt-24 sm:px-6 sm:pt-28 lg:px-8 lg:pb-16"
+      >
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="td-reveal mb-5 inline-flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+          style={{ color: "var(--text-secondary)" }}
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to trips
-        </Link>
+          Back
+        </button>
 
-        {/* Hero gallery */}
-        <div className="relative -mx-4 sm:mx-0">
-          <div className="grid h-[280px] gap-1.5 overflow-hidden sm:rounded-2xl md:h-[440px] md:grid-cols-4 md:grid-rows-2">
-            <button
-              type="button"
-              className="relative md:col-span-2 md:row-span-2"
-              onClick={() => setGalleryOpen(true)}
-            >
-              <Image
-                src={trip.images[0]}
-                alt={trip.title}
-                fill
-                className="object-cover transition-transform duration-700 hover:scale-[1.02]"
-                priority
-              />
-            </button>
-            {trip.images.slice(1, 5).map((img, i) => (
-              <button
-                key={i}
-                type="button"
-                className={cn(
-                  "relative hidden md:block",
-                  i === 0 && trip.images.length === 2 && "md:col-span-2"
-                )}
-                onClick={() => setGalleryOpen(true)}
+        {/* Title block — identity before media; Share/Save on the right */}
+        <header className="td-reveal mb-5">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+            <div className="min-w-0 max-w-3xl">
+              <h1
+                className="font-display text-3xl font-bold tracking-tight sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]"
+                style={{ color: "var(--text)" }}
               >
-                <Image src={img} alt="" fill className="object-cover" />
-              </button>
-            ))}
-          </div>
-
-          {/* Floating actions */}
-          <div className="absolute right-4 top-4 flex gap-2 sm:right-6 sm:top-6">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full border-0 bg-white/90 shadow-md backdrop-blur-sm hover:bg-white"
-              onClick={handleShare}
-            >
-              <Share2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full border-0 bg-white/90 shadow-md backdrop-blur-sm hover:bg-white"
-              onClick={handleSave}
-            >
-              <Heart
-                className={cn(
-                  "h-4 w-4",
-                  wishlisted && "fill-red-500 text-red-500"
+                {trip.title}
+              </h1>
+              <div
+                className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <MapPin className="h-3.5 w-3.5" style={{ color: "var(--gold)" }} />
+                  {trip.destination}
+                </span>
+                <span style={{ color: "var(--border-strong)" }}>·</span>
+                <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
+                {organizer.verified && (
+                  <>
+                    <span style={{ color: "var(--border-strong)" }}>·</span>
+                    <VerifiedBadge />
+                  </>
                 )}
-              />
-            </Button>
-          </div>
+                {trip.rating > 0 && (
+                  <>
+                    <span style={{ color: "var(--border-strong)" }}>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Star
+                        className="h-3.5 w-3.5 fill-current"
+                        style={{ color: "var(--gold)" }}
+                      />
+                      <span className="font-medium" style={{ color: "var(--text)" }}>
+                        {trip.rating}
+                      </span>
+                      <span>({trip.reviewCount})</span>
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
 
-          {trip.images.length > 1 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute bottom-4 right-4 border-0 bg-white/90 shadow-md backdrop-blur-sm hover:bg-white sm:bottom-6 sm:right-6"
-              onClick={() => setGalleryOpen(true)}
+            <div
+              className="flex shrink-0 items-center gap-1 pt-1.5"
+              role="group"
+              aria-label="Trip actions"
             >
-              <Camera className="h-4 w-4" />
-              Show all {trip.images.length} photos
-            </Button>
-          )}
+              <button
+                type="button"
+                onClick={handleShare}
+                aria-label="Share trip"
+                className="inline-flex items-center gap-2 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
+                style={{ color: "var(--text)" }}
+              >
+                <Share2 className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                <span className="underline decoration-[1.5px] underline-offset-[3px]">
+                  Share
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                aria-label={wishlisted ? "Remove from wishlist" : "Save trip"}
+                aria-pressed={wishlisted}
+                className="inline-flex items-center gap-2 rounded-none px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
+                style={{ color: "var(--text)" }}
+              >
+                <Heart
+                  className={cn(
+                    "h-[18px] w-[18px]",
+                    wishlisted && "fill-[var(--coral)] text-[var(--coral)]"
+                  )}
+                  strokeWidth={1.5}
+                />
+                <span className="underline decoration-[1.5px] underline-offset-[3px]">
+                  {wishlisted ? "Saved" : "Save"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div className="td-reveal mb-10">
+          <PhotoGallery
+            images={trip.images}
+            onOpen={(i) => setLightboxIndex(i)}
+          />
         </div>
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_380px] lg:gap-12">
-          <div>
-            {/* Header */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="gap-1 capitalize">
-                <CategoryIcon className="h-3 w-3" />
-                {CATEGORY_META[trip.category].label}
-              </Badge>
-              {organizer.verified && <VerifiedBadge />}
-              <SeatCounter trip={trip} live />
-            </div>
-
-            <h1 className="mt-3 font-serif text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl">
-              {trip.title}
-            </h1>
-
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-stone-500">
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4 text-teal-600" />
-                {trip.destination}
-              </span>
-              {trip.rating > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  <span className="font-medium text-stone-700">{trip.rating}</span>
-                  <span>({trip.reviewCount} reviews)</span>
-                </span>
-              )}
-            </div>
-
-            {/* Quick info grid */}
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                {
-                  icon: Calendar,
-                  label: "Dates",
-                  value: formatDateRange(trip.startDate, trip.endDate),
-                },
-                {
-                  icon: Clock,
-                  label: "Duration",
-                  value: `${duration} day${duration === 1 ? "" : "s"}`,
-                },
-                {
-                  icon: Users,
-                  label: "Group size",
-                  value: `Up to ${trip.capacity}`,
-                },
-                {
-                  icon: CategoryIcon,
-                  label: "Style",
-                  value: CATEGORY_META[trip.category].label,
-                },
-              ].map(({ icon: Icon, label, value }) => (
-                <div
-                  key={label}
-                  className="rounded-xl border border-stone-100 bg-white p-3.5 shadow-sm"
-                >
-                  <Icon className="h-4 w-4 text-teal-600" />
-                  <p className="mt-2 text-xs font-medium uppercase tracking-wide text-stone-400">
-                    {label}
-                  </p>
-                  <p className="mt-0.5 text-sm font-medium text-stone-800">{value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Organizer preview */}
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
+          <div className="min-w-0">
+            {/* Host strip */}
             <Link
-              href={`/organizers/${organizer.id}`}
-              className="mt-6 flex items-center gap-3 rounded-xl border border-stone-100 bg-white p-4 shadow-sm transition-all hover:border-teal-200 hover:shadow-md"
+              href={organizerHomeHref}
+              className="td-reveal flex items-center gap-3 border-b pb-6"
+              style={{ borderColor: "var(--border)" }}
             >
-              <Avatar className="h-11 w-11 ring-2 ring-teal-100">
-                <AvatarImage src={organizer.avatar} />
-                <AvatarFallback>{organizer.name[0]}</AvatarFallback>
+              <Avatar className="h-12 w-12">
+                <AvatarImage src={organizer.avatar || DEFAULT_PROFILE_IMAGE} />
+                <AvatarFallback className="overflow-hidden p-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={DEFAULT_PROFILE_IMAGE}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-stone-900">
-                    Hosted by {organizer.name}
-                  </span>
-                  {organizer.verified && <VerifiedBadge />}
-                </div>
-                <p className="text-sm text-stone-500">
-                  {organizer.tripCount} trips · {organizer.rating} rating
+                <p className="font-medium" style={{ color: "var(--text)" }}>
+                  Hosted by {organizer.name}
+                </p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {[
+                    organizer.location,
+                    formatSpotsLeftLabel(trip),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
-              <ChevronRight className="h-5 w-5 shrink-0 text-stone-300" />
+              <ChevronRight
+                className="h-5 w-5 shrink-0"
+                style={{ color: "var(--text-tertiary)" }}
+              />
             </Link>
 
+            {/* Highlights — open list, not boxed cards */}
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                What you&apos;ll experience
+              </h2>
+              <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+                {highlights.map((item, i) => (
+                  <li
+                    key={`${item}-${i}`}
+                    className="flex items-start gap-3 text-sm leading-snug"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <Check
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      style={{ color: "var(--gold)" }}
+                    />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
             {/* About */}
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold text-stone-900">About this trip</h2>
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                About this trip
+              </h2>
               <p
                 className={cn(
-                  "mt-3 text-stone-600 leading-relaxed",
-                  !descExpanded && "line-clamp-3"
+                  "mt-4 text-[15px] leading-relaxed",
+                  !descExpanded && "line-clamp-5"
                 )}
+                style={{ color: "var(--text-secondary)" }}
               >
                 {trip.description}
               </p>
-              {trip.description.length > 180 && (
+              {trip.description.length > 220 && (
                 <button
                   type="button"
                   onClick={() => setDescExpanded((v) => !v)}
-                  className="mt-2 text-sm font-medium text-teal-700 hover:text-teal-800"
+                  className="mt-3 text-sm font-semibold underline underline-offset-4"
+                  style={{ color: "var(--text)" }}
                 >
-                  {descExpanded ? "Show less" : "Read more"}
+                  {descExpanded ? "Show less" : "Show more"}
                 </button>
               )}
             </section>
 
-            {/* Highlights */}
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold text-stone-900">Trip highlights</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {trip.included.slice(0, 6).map((item) => {
-                  const Icon = getIncludedIcon(item);
-                  return (
-                    <div
-                      key={item}
-                      className="flex items-center gap-2.5 rounded-xl bg-teal-50/60 px-3.5 py-3 text-sm text-stone-700"
-                    >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
-                        <Icon className="h-4 w-4 text-teal-600" />
-                      </div>
-                      <span className="leading-snug">{item}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+            {/* Itinerary timeline */}
+            {trip.itinerary.length > 0 && (
+              <section
+                className="td-reveal border-b py-8"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <h2
+                  className="font-display text-xl font-semibold tracking-tight"
+                  style={{ color: "var(--text)" }}
+                >
+                  Itinerary
+                </h2>
+                <p className="mt-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {trip.itinerary.length} day
+                  {trip.itinerary.length === 1 ? "" : "s"} planned with your host
+                </p>
 
-            {/* Tabs */}
-            <Tabs defaultValue="itinerary" className="mt-10">
-              <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
-                {(["itinerary", "included", "reviews", "organizer"] as const).map(
-                  (tab) => (
-                    <TabsTrigger
-                      key={tab}
-                      value={tab}
-                      className="rounded-full border border-transparent px-4 py-2 capitalize data-[state=active]:border-stone-200 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                    >
-                      {tab}
-                      {tab === "reviews" && trip.reviewCount > 0 && (
-                        <span className="ml-1.5 rounded-full bg-stone-100 px-1.5 py-0.5 text-xs tabular-nums">
-                          {trip.reviewCount}
-                        </span>
-                      )}
-                    </TabsTrigger>
-                  )
-                )}
-              </TabsList>
-
-              <TabsContent value="itinerary">
-                <div className="relative mt-6 space-y-0">
+                <ol className="relative mt-8 space-y-0">
                   {trip.itinerary.map((day, idx) => (
-                    <motion.div
-                      key={day.day}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.08 }}
-                      className="relative flex gap-5 pb-8 last:pb-0"
-                    >
+                    <li key={day.day} className="relative flex gap-4 pb-8 last:pb-0">
                       {idx < trip.itinerary.length - 1 && (
-                        <div className="absolute left-[15px] top-10 h-[calc(100%-16px)] w-0.5 bg-gradient-to-b from-teal-200 to-stone-100" />
+                        <span
+                          className="absolute left-[15px] top-8 bottom-0 w-px"
+                          style={{ background: "var(--border-strong)" }}
+                        />
                       )}
-                      <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white shadow-md shadow-teal-200">
+                      <span
+                        className="relative z-[1] flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                        style={{
+                          background: "var(--primary)",
+                          color: "#fbf7f1",
+                        }}
+                      >
                         {day.day}
-                      </div>
-                      <div className="min-w-0 flex-1 rounded-xl border border-stone-100 bg-white p-4 shadow-sm">
-                        <h3 className="font-semibold text-stone-900">{day.title}</h3>
-                        <ul className="mt-3 space-y-2">
+                      </span>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <h3
+                          className="font-medium"
+                          style={{ color: "var(--text)" }}
+                        >
+                          {day.title}
+                        </h3>
+                        <ul className="mt-2 space-y-1.5">
                           {day.activities.map((activity, i) => (
                             <li
                               key={i}
-                              className="flex items-start gap-2.5 text-sm text-stone-600"
+                              className="flex items-start gap-2 text-sm"
+                              style={{ color: "var(--text-secondary)" }}
                             >
-                              <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-500" />
+                              <Clock
+                                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                                style={{ color: "var(--gold)" }}
+                              />
                               {activity}
                             </li>
                           ))}
                         </ul>
                       </div>
-                    </motion.div>
+                    </li>
                   ))}
-                </div>
-              </TabsContent>
+                </ol>
+              </section>
+            )}
 
-              <TabsContent value="included">
-                <div className="mt-6 space-y-6">
+            {/* Included */}
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                What&apos;s included
+              </h2>
+              <div className="mt-5 grid gap-8 sm:grid-cols-2">
+                <div>
+                  <p
+                    className="mb-3 text-xs font-semibold uppercase tracking-[0.14em]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    Included
+                  </p>
+                  <ul className="space-y-2.5">
+                    {trip.included.map((item) => (
+                      <li
+                        key={item}
+                        className="flex items-start gap-2.5 text-sm"
+                        style={{ color: "var(--text)" }}
+                      >
+                        <Check
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                          style={{ color: "var(--gold)" }}
+                        />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {trip.excluded.length > 0 && (
                   <div>
-                    <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-emerald-700">
-                      What&apos;s included
-                    </h3>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {trip.included.map((item) => {
-                        const Icon = getIncludedIcon(item);
-                        return (
-                          <div
-                            key={item}
-                            className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3"
-                          >
-                            <Icon className="h-4 w-4 shrink-0 text-emerald-600" />
-                            <span className="text-sm text-stone-700">{item}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <p
+                      className="mb-3 text-xs font-semibold uppercase tracking-[0.14em]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Not included
+                    </p>
+                    <ul className="space-y-2.5">
+                      {trip.excluded.map((item) => (
+                        <li
+                          key={item}
+                          className="flex items-start gap-2.5 text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          <X
+                            className="mt-0.5 h-4 w-4 shrink-0"
+                            style={{ color: "var(--coral)" }}
+                          />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  {trip.excluded.length > 0 && (
+                )}
+              </div>
+            </section>
+
+            {/* Logistics */}
+            {hasLogistics && (
+              <section
+                className="td-reveal border-b py-8"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <h2
+                  className="font-display text-xl font-semibold tracking-tight"
+                  style={{ color: "var(--text)" }}
+                >
+                  Where to meet
+                </h2>
+                <dl className="mt-5 grid gap-5 sm:grid-cols-2">
+                  {trip.meetingPoint && (
                     <div>
-                      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-red-600">
-                        Not included
-                      </h3>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {trip.excluded.map((item) => (
-                          <div
-                            key={item}
-                            className="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50/40 px-4 py-3"
-                          >
-                            <X className="h-4 w-4 shrink-0 text-red-400" />
-                            <span className="text-sm text-stone-700">{item}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Meeting point
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium leading-snug"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {trip.meetingPoint}
+                      </dd>
                     </div>
                   )}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="reviews">
-                <div className="mt-6">
-                  {trip.reviews.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-stone-200 py-12 text-center">
-                      <Star className="mx-auto h-8 w-8 text-stone-300" />
-                      <p className="mt-3 font-medium text-stone-600">No reviews yet</p>
-                      <p className="mt-1 text-sm text-stone-400">
-                        Be the first to share your experience after the trip!
-                      </p>
+                  {trip.departurePoint && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Departure
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium leading-snug"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {trip.departurePoint}
+                      </dd>
                     </div>
-                  ) : (
-                    <>
-                      <div className="mb-6 flex items-center gap-6 rounded-xl bg-amber-50/60 p-5">
-                        <div className="text-center">
-                          <p className="text-4xl font-bold text-stone-900">
-                            {trip.rating}
+                  )}
+                  {trip.departureTime && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Departs
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {formatClock(trip.departureTime)}
+                      </dd>
+                    </div>
+                  )}
+                  {trip.returnTime && (
+                    <div>
+                      <dt
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Returns
+                      </dt>
+                      <dd
+                        className="mt-1.5 text-sm font-medium"
+                        style={{ color: "var(--text)" }}
+                      >
+                        {formatClock(trip.returnTime)}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            )}
+
+            {/* Reviews */}
+            <section className="td-reveal border-b py-8" style={{ borderColor: "var(--border)" }}>
+              <h2
+                className="font-display text-xl font-semibold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
+                {trip.reviews.length > 0
+                  ? `${trip.rating} · ${trip.reviewCount} reviews`
+                  : "Reviews"}
+              </h2>
+              {trip.reviews.length === 0 ? (
+                <p className="mt-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  No reviews yet — be among the first travelers on this trip.
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  {trip.reviews.map((review) => (
+                    <article key={review.id}>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={review.avatar} />
+                          <AvatarFallback>{review.author[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p
+                            className="text-sm font-medium"
+                            style={{ color: "var(--text)" }}
+                          >
+                            {review.author}
                           </p>
-                          <StarRating rating={Math.round(trip.rating)} size="sm" />
-                          <p className="mt-1 text-xs text-stone-500">
-                            {trip.reviewCount} reviews
+                          <p
+                            className="text-xs"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            {review.date}
                           </p>
                         </div>
-                        <Separator orientation="vertical" className="h-16" />
-                        <p className="text-sm leading-relaxed text-stone-600">
-                          Travelers love this trip for its organization, authentic
-                          experiences, and knowledgeable guides.
-                        </p>
                       </div>
-                      <div className="space-y-4">
-                        {trip.reviews.map((review) => (
-                          <div
-                            key={review.id}
-                            className="rounded-xl border border-stone-100 bg-white p-5 shadow-sm"
-                          >
-                            <div className="flex items-start gap-3">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage src={review.avatar} />
-                                <AvatarFallback>{review.author[0]}</AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium text-stone-900">
-                                    {review.author}
-                                  </span>
-                                  <StarRating rating={review.rating} size="sm" />
-                                </div>
-                                <p className="mt-2 text-sm leading-relaxed text-stone-600">
-                                  {review.comment}
-                                </p>
-                                <p className="mt-2 text-xs text-stone-400">
-                                  {review.date}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="mt-2">
+                        <StarRating rating={review.rating} size="sm" />
                       </div>
-                    </>
-                  )}
+                      <p
+                        className="mt-2 text-sm leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {review.comment}
+                      </p>
+                    </article>
+                  ))}
                 </div>
-              </TabsContent>
+              )}
+            </section>
 
-              <TabsContent value="organizer">
-                <div className="mt-6 overflow-hidden rounded-2xl border border-stone-100 bg-white shadow-sm">
-                  <div className="h-24 bg-gradient-to-r from-teal-600 to-teal-500" />
-                  <div className="relative px-6 pb-6">
-                    <Avatar className="absolute -top-10 h-20 w-20 border-4 border-white shadow-md">
-                      <AvatarImage src={organizer.avatar} />
-                      <AvatarFallback className="text-xl">
-                        {organizer.name[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="pt-14">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-xl font-semibold text-stone-900">
-                          {organizer.name}
-                        </h3>
-                        {organizer.verified && <VerifiedBadge />}
+            {/* Host — editorial portrait panel */}
+            <section className="td-reveal py-8">
+              <p
+                className="text-[11px] font-semibold uppercase tracking-[0.2em]"
+                style={{ color: "var(--gold)" }}
+              >
+                Your host
+              </p>
+              <h2
+                className="mt-2 font-display text-2xl font-bold tracking-tight sm:text-[1.75rem]"
+                style={{ color: "var(--text)" }}
+              >
+                Meet {organizer.name.split(" ")[0]}
+              </h2>
+
+              <div
+                className="relative mt-6 overflow-hidden rounded-3xl"
+                style={{
+                  background:
+                    "linear-gradient(145deg, var(--bg-secondary) 0%, #fff 48%, var(--surface-raised) 100%)",
+                }}
+              >
+                {/* Decorative corner wash */}
+                <div
+                  className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full opacity-40"
+                  style={{
+                    background:
+                      "radial-gradient(circle, var(--gold-dim) 0%, transparent 70%)",
+                  }}
+                />
+
+                <div className="relative grid gap-6 p-6 sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8">
+                  {/* Portrait + verified seal */}
+                  <div className="flex flex-col items-center sm:items-start">
+                    <div className="relative">
+                      <div
+                        className="h-28 w-28 overflow-hidden rounded-full sm:h-32 sm:w-32"
+                        style={{
+                          boxShadow:
+                            "0 0 0 4px #fff, 0 18px 40px -20px rgba(42,27,15,0.45)",
+                        }}
+                      >
+                        <Avatar className="h-full w-full">
+                          <AvatarImage
+                            src={organizer.avatar || DEFAULT_PROFILE_IMAGE}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="overflow-hidden p-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={DEFAULT_PROFILE_IMAGE}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </AvatarFallback>
+                        </Avatar>
                       </div>
-                      <p className="mt-1 flex items-center gap-1.5 text-sm text-stone-500">
-                        <MapPin className="h-3.5 w-3.5" />
+                      {organizer.verified && (
+                        <span
+                          className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-white"
+                          style={{ background: "var(--primary)" }}
+                          title="Identity verified"
+                        >
+                          <Check
+                            className="h-4 w-4 text-[#fbf7f1]"
+                            strokeWidth={3}
+                          />
+                        </span>
+                      )}
+                    </div>
+                    {organizer.verified && (
+                      <p
+                        className="mt-3 text-center text-xs font-medium sm:text-left"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Identity verified
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 text-center sm:text-left">
+                    <h3
+                      className="font-display text-xl font-bold tracking-tight sm:text-2xl"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {organizer.name}
+                    </h3>
+                    {organizer.location && (
+                      <p
+                        className="mt-1.5 inline-flex items-center justify-center gap-1.5 text-sm sm:justify-start"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <MapPin
+                          className="h-3.5 w-3.5"
+                          style={{ color: "var(--gold)" }}
+                        />
                         {organizer.location}
                       </p>
-                      <p className="mt-4 leading-relaxed text-stone-600">
-                        {organizer.bio}
-                      </p>
-                      <div className="mt-5 flex flex-wrap gap-4 text-sm">
-                        <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 font-medium text-stone-700">
-                          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                          {organizer.rating} rating
-                        </span>
-                        <span className="rounded-full bg-stone-100 px-3 py-1.5 font-medium text-stone-700">
-                          {organizer.tripCount} trips hosted
-                        </span>
-                        <span className="rounded-full bg-stone-100 px-3 py-1.5 font-medium text-stone-700">
-                          {organizer.reviewCount} reviews
-                        </span>
+                    )}
+
+                    {/* Trust stats */}
+                    {(organizer.rating > 0 ||
+                      organizer.tripCount > 0 ||
+                      organizer.reviewCount > 0) && (
+                      <div
+                        className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-y py-3 text-sm sm:justify-start"
+                        style={{ borderColor: "var(--border)" }}
+                      >
+                        {organizer.rating > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1.5 font-semibold"
+                            style={{ color: "var(--text)" }}
+                          >
+                            <Star
+                              className="h-3.5 w-3.5 fill-current"
+                              style={{ color: "var(--gold)" }}
+                            />
+                            {organizer.rating}
+                            <span
+                              className="font-normal"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              rating
+                            </span>
+                          </span>
+                        )}
+                        {organizer.tripCount > 0 && (
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            <span
+                              className="font-semibold"
+                              style={{ color: "var(--text)" }}
+                            >
+                              {organizer.tripCount}
+                            </span>{" "}
+                            trips hosted
+                          </span>
+                        )}
+                        {organizer.reviewCount > 0 && (
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            <span
+                              className="font-semibold"
+                              style={{ color: "var(--text)" }}
+                            >
+                              {organizer.reviewCount}
+                            </span>{" "}
+                            reviews
+                          </span>
+                        )}
                       </div>
-                      <Button asChild variant="outline" className="mt-5">
-                        <Link href={`/organizers/${organizer.id}`}>
-                          View all trips by {organizer.name.split(" ")[0]}
-                          <ChevronRight className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
+                    )}
+
+                    {organizer.bio && (
+                      <blockquote
+                        className="mt-4 border-l-2 pl-4 text-left text-[15px] leading-relaxed"
+                        style={{
+                          borderColor: "var(--gold)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {organizer.bio}
+                      </blockquote>
+                    )}
+
+                    {organizer.tripSpecialties &&
+                      organizer.tripSpecialties.length > 0 && (
+                        <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">
+                          {organizer.tripSpecialties.map((s) => (
+                            <span
+                              key={s}
+                              className="rounded-full px-3 py-1 text-xs font-medium"
+                              style={{
+                                background: "rgba(255,255,255,0.7)",
+                                color: "var(--text-secondary)",
+                                border: "1px solid var(--border)",
+                              }}
+                            >
+                              {tripSpecialtyLabel(s)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                    <Link
+                      href={organizerHomeHref}
+                      className="mt-6 inline-flex items-center gap-2 text-sm font-semibold transition-opacity hover:opacity-70"
+                      style={{ color: "var(--primary)" }}
+                    >
+                      View all trips by {organizer.name.split(" ")[0]}
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
                   </div>
                 </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </section>
           </div>
 
-          {/* Desktop booking sidebar */}
-          <div className="hidden lg:block">
+          <div className="td-reveal hidden lg:block">
             <div className="sticky top-24">
-              <BookingCard
+              <BookingPanel
                 trip={trip}
                 isFull={isFull}
                 onBook={handleBook}
                 onSave={handleSave}
                 onShare={handleShare}
                 wishlisted={wishlisted}
+                existingBooking={existingBooking}
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile sticky booking bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <div>
-            <p className="text-xs text-stone-400">From</p>
-            <p className="text-xl font-bold text-stone-900">
+      {/* Mobile sticky CTA — GetYourGuide / Airbnb pattern */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 backdrop-blur-md lg:hidden"
+        style={{
+          borderColor: "var(--border)",
+          background: "rgba(251,247,241,0.94)",
+        }}
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="font-display text-lg font-bold" style={{ color: "var(--text)" }}>
               {formatCurrency(trip.price)}
-              <span className="text-sm font-normal text-stone-400"> / person</span>
+              <span
+                className="text-sm font-normal"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {" "}
+                / person
+              </span>
+            </p>
+            <p className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>
+              {existingCta
+                ? existingCta.hint
+                : bookable
+                  ? formatSpotsLeftLabel(trip)
+                  : trip.status === "completed"
+                    ? "Trip completed"
+                    : "Not bookable"}
             </p>
           </div>
           <Button
             size="lg"
-            variant={isFull ? "accent" : "default"}
-            className="min-w-[140px] shrink-0"
+            className="shrink-0 px-6"
+            style={{ background: "var(--primary)", color: "#fbf7f1" }}
             onClick={handleBook}
+            disabled={!existingCta && !bookable}
           >
-            {isFull ? "Join Waitlist" : "Book Now"}
+            {existingCta
+              ? existingCta.label
+              : !bookable
+                ? trip.status === "completed"
+                  ? "Completed"
+                  : "Unavailable"
+                : isFull
+                  ? "Join waitlist"
+                  : "Reserve"}
           </Button>
         </div>
       </div>
 
-      {/* Full-screen gallery */}
-      <AnimatePresence>
-        {galleryOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col bg-stone-950/95 backdrop-blur-sm"
-          >
-            <div className="flex items-center justify-between px-4 py-4 sm:px-6">
-              <p className="text-sm font-medium text-white">
-                {trip.title} · {trip.images.length} photos
-              </p>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10"
-                onClick={() => setGalleryOpen(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-8 sm:px-6">
-              <div className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-2">
-                {trip.images.map((img, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "relative aspect-[4/3] overflow-hidden rounded-xl",
-                      i === 0 && "sm:col-span-2 sm:aspect-[21/9]"
-                    )}
-                  >
-                    <Image src={img} alt="" fill className="object-cover" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={trip.images.length ? trip.images : ["/images/cta-image.jpg"]}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </>
   );
 }

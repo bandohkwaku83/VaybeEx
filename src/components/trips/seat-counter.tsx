@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getSpotsLeft } from "@/lib/mock-data";
+import { getSpotsLeft } from "@/lib/trip-capacity";
 import type { Trip } from "@/lib/types";
 
 interface SeatCounterProps {
@@ -14,21 +14,27 @@ interface SeatCounterProps {
 }
 
 export function SeatCounter({ trip, live = false, className }: SeatCounterProps) {
-  const [spots, setSpots] = useState(getSpotsLeft(trip));
+  const initial = getSpotsLeft(trip);
+  const [spots, setSpots] = useState<number | null>(initial);
 
   useEffect(() => {
-    if (!live) return;
+    setSpots(getSpotsLeft(trip));
+  }, [trip]);
+
+  useEffect(() => {
+    if (!live || spots == null) return;
     const interval = setInterval(() => {
       setSpots((prev) => {
-        if (prev <= 0) return prev;
+        if (prev == null || prev <= 0) return prev;
         return Math.random() > 0.7 ? prev - 1 : prev;
       });
     }, 8000);
     return () => clearInterval(interval);
-  }, [live]);
+  }, [live, spots == null]);
 
+  const isUnlimited = spots == null;
   const isFull = spots === 0;
-  const isLimited = spots > 0 && spots <= 3;
+  const isLimited = spots != null && spots > 0 && spots <= 3;
 
   return (
     <div
@@ -43,16 +49,20 @@ export function SeatCounter({ trip, live = false, className }: SeatCounterProps)
       <Users className="h-3.5 w-3.5" />
       <AnimatePresence mode="popLayout">
         <motion.span
-          key={spots}
+          key={spots ?? "open"}
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
         >
-          {isFull ? "Fully booked" : `${spots} spot${spots === 1 ? "" : "s"} left`}
+          {isUnlimited
+            ? "Open spots"
+            : isFull
+              ? "Fully booked"
+              : `${spots} spot${spots === 1 ? "" : "s"} left`}
         </motion.span>
       </AnimatePresence>
-      {live && !isFull && (
+      {live && !isFull && !isUnlimited && (
         <span className="relative flex h-2 w-2">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />

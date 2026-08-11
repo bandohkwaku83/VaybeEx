@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownToLine, Settings } from "lucide-react";
+import { ArrowDownToLine, Loader2, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
+import {
+  createTripWithdrawal,
+  type MomoProvider,
+} from "@/lib/api/organizer-payouts";
 import {
   emptyPayoutAccountForm,
   PayoutAccountFormFields,
@@ -18,8 +23,7 @@ import {
   isPayoutAccountComplete,
   PAYOUT_METHOD_LABELS,
 } from "@/lib/payout-accounts";
-import { getOrganizerTrips, getTripAttendees } from "@/lib/mock-data";
-import type { Payout, PayoutAccount } from "@/lib/types";
+import type { PayoutAccount } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,34 +45,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ORGANIZER_ID = "org-1";
-const PLATFORM_FEE_RATE = 0.1;
+export type WithdrawEligibleTrip = {
+  tripId: string;
+  title: string;
+  availableToWithdraw: number;
+  reservedForRefunds?: number;
+  currency?: string;
+};
 
 interface WithdrawFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  existingPayouts: Payout[];
-  onSubmit: (payout: Payout) => void;
-}
-
-function getTripCollected(tripId: string) {
-  return getTripAttendees(tripId).reduce((sum, a) => sum + a.amountPaid, 0);
-}
-
-function getPendingWithdrawal(tripId: string, payouts: Payout[]) {
-  return payouts.find(
-    (p) => p.tripId === tripId && (p.status === "pending" || p.status === "processing")
-  );
-}
-
-function getAvailableBalance(tripId: string, payouts: Payout[]) {
-  if (getPendingWithdrawal(tripId, payouts)) return 0;
-  const collected = getTripCollected(tripId);
-  const withdrawn = payouts
-    .filter((p) => p.tripId === tripId && p.status === "completed")
-    .reduce((sum, p) => sum + p.amount, 0);
-  const netCollected = Math.round(collected * (1 - PLATFORM_FEE_RATE));
-  return Math.max(0, netCollected - withdrawn);
+  eligibleTrips: WithdrawEligibleTrip[];
+  onSuccess?: () => void;
 }
 
 const initialForm = {
@@ -80,8 +69,8 @@ const initialForm = {
 export function WithdrawFormDialog({
   open,
   onOpenChange,
-  existingPayouts,
-  onSubmit,
+  eligibleTrips,
+  onSuccess,
 }: WithdrawFormDialogProps) {
   const [form, setForm] = useState(initialForm);
   const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([]);
@@ -90,34 +79,35 @@ export function WithdrawFormDialog({
     emptyPayoutAccountForm
   );
   const [saveNewAccount, setSaveNewAccount] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     const accounts = getPayoutAccounts();
     setPayoutAccounts(accounts);
     const defaultAccount = getDefaultPayoutAccount();
-    setForm((prev) => ({
-      ...prev,
+    setForm({
+      tripId: eligibleTrips[0]?.tripId ?? "",
+      amount: eligibleTrips[0]
+        ? String(eligibleTrips[0].availableToWithdraw)
+        : "",
       payoutAccountId: defaultAccount?.id ?? "",
-    }));
+    });
     setAccountMode(accounts.length > 0 ? "saved" : "new");
     setNewAccountForm(emptyPayoutAccountForm);
     setSaveNewAccount(true);
-  }, [open]);
+  }, [open, eligibleTrips]);
 
-  const eligibleTrips = useMemo(() => {
-    return getOrganizerTrips(ORGANIZER_ID)
-      .filter((trip) => trip.booked > 0)
-      .map((trip) => ({
-        ...trip,
-        available: getAvailableBalance(trip.id, existingPayouts),
-      }))
-      .filter((trip) => trip.available > 0 && !getPendingWithdrawal(trip.id, existingPayouts));
-  }, [existingPayouts]);
-
-  const selectedTrip = eligibleTrips.find((t) => t.id === form.tripId);
-  const selectedAccount = payoutAccounts.find((a) => a.id === form.payoutAccountId);
-  const available = selectedTrip?.available ?? 0;
+  const selectedTrip = useMemo(
+    () => eligibleTrips.find((t) => t.tripId === form.tripId),
+    [eligibleTrips, form.tripId]
+  );
+  const selectedAccount = payoutAccounts.find(
+    (a) => a.id === form.payoutAccountId
+  );
+  const available = selectedTrip?.availableToWithdraw ?? 0;
+  const currency = selectedTrip?.currency ?? "GHS";
+  const reserved = selectedTrip?.reservedForRefunds ?? 0;
   const amountValue = Number(form.amount) || 0;
 
   const newAccountInput = buildPayoutAccountInput(newAccountForm);
@@ -126,62 +116,74 @@ export function WithdrawFormDialog({
   const resetForm = () => setForm(initialForm);
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (submitting) return;
     if (!nextOpen) resetForm();
     onOpenChange(nextOpen);
   };
 
-  const update = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
+  const update = <K extends keyof typeof form>(
+    field: K,
+    value: (typeof form)[K]
+  ) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const resolvedAccount: PayoutAccount | null = (() => {
+    if (accountMode === "saved") return selectedAccount ?? null;
+    if (!newAccountValid) return null;
+    return {
+      id: `temp-${Date.now()}`,
+      ...newAccountInput,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+    };
+  })();
+
   const canSubmit =
-    form.tripId &&
+    Boolean(form.tripId) &&
     amountValue > 0 &&
     amountValue <= available &&
-    (accountMode === "saved"
-      ? Boolean(selectedAccount)
-      : newAccountValid);
+    Boolean(resolvedAccount?.momoNumber?.trim()) &&
+    Boolean(resolvedAccount?.type) &&
+    !submitting;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit || !selectedTrip) return;
+    if (!canSubmit || !selectedTrip || !resolvedAccount) return;
 
-    let payoutAccount: PayoutAccount | undefined = selectedAccount;
-
-    if (accountMode === "new") {
-      if (saveNewAccount) {
-        payoutAccount = addPayoutAccount({
+    setSubmitting(true);
+    try {
+      if (accountMode === "new" && saveNewAccount) {
+        addPayoutAccount({
           ...newAccountInput,
           isDefault: payoutAccounts.length === 0,
         });
         setPayoutAccounts(getPayoutAccounts());
-      } else {
-        payoutAccount = {
-          id: `temp-${Date.now()}`,
-          ...newAccountInput,
-          isDefault: false,
-          createdAt: new Date().toISOString(),
-        };
       }
+
+      const res = await createTripWithdrawal(selectedTrip.tripId, {
+        ...(amountValue === available ? {} : { amount: amountValue }),
+        momoProvider: resolvedAccount.type as MomoProvider,
+        momoNumber: resolvedAccount.momoNumber.trim(),
+        accountName: resolvedAccount.accountName.trim() || undefined,
+        note: "Trip settlement",
+      });
+
+      toast.success(
+        res.message ||
+          "Request received. An admin will pay your MoMo shortly."
+      );
+      handleOpenChange(false);
+      onSuccess?.();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "Could not request withdrawal. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-    if (!payoutAccount) return;
-
-    onSubmit({
-      id: `p-${Date.now()}`,
-      tripId: selectedTrip.id,
-      tripTitle: selectedTrip.title,
-      amount: amountValue,
-      status: "pending",
-      date: new Date().toISOString().slice(0, 10),
-      payoutAccountId: payoutAccount.id.startsWith("temp-") ? undefined : payoutAccount.id,
-      payoutDestination: formatPayoutAccountLabel(payoutAccount),
-    });
-
-    toast.success(
-      `Withdrawal of ${formatCurrency(amountValue)} requested for ${selectedTrip.title}.`
-    );
-    handleOpenChange(false);
   };
 
   const noEligibleTrips = eligibleTrips.length === 0;
@@ -193,23 +195,32 @@ export function WithdrawFormDialog({
         <DialogHeader>
           <DialogTitle>Withdraw earnings</DialogTitle>
           <DialogDescription>
-            Request a transfer from your trip balance to a saved payout account.
+            Request a payout from a trip balance. An admin reviews it and sends
+            the money to your MoMo. Pending requests lock that amount until they
+            are paid or rejected.
           </DialogDescription>
         </DialogHeader>
 
         {noEligibleTrips ? (
-          <p className="text-sm text-stone-500 py-4">
+          <p
+            className="py-4 text-sm"
+            style={{ color: "var(--text-secondary)" }}
+          >
             No trips have funds available for withdrawal right now.
           </p>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
             <div>
               <Label htmlFor="withdraw-trip">Trip</Label>
               <Select
-                value={form.tripId}
+                value={form.tripId || undefined}
                 onValueChange={(id) => {
+                  const trip = eligibleTrips.find((t) => t.tripId === id);
                   update("tripId", id);
-                  update("amount", "");
+                  update(
+                    "amount",
+                    trip ? String(trip.availableToWithdraw) : ""
+                  );
                 }}
               >
                 <SelectTrigger id="withdraw-trip" className="mt-1.5">
@@ -217,8 +228,13 @@ export function WithdrawFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {eligibleTrips.map((trip) => (
-                    <SelectItem key={trip.id} value={trip.id}>
-                      {trip.title} · {formatCurrency(trip.available)} available
+                    <SelectItem key={trip.tripId} value={trip.tripId}>
+                      {trip.title} ·{" "}
+                      {formatCurrency(
+                        trip.availableToWithdraw,
+                        trip.currency ?? "GHS"
+                      )}{" "}
+                      available
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -226,18 +242,40 @@ export function WithdrawFormDialog({
             </div>
 
             {selectedTrip && (
-              <div className="rounded-xl bg-stone-50 px-4 py-3 text-sm space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Available (after 10% platform fee)</span>
-                  <span className="font-medium text-stone-900 tabular-nums">
-                    {formatCurrency(available)}
+              <div
+                className="space-y-2 rounded-xl px-4 py-3 text-sm"
+                style={{ background: "var(--bg-secondary)" }}
+              >
+                <div className="flex justify-between gap-3">
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Available to withdraw
+                  </span>
+                  <span
+                    className="font-medium tabular-nums"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {formatCurrency(available, currency)}
                   </span>
                 </div>
+                {reserved > 0 && (
+                  <div className="flex justify-between gap-3">
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      Reserved for refunds
+                    </span>
+                    <span
+                      className="tabular-nums"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {formatCurrency(reserved, currency)}
+                    </span>
+                  </div>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-teal-700"
+                  className="h-7 px-2"
+                  style={{ color: "var(--primary)" }}
                   onClick={() => update("amount", String(available))}
                 >
                   Withdraw full amount
@@ -246,7 +284,7 @@ export function WithdrawFormDialog({
             )}
 
             <div>
-              <Label htmlFor="withdraw-amount">Amount (GH₵)</Label>
+              <Label htmlFor="withdraw-amount">Amount ({currency})</Label>
               <Input
                 id="withdraw-amount"
                 type="number"
@@ -260,8 +298,8 @@ export function WithdrawFormDialog({
                 disabled={!form.tripId}
               />
               {form.tripId && amountValue > available && (
-                <p className="text-xs text-red-500 mt-1">
-                  Amount cannot exceed {formatCurrency(available)}.
+                <p className="mt-1 text-xs" style={{ color: "var(--coral)" }}>
+                  Amount cannot exceed {formatCurrency(available, currency)}.
                 </p>
               )}
             </div>
@@ -272,7 +310,8 @@ export function WithdrawFormDialog({
                 {!noSavedAccounts && (
                   <Link
                     href="/organizer/settings?tab=payouts"
-                    className="text-xs text-teal-600 hover:text-teal-700 inline-flex items-center gap-1"
+                    className="inline-flex items-center gap-1 text-xs"
+                    style={{ color: "var(--primary)" }}
                     onClick={() => handleOpenChange(false)}
                   >
                     <Settings className="h-3 w-3" />
@@ -284,14 +323,16 @@ export function WithdrawFormDialog({
               {!noSavedAccounts && (
                 <RadioGroup
                   value={accountMode}
-                  onValueChange={(value) => setAccountMode(value as "saved" | "new")}
+                  onValueChange={(value) =>
+                    setAccountMode(value as "saved" | "new")
+                  }
                   className="flex gap-4"
                 >
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <RadioGroupItem value="saved" id="account-mode-saved" />
                     Saved account
                   </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <RadioGroupItem value="new" id="account-mode-new" />
                     New account
                   </label>
@@ -309,7 +350,8 @@ export function WithdrawFormDialog({
                   <SelectContent>
                     {payoutAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
-                        {account.accountName} · {PAYOUT_METHOD_LABELS[account.type]} ·{" "}
+                        {account.accountName} ·{" "}
+                        {PAYOUT_METHOD_LABELS[account.type]} ·{" "}
                         {formatPayoutAccountLabel(account)}
                         {account.isDefault ? " (default)" : ""}
                       </SelectItem>
@@ -317,14 +359,21 @@ export function WithdrawFormDialog({
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="rounded-xl border border-stone-200 p-4 space-y-4">
+                <div
+                  className="space-y-4 rounded-xl border p-4"
+                  style={{ borderColor: "var(--border)" }}
+                >
                   {noSavedAccounts && (
-                    <p className="text-sm text-stone-500">
-                      Add a payout account to receive your withdrawal. You can also save accounts
-                      in{" "}
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      Add a payout account to receive your withdrawal. You can
+                      also save accounts in{" "}
                       <Link
                         href="/organizer/settings?tab=payouts"
-                        className="text-teal-600 hover:underline"
+                        className="underline"
+                        style={{ color: "var(--primary)" }}
                         onClick={() => handleOpenChange(false)}
                       >
                         Settings
@@ -337,12 +386,15 @@ export function WithdrawFormDialog({
                     onChange={setNewAccountForm}
                     idPrefix="withdraw-payout"
                   />
-                  <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer">
+                  <label
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     <input
                       type="checkbox"
                       checked={saveNewAccount}
                       onChange={(e) => setSaveNewAccount(e.target.checked)}
-                      className="rounded border-stone-300"
+                      className="rounded"
                     />
                     Save this account for future withdrawals
                   </label>
@@ -351,12 +403,29 @@ export function WithdrawFormDialog({
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={submitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!canSubmit}>
-                <ArrowDownToLine className="h-4 w-4" />
-                Request withdrawal
+              <Button
+                type="submit"
+                disabled={!canSubmit}
+                style={{ background: "var(--primary)", color: "#fbf7f1" }}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Requesting…
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownToLine className="h-4 w-4" />
+                    Request payout
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>
