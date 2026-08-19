@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./config";
+import { API_BASE_URL, normalizeApiOrigin } from "./config";
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -39,9 +39,9 @@ function resolveUrl(path: string) {
   if (API_BASE_URL) return `${API_BASE_URL}${path}`;
   // Server components / RSC: relative fetch has no host — hit the API directly.
   if (typeof window === "undefined") {
-    const serverBase = (
+    const serverBase = normalizeApiOrigin(
       process.env.API_BASE_URL ?? "http://localhost:8000"
-    ).replace(/\/$/, "");
+    );
     return `${serverBase}${path}`;
   }
   // Browser: same-origin `/api/*` → Next rewrite to the backend.

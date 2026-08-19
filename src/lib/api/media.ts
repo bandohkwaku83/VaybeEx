@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./config";
+import { API_BASE_URL, normalizeApiOrigin } from "./config";
 
 /** Fallback when a profile photo is required but not uploaded yet. */
 export const DEFAULT_PROFILE_IMAGE = "/images/profile.png";
@@ -13,13 +13,11 @@ const OPTIMIZABLE_REMOTE_HOSTS = new Set(["images.unsplash.com"]);
 const DEFAULT_API_ORIGIN = "http://localhost:8000";
 
 function mediaOrigin(): string {
-  const fromEnv = (
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.API_BASE_URL ||
-    ""
-  ).replace(/\/$/, "");
+  const fromEnv = normalizeApiOrigin(
+    process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || ""
+  );
   if (fromEnv) return fromEnv;
-  if (API_BASE_URL) return API_BASE_URL.replace(/\/$/, "");
+  if (API_BASE_URL) return API_BASE_URL;
   return DEFAULT_API_ORIGIN;
 }
 
