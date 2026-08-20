@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+gsap.registerPlugin(ScrollTrigger);
 import {
   BarChart3,
   Bell,
@@ -188,6 +192,25 @@ function ToolsWavePattern() {
 const Tools = () => {
   const [activeIndex, setActiveIndex] = useState(0);
   const activeCategory = TOOL_CATEGORIES[activeIndex];
+  const featureGridRef = useRef<HTMLDivElement>(null);
+
+  /* Staggered entrance for feature grid items on tab switch */
+  useEffect(() => {
+    if (!featureGridRef.current) return;
+    const items = Array.from(featureGridRef.current.querySelectorAll(':scope > div'));
+    gsap.fromTo(
+      items,
+      { opacity: 0, y: 20, scale: 0.97 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.5,
+        stagger: 0.08,
+        ease: "power3.out",
+      },
+    );
+  }, [activeIndex]);
 
   return (
     <section
@@ -298,8 +321,9 @@ const Tools = () => {
               </p>
 
               <div
+                ref={featureGridRef}
                 key={activeCategory.title}
-                className="grid animate-[fade-in_0.35s_ease-out] rounded-2xl sm:grid-cols-2"
+                className="grid rounded-2xl sm:grid-cols-2"
                 style={{ background: "transparent" }}
               >
                 {activeCategory.features.map((feature, index) => {
@@ -313,7 +337,7 @@ const Tools = () => {
                       className={`flex flex-col px-0 py-7 sm:px-8 sm:py-9 ${
                         isLeftCol ? "sm:border-r" : ""
                       } ${isTopRow ? "sm:border-b" : ""}`}
-                      style={{ borderColor: "rgba(107, 63, 29, 0.12)" }}
+                      style={{ borderColor: "rgba(86, 47, 24, 0.12)" }}
                     >
                       <FeatureIcon
                         className="mb-5 h-11 w-11"

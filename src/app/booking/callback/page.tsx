@@ -202,7 +202,7 @@ function CallbackInner() {
         <div
           className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full"
           style={{
-            background: "rgba(181, 82, 58, 0.12)",
+            background: "rgba(86, 47, 24, 0.12)",
             color: "var(--coral)",
           }}
         >

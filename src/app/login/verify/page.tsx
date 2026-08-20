@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Check, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
 import { OtpInput } from "@/components/auth/otp-input";
@@ -34,6 +34,7 @@ function VerifyLoginForm() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const destinationLabel = viaPhone ? phone || email : email || phone;
 
@@ -77,6 +78,11 @@ function VerifyLoginForm() {
 
       setTravelerToken(token);
       login(mapTravelerSession(user));
+
+      // Show success state briefly before navigating
+      setShowSuccess(true);
+      await new Promise((r) => setTimeout(r, 800));
+
       toast.success(response.message);
       if (
         redirect.startsWith("http://") ||
@@ -93,6 +99,7 @@ function VerifyLoginForm() {
           : "Something went wrong. Please try again.";
       toast.error(message);
       setIsVerifying(false);
+      setShowSuccess(false);
     }
   };
 
@@ -154,6 +161,13 @@ function VerifyLoginForm() {
         <OtpInput
           value={otp}
           onChange={setOtp}
+          onComplete={() => {
+            if (otp.length === OTP_LENGTH && !isVerifying) {
+              // Trigger form submit programmatically
+              const form = document.querySelector('form');
+              form?.requestSubmit();
+            }
+          }}
           length={OTP_LENGTH}
           disabled={isVerifying}
         />
@@ -162,19 +176,31 @@ function VerifyLoginForm() {
           type="submit"
           size="lg"
           disabled={otp.length !== OTP_LENGTH || isVerifying}
-          className="h-12 w-full text-sm font-semibold"
+          className="h-12 w-full text-sm font-semibold transition-all duration-200"
           style={{
-            background: "var(--gradient-brand)",
+            background: showSuccess ? "#2e7d52" : "var(--gradient-brand)",
             color: "#fbf7f1",
             boxShadow: "var(--glow-gold)",
           }}
         >
-          <ShieldCheck className="h-4 w-4" />
-          {isVerifying
-            ? "Verifying..."
-            : mode === "signin"
-              ? "Verify & sign in"
-              : "Verify & create account"}
+          {isVerifying ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Verifying...
+            </>
+          ) : showSuccess ? (
+            <>
+              <Check className="h-4 w-4" />
+              Verified!
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="h-4 w-4" />
+              {mode === "signin"
+                ? "Verify & sign in"
+                : "Verify & create account"}
+            </>
+          )}
         </Button>
       </form>
 

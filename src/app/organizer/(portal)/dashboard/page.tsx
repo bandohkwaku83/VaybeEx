@@ -84,11 +84,11 @@ function tripStatusStyle(status: string) {
 function withdrawalStatusStyle(status: string) {
   switch (normalizeWithdrawalStatus(status)) {
     case "failed":
-      return { background: "rgba(181,82,58,0.12)", color: "#b5523a" };
+      return { background: "rgba(181,82,58,0.12)", color: "#6b3f1d" };
     case "completed":
       return { background: "rgba(46,125,82,0.14)", color: "#2e7d52" };
     case "processing":
-      return { background: "rgba(208,138,60,0.18)", color: "#d08a3c" };
+      return { background: "rgba(208,138,60,0.18)", color: "#c4864c" };
     default:
       return { background: "rgba(208,138,60,0.1)", color: "#c48a4a" };
   }
@@ -711,7 +711,7 @@ export default function OrganizerDashboard() {
         className="mb-8 overflow-hidden rounded-2xl"
         style={{
           background: "var(--surface)",
-          boxShadow: "inset 0 0 0 1px rgba(107, 63, 29, 0.12)",
+          boxShadow: "inset 0 0 0 1px rgba(86, 47, 24, 0.12)",
         }}
       >
         <div className="grid sm:grid-cols-2 xl:grid-cols-5">
@@ -730,7 +730,7 @@ export default function OrganizerDashboard() {
                   i === 4 && "sm:col-span-2 xl:col-span-1 xl:border-t-0 xl:border-l"
                 )}
                 style={{
-                  borderColor: "rgba(107, 63, 29, 0.12)",
+                  borderColor: "rgba(86, 47, 24, 0.12)",
                   background: kpi.accent
                     ? "var(--primary)"
                     : i % 2 === 0

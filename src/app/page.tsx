@@ -1,23 +1,24 @@
-"use client";
+import type { Metadata } from "next";
+import HomeContent from "./home-content";
 
-import Hero from "@/components/home/hero";
-import Journal from "@/components/home/journal";
-import ParallaxBlock from "@/components/home/parallaxBlock";
-import FeaturedTrips from "@/components/home/featuredTrips";
-import HowItWorks from "@/components/home/how-it-works";
-import BigCta from "@/components/home/big-cta";
-import Reviews from "@/components/home/reviews";
+export const metadata: Metadata = {
+  title: "VaybeEx — Discover & Book Group Trips in Ghana & West Africa",
+  description:
+    "Browse curated group travel experiences across Ghana and West Africa. Find adventures, cultural tours, safari trips, and more — book your next expedition on VaybeEx.",
+  openGraph: {
+    title: "VaybeEx — Discover & Book Group Trips in Ghana & West Africa",
+    description:
+      "Browse curated group travel experiences across Ghana and West Africa. Find adventures, cultural tours, safari trips, and more.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VaybeEx — Discover & Book Group Trips in Ghana & West Africa",
+    description:
+      "Browse curated group travel experiences across Ghana and West Africa.",
+  },
+};
 
 export default function HomePage() {
-  return (
-    <div>
-      <Hero />
-      <Journal />
-      <ParallaxBlock />
-      <FeaturedTrips />
-      <HowItWorks />
-      <BigCta />
-      <Reviews />
-    </div>
-  );
+  return <HomeContent />;
 }

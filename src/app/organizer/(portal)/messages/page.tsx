@@ -64,13 +64,13 @@ const organizerAntdTheme = {
     colorPrimary: "#6b3f1d",
     colorInfo: "#6b3f1d",
     colorSuccess: "#2e7d52",
-    colorWarning: "#d08a3c",
-    colorError: "#b5523a",
+    colorWarning: "#c4864c",
+    colorError: "#6b3f1d",
     colorText: "#2a1b0f",
     colorTextSecondary: "#6b5544",
     colorTextTertiary: "#9c8773",
-    colorBorder: "rgba(107, 63, 29, 0.14)",
-    colorBorderSecondary: "rgba(107, 63, 29, 0.07)",
+    colorBorder: "rgba(86, 47, 24, 0.14)",
+    colorBorderSecondary: "rgba(86, 47, 24, 0.07)",
     colorBgContainer: "#ffffff",
     colorBgElevated: "#ffffff",
     colorBgLayout: "#f5f5f5",
@@ -84,9 +84,9 @@ const organizerAntdTheme = {
     Table: {
       headerBg: "#f2eada",
       headerColor: "#6b5544",
-      headerSplitColor: "rgba(107, 63, 29, 0.14)",
+      headerSplitColor: "rgba(86, 47, 24, 0.14)",
       rowHoverBg: "#fbf7f1",
-      borderColor: "rgba(107, 63, 29, 0.14)",
+      borderColor: "rgba(86, 47, 24, 0.14)",
       cellPaddingBlock: 14,
       cellPaddingInline: 16,
       headerBorderRadius: 12,
@@ -158,13 +158,13 @@ function statusMeta(status: BroadcastStatus) {
   if (status === "pending") {
     return {
       label: "Pending",
-      color: "#d08a3c",
+      color: "#c4864c",
       bg: "rgba(208,138,60,0.14)",
     };
   }
   return {
     label: "Failed",
-    color: "#b5523a",
+    color: "#6b3f1d",
     bg: "rgba(181,82,58,0.12)",
   };
 }
@@ -335,7 +335,7 @@ function BroadcastDrawer({
                       >
                         Error
                       </p>
-                      <p className="text-sm" style={{ color: "#b5523a" }}>
+                      <p className="text-sm" style={{ color: "#6b3f1d" }}>
                         {record.errorMessage}
                       </p>
                     </div>

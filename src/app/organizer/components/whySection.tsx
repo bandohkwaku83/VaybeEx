@@ -33,8 +33,8 @@ const WHY_BENEFITS = [
     theme: {
       mesh: "radial-gradient(ellipse 90% 70% at 0% 0%, rgba(107,63,29,0.2), transparent 65%)",
       iconGradient: "linear-gradient(145deg, #8b5a2b 0%, #4a2a12 100%)",
-      glow: "rgba(107, 63, 29, 0.18)",
-      tagBg: "rgba(107, 63, 29, 0.1)",
+      glow: "rgba(86, 47, 24, 0.18)",
+      tagBg: "rgba(86, 47, 24, 0.1)",
       tagColor: "#6b3f1d",
       accent: "#6b3f1d",
     },

@@ -18,13 +18,13 @@ const METHOD_META: Record<
 > = {
   card: { label: "Card", Icon: CreditCard, color: "#6b3f1d" },
   mtn: { label: "MTN MoMo", Icon: Smartphone, color: "#c4864c" },
-  vodafone: { label: "Vodafone Cash", Icon: Smartphone, color: "#d08a3c" },
-  airteltigo: { label: "AirtelTigo", Icon: Smartphone, color: "#b5523a" },
+  vodafone: { label: "Vodafone Cash", Icon: Smartphone, color: "#c4864c" },
+  airteltigo: { label: "AirtelTigo", Icon: Smartphone, color: "#6b3f1d" },
   bank: { label: "Bank Transfer", Icon: Building2, color: "#4a2a12" },
   installment: { label: "Installment", Icon: CalendarClock, color: "#9c8773" },
 };
 
-const FALLBACK_COLORS = ["#6b3f1d", "#c4864c", "#d08a3c", "#b5523a", "#4a2a12", "#9c8773"];
+const FALLBACK_COLORS = ["#6b3f1d", "#c4864c", "#c4864c", "#6b3f1d", "#4a2a12", "#9c8773"];
 
 interface AggRow {
   key: string;

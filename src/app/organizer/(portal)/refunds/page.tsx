@@ -42,7 +42,7 @@ function travelerDisplayName(request: CancellationRequest) {
 function statusMeta(status: RefundStatus) {
   switch (status) {
     case "pending":
-      return { label: "Pending",    Icon: Clock,        color: "#d08a3c",        bg: "rgba(208,138,60,0.1)",  border: "rgba(208,138,60,0.25)" };
+      return { label: "Pending",    Icon: Clock,        color: "#c4864c",        bg: "rgba(208,138,60,0.1)",  border: "rgba(208,138,60,0.25)" };
     case "processing":
       return { label: "Processing", Icon: RefreshCw,    color: "var(--primary)", bg: "var(--primary-dim)",    border: "rgba(107,63,29,0.2)"  };
     case "refunded":
@@ -704,7 +704,7 @@ export default function RefundsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
           label="Needs action" value={needsAction.length}
-          icon={AlertCircle} iconBg="rgba(208,138,60,0.1)" iconColor="#d08a3c"
+          icon={AlertCircle} iconBg="rgba(208,138,60,0.1)" iconColor="#c4864c"
           sub={
             processing.length > 0
               ? `${processing.length} sending via Paystack`
@@ -742,7 +742,7 @@ export default function RefundsPage() {
           >
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px]" style={{ background: "rgba(208,138,60,0.15)" }}>
-                <Clock className="h-4 w-4" style={{ color: "#d08a3c" }} />
+                <Clock className="h-4 w-4" style={{ color: "#c4864c" }} />
               </div>
               <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 <span className="font-semibold" style={{ color: "var(--text)" }}>
@@ -754,7 +754,7 @@ export default function RefundsPage() {
               type="button"
               onClick={() => setActiveTab("pending")}
               className="shrink-0 flex items-center gap-1 text-[12px] font-semibold"
-              style={{ color: "#d08a3c" }}
+              style={{ color: "#c4864c" }}
             >
               Review <ArrowRight className="h-3.5 w-3.5" />
             </button>

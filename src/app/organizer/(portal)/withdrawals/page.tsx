@@ -77,7 +77,7 @@ function statusMeta(status: string, failureReason?: string | null) {
     return {
       label: copy.label,
       Icon: Clock,
-      color: "#d08a3c",
+      color: "#c4864c",
       bg: "rgba(208,138,60,0.1)",
       border: "rgba(208,138,60,0.25)",
     };
@@ -85,7 +85,7 @@ function statusMeta(status: string, failureReason?: string | null) {
     return {
       label: copy.label,
       Icon: AlertCircle,
-      color: "#b5523a",
+      color: "#6b3f1d",
       bg: "rgba(181,82,58,0.1)",
       border: "rgba(181,82,58,0.25)",
     };

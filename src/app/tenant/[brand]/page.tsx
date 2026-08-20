@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { MediaImage } from "@/components/ui/media-image";
 import { ArrowRight, Check, MapPin, Star } from "lucide-react";
@@ -18,6 +19,32 @@ import {
 } from "@/lib/tenant";
 import { formatCurrency, formatDateRange } from "@/lib/utils";
 import type { Trip } from "@/lib/types";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ brand: string }>;
+}): Promise<Metadata> {
+  const { brand } = await params;
+  const displayName = brand
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return {
+    title: `${displayName} — Trips on VaybeEx`,
+    description: `Browse and book group trips hosted by ${displayName} on VaybeEx. Explore upcoming expeditions across Ghana and West Africa.`,
+    openGraph: {
+      title: `${displayName} — VaybeEx`,
+      description: `Browse and book group trips hosted by ${displayName} on VaybeEx.`,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${displayName} — VaybeEx`,
+      description: `Browse and book group trips hosted by ${displayName} on VaybeEx.`,
+    },
+  };
+}
 
 export default async function TenantBrandHomePage({
   params,

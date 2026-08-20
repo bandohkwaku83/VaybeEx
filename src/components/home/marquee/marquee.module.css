@@ -1,0 +1,122 @@
+/* ════════════════════════════════════════════════════════════════
+   Marquee — scroll-scrubbed drifting rows with a font-weight
+   "shrink/grow" type animation on the words.
+   All rules are scoped to the component's own classes.
+   ════════════════════════════════════════════════════════════════ */
+
+.root {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.marquees {
+  width: 100%;
+  height: 150vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--surface);
+}
+
+.marqueeContainer {
+  position: relative;
+  width: 125%;
+  height: 250px;
+  display: flex;
+  margin-bottom: 1em;
+  overflow: hidden;
+}
+
+.marquee {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 1em;
+}
+
+/* rows that pre-offset the track to the left (marquee-1 & marquee-3) */
+.marqueeOffset {
+  left: -15%;
+}
+
+.item {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
+.item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.withText {
+  flex: 1.5;
+}
+
+.word {
+  font-family: var(--font-big-shoulders), var(--font-display), sans-serif;
+  text-transform: uppercase;
+  font-size: 110px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* per-character spans animated by GSAP (font-weight stagger) */
+.char {
+  display: inline-block;
+}
+
+@media (max-width: 900px) {
+  .marquees {
+    height: 100vh;
+  }
+
+  .marqueeContainer {
+    width: 250%;
+    height: 150px;
+  }
+
+  /* marquee-4 only offsets on small screens */
+  .marqueeOffsetMobile {
+    left: -35%;
+  }
+
+  .withText {
+    flex: 1;
+  }
+
+  .word {
+    font-size: 52px;
+  }
+}
+
+/* ── Lenis smooth-scroll helpers (global by nature: Lenis applies
+      these classes to <html>) ─────────────────────────────────── */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}

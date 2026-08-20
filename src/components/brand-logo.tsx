@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
-import { Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AnimatedLogo from "@public/logo.jpeg";
+import Image from "next/image";
 
 type BrandLogoProps = {
   className?: string;
@@ -14,12 +15,11 @@ type BrandLogoProps = {
 };
 
 const sizeMap = {
-  sm: { box: "h-8 w-8", icon: "h-4 w-4", radius: "10px" },
-  md: { box: "h-9 w-9", icon: "h-5 w-5", radius: "10px" },
-  lg: { box: "h-10 w-10", icon: "h-5 w-5", radius: "12px" },
+  sm: { img: "h-6 w-6" },
+  md: { img: "h-8 w-8" },
+  lg: { img: "h-12 w-12" },
 } as const;
 
-/** Temporary brand mark (Compass). Swap in the real logo asset when ready. */
 export function BrandLogo({
   className,
   size = "md",
@@ -33,34 +33,28 @@ export function BrandLogo({
   const s = sizeMap[size];
 
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <span
-        className={cn(
-          "flex shrink-0 items-center justify-center text-[#fbf7f1]",
-          s.box
-        )}
-        style={{
-          background: "var(--gradient-brand)",
-          borderRadius: s.radius,
-        }}
-      >
-        <Compass className={s.icon} />
-      </span>
+    <span className={cn("inline-flex items-center gap-2", className)}>
+      {/* ── Animated logo — transparent, no background, clean inline with text ── */}
+      <Image
+        src={AnimatedLogo}
+        alt="VaybeEx logo"
+        className={cn("object-contain", s.img)}
+        priority
+        unoptimized
+        style={{ display: "block" }}
+      />
+
       {withWordmark ? (
         <span className="min-w-0 leading-tight">
           <span
             className={cn(
               "font-display block font-bold tracking-tight",
-              wordmarkClassName
+              wordmarkClassName,
             )}
             style={wordmarkStyle}
           >
             Vaybe
-            {accentEx ? (
-              <span style={{ color: "var(--gold)" }}>Ex</span>
-            ) : (
-              "Ex"
-            )}
+            {accentEx ? <span style={{ color: "var(--gold)" }}>Ex</span> : "Ex"}
           </span>
           {subline ? (
             <span
