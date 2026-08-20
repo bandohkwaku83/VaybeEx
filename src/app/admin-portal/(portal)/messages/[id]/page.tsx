@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Alert, Button, Table, Tag } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, Button, Tag } from "antd";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { DataTable } from "@/components/ui/data-table";
 import { ApiError } from "@/lib/api/client";
 import {
   deliveryStatusLabel,
@@ -38,17 +39,12 @@ function deliveryTag(status: string) {
   };
   const tone = styles[status] ?? { bg: "#f5f5f5", color: "#525252" };
   return (
-    <Tag
-      variant="filled"
-      style={{
-        background: tone.bg,
-        color: tone.color,
-        marginInlineEnd: 0,
-        fontWeight: 500,
-      }}
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+      style={{ background: tone.bg, color: tone.color }}
     >
       {deliveryStatusLabel(status)}
-    </Tag>
+    </span>
   );
 }
 
@@ -98,6 +94,67 @@ function MessageDetailInner() {
     return () => window.clearInterval(timer);
   }, [campaign, load]);
 
+  const columns: ColumnDef<AdminMessageDelivery, unknown>[] = useMemo(
+    () => [
+      {
+        header: "Recipient",
+        id: "recipient",
+        cell: ({ row }) => {
+          const delivery = row.original;
+          return delivery.userId ? (
+            <Link
+              href={`/admin-portal/users/${delivery.userId}`}
+              className="hover:underline"
+              style={{ color: "var(--text)" }}
+            >
+              <span className="block font-medium">
+                {delivery.recipientName || "User"}
+              </span>
+              <span
+                className="block text-xs"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {delivery.phone || delivery.email || delivery.role}
+              </span>
+            </Link>
+          ) : (
+            delivery.recipientName || "—"
+          );
+        },
+      },
+      {
+        header: "Status",
+        accessorKey: "status",
+        size: 130,
+        cell: ({ getValue }) => deliveryTag(getValue() as string),
+      },
+      {
+        header: "Note",
+        id: "note",
+        cell: ({ row }) => (
+          <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+            {row.original.errorMessage || row.original.skipReason || "—"}
+          </span>
+        ),
+      },
+      {
+        header: "Sent",
+        id: "sent",
+        size: 140,
+        cell: ({ row }) =>
+          row.original.sentAt ? (
+            <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              <div>{formatRelativeTime(row.original.sentAt)}</div>
+              <div>{formatDateShort(row.original.sentAt)}</div>
+            </div>
+          ) : (
+            "—"
+          ),
+      },
+    ],
+    []
+  );
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 p-8 text-sm" style={{ color: "#737373" }}>
@@ -135,59 +192,6 @@ function MessageDetailInner() {
   const stats = campaign.deliveryStats;
   const tone = campaignTone(campaign.status);
   const sending = isInFlight(campaign);
-
-  const columns: ColumnsType<AdminMessageDelivery> = [
-    {
-      title: "Recipient",
-      key: "recipient",
-      render: (_, row) =>
-        row.userId ? (
-          <Link
-            href={`/admin-portal/users/${row.userId}`}
-            className="hover:underline"
-            style={{ color: "var(--text)" }}
-          >
-            <span className="block font-medium">
-              {row.recipientName || "User"}
-            </span>
-            <span className="block text-xs" style={{ color: "var(--text-tertiary)" }}>
-              {row.phone || row.email || row.role}
-            </span>
-          </Link>
-        ) : (
-          row.recipientName || "—"
-        ),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      width: 130,
-      render: (value: string) => deliveryTag(value),
-    },
-    {
-      title: "Note",
-      key: "note",
-      render: (_, row) => (
-        <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-          {row.errorMessage || row.skipReason || "—"}
-        </span>
-      ),
-    },
-    {
-      title: "Sent",
-      key: "sent",
-      width: 140,
-      render: (_, row) =>
-        row.sentAt ? (
-          <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-            <div>{formatRelativeTime(row.sentAt)}</div>
-            <div>{formatDateShort(row.sentAt)}</div>
-          </div>
-        ) : (
-          "—"
-        ),
-    },
-  ];
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -255,7 +259,7 @@ function MessageDetailInner() {
             [
               ["Still going out", stats?.queued ?? 0],
               ["Got it", stats?.sent ?? 0],
-              ["Didn’t send", stats?.failed ?? 0],
+              ["Didn't send", stats?.failed ?? 0],
               ["Left out", stats?.skipped ?? 0],
             ] as const
           ).map(([label, value]) => (
@@ -293,15 +297,21 @@ function MessageDetailInner() {
         >
           Who got it
         </h2>
-        <Table<AdminMessageDelivery>
-          className="admin-antd-table"
-          rowKey="id"
-          columns={columns}
-          dataSource={deliveries}
-          pagination={{ pageSize: 30, showSizeChanger: false }}
-          scroll={{ x: 720 }}
-          locale={{ emptyText: "No deliveries recorded." }}
-        />
+        <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+          <DataTable
+            data={deliveries}
+            columns={columns}
+            emptyText="No deliveries recorded."
+            scrollX={720}
+            enableSorting={false}
+            pagination={{
+              current: 1,
+              pageSize: 30,
+              total: deliveries.length,
+              onChange: () => {},
+            }}
+          />
+        </div>
       </section>
     </div>
   );

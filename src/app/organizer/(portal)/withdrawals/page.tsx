@@ -538,7 +538,7 @@ export default function WithdrawalsPage() {
             className="mt-1 text-[13px]"
             style={{ color: "var(--text-secondary)" }}
           >
-            Request a payout to MoMo. An admin reviews it and sends the money.
+            Request a payout to MoMo.
             Pending requests lock that amount until they are paid or rejected.
           </p>
         </div>

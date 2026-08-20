@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert, Avatar, Input, Select, Table, Tag, Button, Space } from "antd";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, Avatar, Input, Select, Tag, Button, Space } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
+import { DataTable } from "@/components/ui/data-table";
 import { ApiError } from "@/lib/api/client";
 import {
   getAdminUserReview,
@@ -19,7 +20,7 @@ import { formatDateShort, formatRelativeTime } from "@/lib/format";
 
 type RoleTab = "all" | "traveler" | "organizer";
 
-function SoftTag({
+function StatusBadge({
   label,
   bg,
   color,
@@ -29,17 +30,12 @@ function SoftTag({
   color: string;
 }) {
   return (
-    <Tag
-      variant="filled"
-      style={{
-        background: bg,
-        color,
-        marginInlineEnd: 0,
-        fontWeight: 500,
-      }}
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+      style={{ background: bg, color }}
     >
       {label}
-    </Tag>
+    </span>
   );
 }
 
@@ -47,30 +43,30 @@ function statusTag(user: AdminUser) {
   if (user.role === "organizer") {
     const review = getAdminUserReview(user);
     if (review.isResubmission) {
-      return <SoftTag label="Resubmitted" bg="#fff7ed" color="#c2410c" />;
+      return <StatusBadge label="Resubmitted" bg="#fff7ed" color="#c2410c" />;
     }
     const status = review.status || user.status || "unset";
     if (status === "pending" && user.onboardingCompleted) {
       return (
-        <SoftTag label="Pending approval" bg="#fffbeb" color="#b45309" />
+        <StatusBadge label="Pending approval" bg="#fffbeb" color="#b45309" />
       );
     }
     if (status === "approved") {
-      return <SoftTag label="Approved" bg="#f0fdf4" color="#15803d" />;
+      return <StatusBadge label="Approved" bg="#f0fdf4" color="#15803d" />;
     }
     if (status === "rejected") {
-      return <SoftTag label="Rejected" bg="#fef2f2" color="#b91c1c" />;
+      return <StatusBadge label="Rejected" bg="#fef2f2" color="#b91c1c" />;
     }
     if (!user.onboardingCompleted) {
       return (
-        <SoftTag label="Setup incomplete" bg="#f5f5f5" color="#525252" />
+        <StatusBadge label="Setup incomplete" bg="#f5f5f5" color="#525252" />
       );
     }
   }
   if (user.isVerified) {
-    return <SoftTag label="Verified" bg="#eff6ff" color="#1d4ed8" />;
+    return <StatusBadge label="Verified" bg="#eff6ff" color="#1d4ed8" />;
   }
-  return <SoftTag label="Unverified" bg="#f5f5f5" color="#737373" />;
+  return <StatusBadge label="Unverified" bg="#f5f5f5" color="#737373" />;
 }
 
 const QUEUE_TABS: { key: AdminReviewQueue; label: string }[] = [
@@ -162,115 +158,139 @@ function UsersPageInner() {
     void load();
   }, [load]);
 
-  const columns: ColumnsType<AdminUser> = useMemo(
+  const columns: ColumnDef<AdminUser, unknown>[] = useMemo(
     () => [
       {
-        title: "Person",
-        key: "person",
-        render: (_, user) => {
+        header: "Person",
+        id: "person",
+        cell: ({ row }) => {
+          const user = row.original;
           const review = getAdminUserReview(user);
           return (
-          <Link
-            href={`/admin-portal/users/${user.id}${queue ? queueDetailQuery(queue) : ""}`}
-            className="flex items-center gap-3"
-          >
-            <Avatar
-              shape="square"
-              size={36}
-              src={
-                user.profilePhoto ||
-                user.brandLogo ||
-                DEFAULT_PROFILE_IMAGE
-              }
-              style={{
-                background: "#f5f5f5",
-                borderRadius: 10,
-              }}
-            />
-            <span className="min-w-0">
-              <span className="block truncate font-medium" style={{ color: "var(--text)" }}>
-                {user.fullName || user.businessName || "—"}
-              </span>
-              <span className="block truncate text-xs" style={{ color: "var(--text-tertiary)" }}>
-                {user.email}
-                {user.phone ? ` · ${user.phone}` : ""}
-              </span>
-              {user.businessName && user.fullName ? (
-                <span className="block truncate text-xs" style={{ color: "var(--text-secondary)" }}>
-                  {user.businessName}
+            <Link
+              href={`/admin-portal/users/${user.id}${queue ? queueDetailQuery(queue) : ""}`}
+              className="flex items-center gap-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="relative h-9 w-9 shrink-0 overflow-hidden rounded-[10px]"
+                style={{ background: "#f5f5f5" }}
+              >
+                <img
+                  src={
+                    user.profilePhoto ||
+                    user.brandLogo ||
+                    DEFAULT_PROFILE_IMAGE
+                  }
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <span className="min-w-0">
+                <span
+                  className="block truncate font-medium"
+                  style={{ color: "var(--text)" }}
+                >
+                  {user.fullName || user.businessName || "—"}
                 </span>
-              ) : null}
-              {review.isResubmission && review.previousRejectionReason ? (
-                <span className="mt-1 block text-xs leading-snug" style={{ color: "#c2410c" }}>
-                  Last ask: {review.previousRejectionReason}
+                <span
+                  className="block truncate text-xs"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {user.email}
+                  {user.phone ? ` · ${user.phone}` : ""}
                 </span>
-              ) : null}
-            </span>
-          </Link>
+                {user.businessName && user.fullName ? (
+                  <span
+                    className="block truncate text-xs"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {user.businessName}
+                  </span>
+                ) : null}
+                {review.isResubmission && review.previousRejectionReason ? (
+                  <span
+                    className="mt-1 block text-xs leading-snug"
+                    style={{ color: "#c2410c" }}
+                  >
+                    Last ask: {review.previousRejectionReason}
+                  </span>
+                ) : null}
+              </span>
+            </Link>
           );
         },
       },
       {
-        title: "Role",
-        dataIndex: "role",
-        key: "role",
-        width: 120,
-        render: (role: string) => (
-          <span className="capitalize" style={{ color: "var(--text-secondary)" }}>
-            {role}
+        header: "Role",
+        accessorKey: "role",
+        size: 120,
+        cell: ({ getValue }) => (
+          <span
+            className="capitalize"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {getValue() as string}
           </span>
         ),
       },
       {
-        title: "Status",
-        key: "status",
-        width: 160,
-        render: (_, user) => statusTag(user),
+        header: "Status",
+        id: "status",
+        size: 160,
+        cell: ({ row }) => statusTag(row.original),
       },
       {
-        title: "Joined",
-        key: "joined",
-        width: 140,
-        render: (_, user) =>
-          user.createdAt ? (
+        header: "Joined",
+        id: "joined",
+        size: 140,
+        cell: ({ row }) => {
+          const user = row.original;
+          return user.createdAt ? (
             <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
               <div>{formatRelativeTime(user.createdAt)}</div>
               <div>{formatDateShort(user.createdAt)}</div>
             </div>
           ) : (
             "—"
-          ),
+          );
+        },
       },
       {
-        title: "Last seen",
-        key: "lastSeen",
-        width: 180,
-        render: (_, user) =>
-          user.lastLoginAt ? (
+        header: "Last seen",
+        id: "lastSeen",
+        size: 180,
+        cell: ({ row }) => {
+          const user = row.original;
+          return user.lastLoginAt ? (
             <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
               <div>{formatRelativeTime(user.lastLoginAt)}</div>
               {user.lastLoginDevice?.label ? (
-                <div className="truncate" title={user.lastLoginDevice.label}>
+                <div
+                  className="truncate"
+                  title={user.lastLoginDevice.label}
+                >
                   {user.lastLoginDevice.label}
                 </div>
               ) : null}
             </div>
           ) : (
             "—"
-          ),
+          );
+        },
       },
     ],
     [queue]
   );
 
-  const pagination: TablePaginationConfig = {
-    current: page,
-    pageSize,
-    total,
-    showSizeChanger: false,
-    showTotal: (t) => `${t} result${t === 1 ? "" : "s"}`,
-    onChange: (next) => setPage(next),
-  };
+  const emptyText =
+    queue === "resubmitted"
+      ? "No resubmitted applications."
+      : queue === "rejected"
+        ? "No rejected organizers."
+        : isQueue
+          ? "No organizers waiting for approval."
+          : "No users match your filters.";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -282,7 +302,10 @@ function UsersPageInner() {
           >
             {isQueue ? "Approvals" : "People"}
           </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+          <p
+            className="mt-1 text-sm"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {queue === "resubmitted"
               ? "Rejected, then came back — check what you asked them to fix"
               : queue === "rejected"
@@ -421,33 +444,28 @@ function UsersPageInner() {
         />
       )}
 
-      <Table<AdminUser>
-        className="admin-antd-table"
-        rowKey="id"
-        columns={columns}
-        dataSource={users}
-        loading={loading}
-        pagination={pagination}
-        scroll={{ x: 900 }}
-        locale={{
-          emptyText:
-            queue === "resubmitted"
-              ? "No resubmitted applications."
-              : queue === "rejected"
-                ? "No rejected organizers."
-                : isQueue
-                  ? "No organizers waiting for approval."
-                  : "No users match your filters.",
-        }}
-        onRow={(user) => ({
-          style: { cursor: "pointer" },
-          onClick: () => {
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+        <DataTable
+          data={users}
+          columns={columns}
+          loading={loading}
+          emptyText={emptyText}
+          scrollX={900}
+          enableSorting={false}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showTotal: (t) => `${t} result${t === 1 ? "" : "s"}`,
+            onChange: (next) => setPage(next),
+          }}
+          onRowClick={(user) =>
             router.push(
               `/admin-portal/users/${user.id}${queue ? queueDetailQuery(queue) : ""}`
-            );
-          },
-        })}
-      />
+            )
+          }
+        />
+      </div>
     </div>
   );
 }

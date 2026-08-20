@@ -4,19 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Alert,
-  Button,
-  Input,
-  Space,
-  Table,
-  Tag,
-} from "antd";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import {
-  ExportOutlined,
-  SearchOutlined,
-} from "@ant-design/icons";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, Button, Input, Space, Tag } from "antd";
+import { ExportOutlined, SearchOutlined } from "@ant-design/icons";
+import { DataTable } from "@/components/ui/data-table";
 import { ApiError } from "@/lib/api/client";
 import { listAdminTrips, type AdminTrip } from "@/lib/api/admin";
 import { formatDateRange, formatGHS } from "@/lib/format";
@@ -40,18 +31,12 @@ function tripStatusTag(status: string) {
   };
   const tone = styles[status] ?? { bg: "#f5f5f5", color: "#525252" };
   return (
-    <Tag
-      variant="filled"
-      className="capitalize"
-      style={{
-        background: tone.bg,
-        color: tone.color,
-        marginInlineEnd: 0,
-        fontWeight: 500,
-      }}
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium capitalize"
+      style={{ background: tone.bg, color: tone.color }}
     >
       {status}
-    </Tag>
+    </span>
   );
 }
 
@@ -112,48 +97,58 @@ function TripsInner() {
     void load();
   }, [load]);
 
-  const columns: ColumnsType<AdminTrip> = useMemo(
+  const columns: ColumnDef<AdminTrip, unknown>[] = useMemo(
     () => [
       {
-        title: "Trip",
-        key: "trip",
-        render: (_, trip) => (
-          <div className="flex items-center gap-3">
-            <div
-              className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg"
-              style={{ background: "var(--bg-secondary)" }}
-            >
-              {trip.coverImage ? (
-                <Image
-                  src={trip.coverImage}
-                  alt=""
-                  fill
-                  unoptimized
-                  className="object-cover"
-                  sizes="56px"
-                />
-              ) : null}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate font-medium" style={{ color: "var(--text)" }}>
-                {trip.title}
+        header: "Trip",
+        id: "trip",
+        cell: ({ row }) => {
+          const trip = row.original;
+          return (
+            <div className="flex items-center gap-3">
+              <div
+                className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg"
+                style={{ background: "var(--bg-secondary)" }}
+              >
+                {trip.coverImage ? (
+                  <Image
+                    src={trip.coverImage}
+                    alt=""
+                    fill
+                    unoptimized
+                    className="object-cover"
+                    sizes="56px"
+                  />
+                ) : null}
               </div>
-              <div className="truncate text-xs" style={{ color: "var(--text-tertiary)" }}>
-                {trip.destination}
-                {trip.pricePerPerson != null
-                  ? ` · ${formatGHS(trip.pricePerPerson)}/pp`
-                  : ""}
+              <div className="min-w-0">
+                <div
+                  className="truncate font-medium"
+                  style={{ color: "var(--text)" }}
+                >
+                  {trip.title}
+                </div>
+                <div
+                  className="truncate text-xs"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {trip.destination}
+                  {trip.pricePerPerson != null
+                    ? ` · ${formatGHS(trip.pricePerPerson)}/pp`
+                    : ""}
+                </div>
               </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
-        title: "Organizer",
-        key: "organizer",
-        width: 200,
-        render: (_, trip) =>
-          trip.organizer?.id ? (
+        header: "Organizer",
+        id: "organizer",
+        size: 200,
+        cell: ({ row }) => {
+          const trip = row.original;
+          return trip.organizer?.id ? (
             <Link
               href={`/admin-portal/users/${trip.organizer.id}`}
               onClick={(e) => e.stopPropagation()}
@@ -164,7 +159,10 @@ function TripsInner() {
                   trip.organizer.fullName ||
                   "—"}
               </div>
-              <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              <div
+                className="text-xs"
+                style={{ color: "var(--text-tertiary)" }}
+              >
                 {trip.organizer.email}
               </div>
             </Link>
@@ -174,78 +172,72 @@ function TripsInner() {
                 trip.organizer?.fullName ||
                 "No organizer"}
             </div>
-          ),
+          );
+        },
       },
       {
-        title: "Dates",
-        key: "dates",
-        width: 160,
-        render: (_, trip) => (
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            {trip.startDate && trip.endDate
-              ? formatDateRange(trip.startDate, trip.endDate)
-              : "—"}
-          </span>
+        header: "Dates",
+        id: "dates",
+        size: 160,
+        cell: ({ row }) => {
+          const trip = row.original;
+          return (
+            <span
+              className="text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {trip.startDate && trip.endDate
+                ? formatDateRange(trip.startDate, trip.endDate)
+                : "—"}
+            </span>
+          );
+        },
+      },
+      {
+        header: "Status",
+        accessorKey: "status",
+        size: 120,
+        cell: ({ getValue }) => tripStatusTag(getValue() as string),
+      },
+      {
+        header: "Bookings",
+        accessorKey: "bookingsCount",
+        size: 100,
+        cell: ({ getValue }) => (
+          <span className="tabular-nums">{(getValue() as number) ?? 0}</span>
         ),
       },
       {
-        title: "Status",
-        dataIndex: "status",
-        key: "status",
-        width: 120,
-        render: (status: string) => tripStatusTag(status),
-      },
-      {
-        title: "Bookings",
-        dataIndex: "bookingsCount",
-        key: "bookings",
-        width: 100,
-        align: "right",
-        render: (count?: number) => (
-          <span className="tabular-nums">{count ?? 0}</span>
-        ),
-      },
-      {
-        title: "Revenue",
-        dataIndex: "revenue",
-        key: "revenue",
-        width: 120,
-        align: "right",
-        render: (revenue?: number) => (
+        header: "Revenue",
+        accessorKey: "revenue",
+        size: 120,
+        cell: ({ getValue }) => (
           <span className="tabular-nums font-medium">
-            {formatGHS(revenue ?? 0)}
+            {formatGHS((getValue() as number) ?? 0)}
           </span>
         ),
       },
       {
-        title: "",
-        key: "actions",
-        width: 80,
-        render: (_, trip) => (
+        header: "",
+        id: "actions",
+        size: 80,
+        cell: ({ row }) => (
           <Link
-            href={`/trips/${trip.id}`}
+            href={`/trips/${row.original.id}`}
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-sm"
+            style={{ color: "var(--primary)" }}
           >
-            <Button type="link" size="small" icon={<ExportOutlined />}>
-              View
-            </Button>
+            <ExportOutlined />
+            View
           </Link>
         ),
       },
     ],
     []
   );
-
-  const pagination: TablePaginationConfig = {
-    current: page,
-    pageSize,
-    total,
-    showSizeChanger: false,
-    showTotal: (t) => `${t} trip${t === 1 ? "" : "s"}`,
-    onChange: (next) => setPage(next),
-  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -311,16 +303,23 @@ function TripsInner() {
         />
       )}
 
-      <Table<AdminTrip>
-        className="admin-antd-table"
-        rowKey="id"
-        columns={columns}
-        dataSource={trips}
-        loading={loading}
-        pagination={pagination}
-        scroll={{ x: 900 }}
-        locale={{ emptyText: "No trips found." }}
-      />
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+        <DataTable
+          data={trips}
+          columns={columns}
+          loading={loading}
+          emptyText="No trips found."
+          scrollX={900}
+          enableSorting={false}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showTotal: (t) => `${t} trip${t === 1 ? "" : "s"}`,
+            onChange: (next) => setPage(next),
+          }}
+        />
+      </div>
     </div>
   );
 }

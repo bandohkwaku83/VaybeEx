@@ -39,7 +39,7 @@ function AdminPortalShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#f5f5f5" }}>
+    <div className="fixed inset-0 z-40 flex overflow-hidden" style={{ background: "#f5f5f5" }}>
       <Suspense fallback={null}>
         <AdminSidebar
           collapsed={collapsed}
@@ -48,7 +48,7 @@ function AdminPortalShell({ children }: { children: React.ReactNode }) {
           resubmittedCount={resubmittedCount}
         />
       </Suspense>
-      <div className="flex min-h-screen flex-1 flex-col overflow-auto">
+      <div className="flex flex-1 flex-col overflow-y-auto">
         <AdminTopbar
           pendingApprovalCount={pendingApprovalCount}
           resubmittedCount={resubmittedCount}

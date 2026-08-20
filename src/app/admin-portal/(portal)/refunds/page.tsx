@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert, Button, Input, Space, Table, Tag } from "antd";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, Button, Input, Space } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
+import { DataTable } from "@/components/ui/data-table";
 import { ApiError } from "@/lib/api/client";
 import {
   getAdminRefunds,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/api/admin";
 import { formatDateShort, formatGHSMoney, formatRelativeTime } from "@/lib/format";
 
-function refundStatusTag(status: string) {
+function RefundStatusBadge({ status }: { status: string }) {
   const styles: Record<string, { bg: string; color: string }> = {
     pending: { bg: "#fffbeb", color: "#b45309" },
     processing: { bg: "#eff6ff", color: "#1d4ed8" },
@@ -23,17 +24,12 @@ function refundStatusTag(status: string) {
   };
   const tone = styles[status] ?? { bg: "#f5f5f5", color: "#525252" };
   return (
-    <Tag
-      variant="filled"
-      style={{
-        background: tone.bg,
-        color: tone.color,
-        marginInlineEnd: 0,
-        fontWeight: 500,
-      }}
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+      style={{ background: tone.bg, color: tone.color }}
     >
       {refundLabel(status)}
-    </Tag>
+    </span>
   );
 }
 
@@ -142,109 +138,103 @@ function RefundsInner() {
   const awaitingCount = statusCounts.pending + statusCounts.processing;
   const activeTab = queueParam === "awaiting" ? "awaiting" : statusParam || "all";
 
-  const columns: ColumnsType<AdminRefund> = [
+  const columns: ColumnDef<AdminRefund, unknown>[] = [
     {
-      title: "Trip",
-      key: "trip",
-      render: (_, row) => (
+      header: "Trip",
+      id: "trip",
+      cell: ({ row }) => (
         <Link
-          href={`/admin-portal/refunds/${row.id}`}
+          href={`/admin-portal/refunds/${row.original.id}`}
           className="block min-w-0"
+          onClick={(e) => e.stopPropagation()}
         >
           <span className="block font-medium" style={{ color: "var(--text)" }}>
-            {row.trip?.title || "Trip"}
+            {row.original.trip?.title || "Trip"}
           </span>
           <span className="block text-xs" style={{ color: "var(--text-tertiary)" }}>
-            {row.trip?.destination || "—"}
+            {row.original.trip?.destination || "—"}
           </span>
         </Link>
       ),
     },
     {
-      title: "Traveler",
-      key: "traveler",
-      width: 180,
-      render: (_, row) =>
-        row.traveler?.id ? (
+      header: "Traveler",
+      id: "traveler",
+      size: 180,
+      cell: ({ row }) =>
+        row.original.traveler?.id ? (
           <Link
-            href={`/admin-portal/users/${row.traveler.id}`}
+            href={`/admin-portal/users/${row.original.traveler.id}`}
             className="hover:underline"
             style={{ color: "var(--text)" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {row.traveler.fullName || row.traveler.email || "—"}
+            {row.original.traveler.fullName || row.original.traveler.email || "—"}
           </Link>
         ) : (
-          row.traveler?.fullName || row.traveler?.email || "—"
+          row.original.traveler?.fullName || row.original.traveler?.email || "—"
         ),
     },
     {
-      title: "Organizer",
-      key: "organizer",
-      width: 180,
-      render: (_, row) =>
-        row.organizer?.id ? (
+      header: "Organizer",
+      id: "organizer",
+      size: 180,
+      cell: ({ row }) =>
+        row.original.organizer?.id ? (
           <Link
-            href={`/admin-portal/users/${row.organizer.id}`}
+            href={`/admin-portal/users/${row.original.organizer.id}`}
             className="hover:underline"
             style={{ color: "var(--text)" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {row.organizer.businessName ||
-              row.organizer.fullName ||
-              row.organizer.email ||
+            {row.original.organizer.businessName ||
+              row.original.organizer.fullName ||
+              row.original.organizer.email ||
               "—"}
           </Link>
         ) : (
-          row.organizer?.businessName || row.organizer?.fullName || "—"
+          row.original.organizer?.businessName || row.original.organizer?.fullName || "—"
         ),
     },
     {
-      title: "Paid",
-      key: "paid",
-      width: 120,
-      render: (_, row) => (
-        <span className="tabular-nums">{formatGHSMoney(row.amountPaid)}</span>
+      header: "Paid",
+      id: "paid",
+      size: 120,
+      cell: ({ row }) => (
+        <span className="tabular-nums">{formatGHSMoney(row.original.amountPaid)}</span>
       ),
     },
     {
-      title: "Refund",
-      key: "refund",
-      width: 120,
-      render: (_, row) => (
+      header: "Refund",
+      id: "refund",
+      size: 120,
+      cell: ({ row }) => (
         <span className="font-medium tabular-nums">
-          {formatGHSMoney(row.refundAmount)}
+          {formatGHSMoney(row.original.refundAmount)}
         </span>
       ),
     },
     {
-      title: "Status",
-      key: "status",
-      width: 160,
-      render: (_, row) => refundStatusTag(row.status),
+      header: "Status",
+      id: "status",
+      size: 160,
+      cell: ({ row }) => <RefundStatusBadge status={row.original.status} />,
     },
     {
-      title: "Requested",
-      key: "requested",
-      width: 140,
-      render: (_, row) =>
-        row.requestedAt ? (
+      header: "Requested",
+      id: "requested",
+      size: 140,
+      cell: ({ row }) =>
+        row.original.requestedAt ? (
           <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-            <div>{formatRelativeTime(row.requestedAt)}</div>
-            <div>{formatDateShort(row.requestedAt)}</div>
+            <div>{formatRelativeTime(row.original.requestedAt)}</div>
+            <div>{formatDateShort(row.original.requestedAt)}</div>
           </div>
         ) : (
           "—"
         ),
     },
   ];
-
-  const pagination: TablePaginationConfig = {
-    current: page,
-    pageSize,
-    total,
-    showSizeChanger: false,
-    showTotal: (t) => `${t} refund${t === 1 ? "" : "s"}`,
-    onChange: (next) => setPage(next),
-  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -366,20 +356,24 @@ function RefundsInner() {
         />
       )}
 
-      <Table<AdminRefund>
-        className="admin-antd-table"
-        rowKey="id"
-        columns={columns}
-        dataSource={refunds}
-        loading={loading}
-        pagination={pagination}
-        scroll={{ x: 980 }}
-        locale={{ emptyText: "No refunds found." }}
-        onRow={(row) => ({
-          style: { cursor: "pointer" },
-          onClick: () => router.push(`/admin-portal/refunds/${row.id}`),
-        })}
-      />
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+        <DataTable
+          data={refunds}
+          columns={columns}
+          loading={loading}
+          emptyText="No refunds found."
+          scrollX={980}
+          enableSorting={false}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showTotal: (t) => `${t} refund${t === 1 ? "" : "s"}`,
+            onChange: (next) => setPage(next),
+          }}
+          onRowClick={(row) => router.push(`/admin-portal/refunds/${row.id}`)}
+        />
+      </div>
     </div>
   );
 }

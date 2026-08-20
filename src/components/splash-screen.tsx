@@ -1,32 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import AnimatedLogo from "@public/animated-logo.gif";
-
-/* ────────────────────────────────────────────────────────────────
-   SplashScreen — full-viewport intro that plays once on first load.
-
-   Animation sequence (total ~3.5s):
-   1. Dark backdrop fades in
-   2. Logo scales up from 0 with a golden glow pulse
-   3. "VAYBEEX" letters reveal one by one from below
-   4. Tagline words stagger in
-   5. Preview keywords slide across in a marquee-like band
-   6. Everything fades/scales out and the screen lifts away
-   ──────────────────────────────────────────────────────────────── */
-
-const PREVIEW_WORDS = [
-  "Explore Ghana",
-  "Book Group Trips",
-  "West Africa Adventures",
-  "Verified Organizers",
-  "Curated Expeditions",
-  "Mobile Money Payments",
-  "Trusted Reviews",
-  "Seat Guarantees",
-];
 
 export function SplashScreen() {
   const screenRef = useRef<HTMLDivElement>(null);
@@ -73,13 +51,17 @@ export function SplashScreen() {
     );
 
     // glow pulse on the logo
-    tl.to(logoRef.current, {
-      filter: "drop-shadow(0 0 30px rgba(196,134,76,0.6))",
-      duration: 0.5,
-      ease: "power2.inOut",
-      yoyo: true,
-      repeat: 1,
-    }, "-=0.3");
+    tl.to(
+      logoRef.current,
+      {
+        filter: "drop-shadow(0 0 30px rgba(196,134,76,0.6))",
+        duration: 0.5,
+        ease: "power2.inOut",
+        yoyo: true,
+        repeat: 1,
+      },
+      "-=0.3",
+    );
 
     /* ── 3. Divider line draws in ── */
     tl.fromTo(
@@ -143,26 +125,38 @@ export function SplashScreen() {
       ease: "power2.in",
     });
 
-    tl.to([logoRef.current, titleRef.current, taglineRef.current, lineRef.current], {
-      y: -30,
-      opacity: 0,
-      duration: 0.5,
-      ease: "power2.in",
-      stagger: 0.04,
-    }, "-=0.1");
+    tl.to(
+      [logoRef.current, titleRef.current, taglineRef.current, lineRef.current],
+      {
+        y: -30,
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.in",
+        stagger: 0.04,
+      },
+      "-=0.1",
+    );
 
-    tl.to(wordsRef.current, {
-      opacity: 0,
-      y: -20,
-      duration: 0.4,
-      ease: "power2.in",
-    }, "-=0.3");
+    tl.to(
+      wordsRef.current,
+      {
+        opacity: 0,
+        y: -20,
+        duration: 0.4,
+        ease: "power2.in",
+      },
+      "-=0.3",
+    );
 
-    tl.to(screenRef.current, {
-      opacity: 0,
-      duration: 0.5,
-      ease: "power2.in",
-    }, "-=0.2");
+    tl.to(
+      screenRef.current,
+      {
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.in",
+      },
+      "-=0.2",
+    );
 
     return () => {
       tl.kill();
@@ -184,7 +178,8 @@ export function SplashScreen() {
         alignItems: "center",
         justifyContent: "center",
         gap: "1.5rem",
-        background: "linear-gradient(160deg, #1a0f08 0%, #2a1b0f 40%, #1a0f08 100%)",
+        background:
+          "linear-gradient(160deg, #1a0f08 0%, #2a1b0f 40%, #1a0f08 100%)",
         overflow: "hidden",
       }}
     >
@@ -205,7 +200,8 @@ export function SplashScreen() {
           position: "absolute",
           inset: 0,
           opacity: 0.04,
-          backgroundImage: "radial-gradient(circle, #c4864c 1px, transparent 1px)",
+          backgroundImage:
+            "radial-gradient(circle, #c4864c 1px, transparent 1px)",
           backgroundSize: "32px 32px",
           pointerEvents: "none",
         }}
@@ -239,7 +235,8 @@ export function SplashScreen() {
         style={{
           width: "80px",
           height: "2px",
-          background: "linear-gradient(90deg, transparent, #c4864c, transparent)",
+          background:
+            "linear-gradient(90deg, transparent, #c4864c, transparent)",
           transformOrigin: "center",
           zIndex: 1,
         }}
@@ -249,7 +246,8 @@ export function SplashScreen() {
       <h1
         ref={titleRef}
         style={{
-          fontFamily: "var(--font-big-shoulders), var(--font-display), sans-serif",
+          fontFamily:
+            "var(--font-big-shoulders), var(--font-display), sans-serif",
           fontSize: "clamp(36px, 8vw, 72px)",
           fontWeight: 700,
           letterSpacing: "0.12em",
@@ -263,11 +261,18 @@ export function SplashScreen() {
         }}
       >
         {"VAYBE".split("").map((ch, i) => (
-          <span key={`v-${i}`} className="splash-letter" style={{ display: "inline-block" }}>
+          <span
+            key={`v-${i}`}
+            className="splash-letter"
+            style={{ display: "inline-block" }}
+          >
             {ch}
           </span>
         ))}
-        <span className="splash-letter" style={{ display: "inline-block", color: "#c4864c" }}>
+        <span
+          className="splash-letter"
+          style={{ display: "inline-block", color: "#c4864c" }}
+        >
           EX
         </span>
       </h1>
@@ -288,43 +293,6 @@ export function SplashScreen() {
       >
         Group Travel, Reimagined
       </p>
-
-      {/* ── Preview keywords band ── */}
-      <div
-        ref={wordsRef}
-        style={{
-          position: "absolute",
-          bottom: "clamp(2rem, 5vh, 4rem)",
-          left: 0,
-          right: 0,
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: "0.75rem 1.5rem",
-          padding: "0 2rem",
-          zIndex: 1,
-        }}
-      >
-        {PREVIEW_WORDS.map((word) => (
-          <span
-            key={word}
-            className="splash-word"
-            style={{
-              fontFamily: "var(--font-display), var(--font-sans), sans-serif",
-              fontSize: "clamp(10px, 1.1vw, 14px)",
-              fontWeight: 500,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "rgba(196,134,76,0.6)",
-              padding: "4px 12px",
-              border: "1px solid rgba(196,134,76,0.15)",
-              borderRadius: "9999px",
-            }}
-          >
-            {word}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

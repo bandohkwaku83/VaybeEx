@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import AnimatedLogo from "@public/logo.jpeg";
-import Image from "next/image";
+import Image, { StaticImageData } from "next/image";
 
 type BrandLogoProps = {
   className?: string;
@@ -12,6 +12,7 @@ type BrandLogoProps = {
   accentEx?: boolean;
   subline?: string;
   sublineStyle?: CSSProperties;
+  imgSrc?: StaticImageData;
 };
 
 const sizeMap = {
@@ -29,6 +30,7 @@ export function BrandLogo({
   accentEx = true,
   subline,
   sublineStyle,
+  imgSrc = AnimatedLogo,
 }: BrandLogoProps) {
   const s = sizeMap[size];
 
@@ -36,7 +38,7 @@ export function BrandLogo({
     <span className={cn("inline-flex items-center gap-2", className)}>
       {/* ── Animated logo — transparent, no background, clean inline with text ── */}
       <Image
-        src={AnimatedLogo}
+        src={imgSrc}
         alt="VaybeEx logo"
         className={cn("object-contain", s.img)}
         priority
