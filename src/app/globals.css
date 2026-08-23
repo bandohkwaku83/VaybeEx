@@ -383,8 +383,8 @@
   inset: -8px;
   border-radius: 50%;
   border: 2px solid transparent;
-  border-top-color: #c4864c;
-  border-right-color: rgba(196, 134, 76, 0.3);
+  border-top-color: #6b3f1d;
+  border-right-color: rgba(107, 63, 29, 0.3);
   animation: splash-spin 1.2s linear infinite;
   pointer-events: none;
 }

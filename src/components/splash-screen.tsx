@@ -54,7 +54,7 @@ export function SplashScreen() {
     tl.to(
       logoRef.current,
       {
-        filter: "drop-shadow(0 0 30px rgba(196,134,76,0.6))",
+        filter: "drop-shadow(0 0 30px rgba(107,63,29,0.3))",
         duration: 0.5,
         ease: "power2.inOut",
         yoyo: true,
@@ -179,7 +179,7 @@ export function SplashScreen() {
         justifyContent: "center",
         gap: "1.5rem",
         background:
-          "linear-gradient(160deg, #1a0f08 0%, #2a1b0f 40%, #1a0f08 100%)",
+          "#e3c9ae",
         overflow: "hidden",
       }}
     >
@@ -201,7 +201,7 @@ export function SplashScreen() {
           inset: 0,
           opacity: 0.04,
           backgroundImage:
-            "radial-gradient(circle, #c4864c 1px, transparent 1px)",
+            "radial-gradient(circle, #6b3f1d 1px, transparent 1px)",
           backgroundSize: "32px 32px",
           pointerEvents: "none",
         }}
@@ -213,7 +213,14 @@ export function SplashScreen() {
         style={{
           position: "relative",
           zIndex: 1,
-          filter: "drop-shadow(0 0 20px rgba(196,134,76,0.3))",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 140,
+          height: 140,
+          borderRadius: "50%",
+          background: "rgba(42,27,15,0.85)",
+          boxShadow: "0 0 40px rgba(107,63,29,0.25), 0 0 80px rgba(107,63,29,0.1)",
         }}
       >
         <Image
@@ -236,7 +243,7 @@ export function SplashScreen() {
           width: "80px",
           height: "2px",
           background:
-            "linear-gradient(90deg, transparent, #c4864c, transparent)",
+            "linear-gradient(90deg, transparent, #6b3f1d, transparent)",
           transformOrigin: "center",
           zIndex: 1,
         }}
@@ -252,7 +259,7 @@ export function SplashScreen() {
           fontWeight: 700,
           letterSpacing: "0.12em",
           textTransform: "uppercase",
-          color: "#fbf7f1",
+          color: "#2a1b0f",
           display: "flex",
           gap: "0.02em",
           perspective: "600px",
@@ -271,7 +278,7 @@ export function SplashScreen() {
         ))}
         <span
           className="splash-letter"
-          style={{ display: "inline-block", color: "#c4864c" }}
+          style={{ display: "inline-block",          color: "#6b3f1d" }}
         >
           EX
         </span>
@@ -286,7 +293,7 @@ export function SplashScreen() {
           fontWeight: 400,
           letterSpacing: "0.18em",
           textTransform: "uppercase",
-          color: "rgba(251,247,241,0.5)",
+          color: "#6b5544",
           zIndex: 1,
           margin: 0,
         }}
