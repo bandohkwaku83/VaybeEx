@@ -51,8 +51,8 @@ export function FileUploadZone({
   if (value && variant === "image") {
     return (
       <div className={cn("space-y-2", className)}>
-        <p className="text-sm font-medium text-stone-700">{label}</p>
-        <div className={cn("relative overflow-hidden rounded-xl border border-stone-200", aspectClass)}>
+        <p className="text-sm font-medium" style={{color: 'var(--text-secondary)'}}>{label}</p>
+        <div className={cn("relative overflow-hidden !rounded-none border border-[var(--border-strong)]", aspectClass)}>
           <Image src={value} alt={label} fill unoptimized className="object-cover" />
           <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={() => inputRef.current?.click()}>
@@ -71,15 +71,15 @@ export function FileUploadZone({
   if (value && variant === "document") {
     return (
       <div className={cn("space-y-2", className)}>
-        <p className="text-sm font-medium text-stone-700">{label}</p>
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <p className="text-sm font-medium" style={{color: 'var(--text-secondary)'}}>{label}</p>
+        <div className="flex items-center justify-between gap-3 !rounded-none border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-              <FileText className="h-5 w-5 text-emerald-600" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center !rounded-none bg-[var(--primary-dim)]">
+              <FileText className="h-5 w-5 text-[var(--primary)]" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-stone-900 truncate">File uploaded</p>
-              <p className="text-xs text-stone-500">{description}</p>
+              <p className="text-sm font-medium truncate" style={{color: 'var(--text)'}}>File uploaded</p>
+              <p className="text-xs" style={{color: 'var(--text-tertiary)'}}>{description}</p>
             </div>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
@@ -92,7 +92,7 @@ export function FileUploadZone({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-sm font-medium text-stone-700">{label}</p>
+      <p className="text-sm font-medium" style={{color: 'var(--text-secondary)'}}>{label}</p>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -100,11 +100,10 @@ export function FileUploadZone({
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          "w-full rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-2 p-6 text-center",
-          aspectClass,
-          dragging
-            ? "border-teal-500 bg-teal-50"
-            : "border-stone-200 bg-stone-50 hover:border-teal-300 hover:bg-teal-50/50"
+          "w-full !rounded-none border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-2 p-6 text-center",
+          aspectClass,            dragging
+            ? "border-[var(--primary)] bg-[var(--primary-dim)]"
+            : "border-[var(--border-strong)] bg-[var(--bg-secondary)] hover:border-[var(--gold)] hover:bg-[var(--gold-dim)]"
         )}
       >
         {variant === "image" ? (
@@ -113,11 +112,11 @@ export function FileUploadZone({
           <FileText className="h-8 w-8 text-stone-400" />
         )}
         <div>
-          <p className="text-sm font-medium text-stone-700">
+          <p className="text-sm font-medium" style={{color: 'var(--text-secondary)'}}>
             <Upload className="inline h-4 w-4 mr-1 -mt-0.5" />
             Click to upload or drag & drop
           </p>
-          {description && <p className="text-xs text-stone-500 mt-1">{description}</p>}
+          {description && <p className="text-xs mt-1" style={{color: 'var(--text-tertiary)'}}>{description}</p>}
         </div>
       </button>
       <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
@@ -155,12 +154,11 @@ export function GalleryUpload({ images, onChange, max = 6 }: GalleryUploadProps)
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-stone-700">Gallery Photos</p>
-        <span className="text-xs text-stone-400">{images.length}/{max}</span>
+        <p className="text-sm font-medium" style={{color: 'var(--text-secondary)'}}>Gallery Photos</p>              <span className="text-xs text-stone-400">{images.length}/{max}</span>
       </div>
       <div className="grid grid-cols-3 gap-3">
         {images.map((img, i) => (
-          <div key={img} className="relative aspect-square overflow-hidden rounded-lg border border-stone-200 group">
+          <div key={img} className="relative aspect-square overflow-hidden !rounded-none border border-[var(--border-strong)] group">
             <Image src={img} alt="" fill unoptimized className="object-cover" />
             <button
               type="button"
@@ -175,15 +173,15 @@ export function GalleryUpload({ images, onChange, max = 6 }: GalleryUploadProps)
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-lg border-2 border-dashed border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1 hover:border-teal-300 hover:bg-teal-50/50 transition-colors"
+            className="aspect-square !rounded-none border-2 border-dashed border-[var(--border-strong)] bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-1 hover:border-[var(--gold)] hover:bg-[var(--gold-dim)] transition-colors"
           >
             <Upload className="h-5 w-5 text-stone-400" />
-            <span className="text-xs text-stone-500">Add photo</span>
+            <span className="text-xs" style={{color: 'var(--text-tertiary)'}}>Add photo</span>
           </button>
         )}
       </div>
       <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && addImages(e.target.files)} />
-      <p className="text-xs text-stone-400">Up to {max} photos. JPG or PNG, max 5 MB each.</p>
+      <p className="text-xs" style={{color: 'var(--text-tertiary)'}}>Up to {max} photos. JPG or PNG, max 5 MB each.</p>
     </div>
   );
 }

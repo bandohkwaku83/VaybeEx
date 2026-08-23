@@ -743,7 +743,7 @@ export default function WithdrawalsPage() {
                       value={globalSearch}
                       onChange={(e) => setGlobalSearch(e.target.value)}
                       placeholder="Search trip or destination…"
-                      className="h-9 w-52 rounded-xl pl-9 text-sm"
+                      className="h-9 w-52 !rounded-none pl-9 text-sm"
                       style={{ borderColor: "var(--border-strong)" }}
                     />
                   </div>
@@ -753,7 +753,7 @@ export default function WithdrawalsPage() {
                     onValueChange={(v) => setDateRange(v as DateRangeFilter)}
                   >
                     <SelectTrigger
-                      className="h-9 w-40 rounded-xl text-sm"
+                      className="h-9 w-40 !rounded-none text-sm"
                       style={{
                         borderColor: "var(--border-strong)",
                         background: "var(--surface)",

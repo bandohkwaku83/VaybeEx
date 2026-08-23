@@ -75,10 +75,10 @@ export function OtpInput({ value, onChange, onComplete, length = 6, disabled }: 
             disabled={disabled}
             aria-label={`Digit ${index + 1}`}
             className={cn(
-              "h-12 w-10 sm:h-14 sm:w-12 rounded-xl border text-center text-lg font-semibold transition-all duration-200",
+              "h-12 w-10 sm:h-14 sm:w-12 !rounded-none border text-center text-lg font-semibold transition-all duration-200",
               filled
                 ? "border-[var(--primary)] bg-[var(--primary)]/5 text-[var(--text)]"
-                : "border-stone-200 bg-white text-stone-900",
+                : "bg-white text-[var(--text)]",
               "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20",
               isComplete && "animate-pulse-once",
               "disabled:cursor-not-allowed disabled:opacity-50"

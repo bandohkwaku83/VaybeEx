@@ -73,7 +73,7 @@ export function OrganizerTopbar({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search trips…"
-          className="h-10 w-full rounded-xl border bg-transparent pl-10 pr-3 text-sm outline-none transition-colors placeholder:text-[var(--text-tertiary)] focus:border-[var(--primary)]"
+          className="h-10 w-full !rounded-none border bg-transparent pl-10 pr-3 text-sm outline-none transition-colors placeholder:text-[var(--text-tertiary)] focus:border-[var(--primary)]"
           style={{
             borderColor: "var(--border)",
             color: "var(--text)",
@@ -88,7 +88,7 @@ export function OrganizerTopbar({
 
         <Link
           href="/organizer/settings"
-          className="flex items-center gap-2.5 rounded-xl py-1.5 pl-1.5 pr-1.5 transition-colors sm:pr-3"
+          className="flex items-center gap-2.5 !rounded-none py-1.5 pl-1.5 pr-1.5 transition-colors sm:pr-3"
           aria-label="Open profile settings"
         >
           <span

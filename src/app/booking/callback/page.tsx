@@ -250,7 +250,7 @@ function CallbackInner() {
             className={
               state.bookingId
                 ? "text-[var(--text-secondary)]"
-                : "h-11 w-full rounded-xl font-semibold"
+                : "h-11 w-full !rounded-none font-semibold"
             }
             style={
               state.bookingId

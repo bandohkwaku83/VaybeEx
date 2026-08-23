@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Check, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AuthSplitLayout } from "@/components/auth/auth-split-layout";
 import { OtpInput } from "@/components/organizer/otp-input";
@@ -29,8 +29,10 @@ function VerifyEmailForm() {
 
   const [otp, setOtp] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!email) {
@@ -44,8 +46,8 @@ function VerifyEmailForm() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerify = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (otp.length !== OTP_LENGTH || isVerifying) return;
 
     setIsVerifying(true);
@@ -66,6 +68,10 @@ function VerifyEmailForm() {
         login({ name: "", email });
       }
 
+      // Show success state briefly before navigating
+      setShowSuccess(true);
+      await new Promise((r) => setTimeout(r, 800));
+
       toast.success(response.message);
       router.push(redirect.startsWith("/organizer") ? redirect : "/organizer/profile/setup");
     } catch (error) {
@@ -75,6 +81,16 @@ function VerifyEmailForm() {
           : "Something went wrong. Please try again.";
       toast.error(message);
       setIsVerifying(false);
+      setShowSuccess(false);
+      // Clear OTP on error so user can retry
+      setOtp("");
+    }
+  };
+
+  const handleAutoSubmit = () => {
+    if (otp.length === OTP_LENGTH && !isVerifying) {
+      // Trigger form submit programmatically
+      formRef.current?.requestSubmit();
     }
   };
 
@@ -123,10 +139,11 @@ function VerifyEmailForm() {
       visualQuote="Share the places you know. Build trips people want to join."
       visualCaption="Everything you need to list, manage, and grow your travel business."
     >
-      <form onSubmit={handleVerify} className="space-y-6">
+      <form ref={formRef} onSubmit={handleVerify} className="space-y-6">
         <OtpInput
           value={otp}
           onChange={setOtp}
+          onComplete={handleAutoSubmit}
           length={OTP_LENGTH}
           disabled={isVerifying}
         />
@@ -135,15 +152,31 @@ function VerifyEmailForm() {
           type="submit"
           size="lg"
           disabled={otp.length !== OTP_LENGTH || isVerifying}
-          className="h-12 w-full text-sm font-semibold"
+          className="h-12 w-full text-sm font-semibold transition-all duration-200"
           style={{
-            background: "var(--gradient-brand)",
+            background: showSuccess
+              ? "var(--primary)"
+              : "var(--gradient-brand)",
             color: "#fbf7f1",
             boxShadow: "var(--glow-gold)",
           }}
         >
-          <ShieldCheck className="h-4 w-4" />
-          {isVerifying ? "Verifying..." : "Verify email"}
+          {isVerifying ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Verifying...
+            </>
+          ) : showSuccess ? (
+            <>
+              <Check className="h-4 w-4" />
+              Verified!
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="h-4 w-4" />
+              Verify email
+            </>
+          )}
         </Button>
       </form>
 
@@ -188,9 +221,10 @@ export default function OrganizerVerifyPage() {
     <Suspense
       fallback={
         <div
-          className="flex min-h-screen items-center justify-center"
+          className="flex min-h-screen items-center justify-center gap-2"
           style={{ color: "var(--text-secondary)" }}
         >
+          <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--primary)" }} />
           Loading...
         </div>
       }
