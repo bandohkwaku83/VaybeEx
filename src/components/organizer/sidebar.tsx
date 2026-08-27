@@ -68,7 +68,7 @@ export function OrganizerSidebar({ collapsed, onToggle }: OrganizerSidebarProps)
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col border-r transition-[width] duration-300 ease-in-out lg:flex",
+        "sticky top-0 hidden h-screen shrink-0 flex-col overflow-y-auto border-r transition-[width] duration-300 ease-in-out lg:flex",
         collapsed ? "w-[76px]" : "w-64"
       )}
       style={{ borderColor: "var(--border)", background: "var(--surface)" }}

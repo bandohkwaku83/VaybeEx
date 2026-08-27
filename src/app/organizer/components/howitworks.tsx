@@ -57,14 +57,37 @@ const STEPS = [
 export function HowItWorks() {
   const sectionRef = useRef<HTMLElement>(null);
   const lineRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const dotRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const ctaRef = useRef<HTMLDivElement>(null);
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
     if (!sectionRef.current) return;
     const ctx = gsap.context(() => {
+      /* ── header entrance: eyebrow → headline → subtext stagger ── */
+      if (headerRef.current) {
+        const headerChildren = headerRef.current.children;
+        gsap.fromTo(
+          Array.from(headerChildren),
+          { opacity: 0, y: 32 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.8,
+            stagger: 0.12,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: headerRef.current,
+              start: "top 85%",
+              once: true,
+            },
+          }
+        );
+      }
+
       gsap.fromTo(
         lineRef.current,
         { scaleY: 0, transformOrigin: "top center" },
@@ -128,6 +151,25 @@ export function HowItWorks() {
             gsap.to(dot, { scale: 1.3, duration: 0.25, ease: "back.out(3)", yoyo: true, repeat: 1 }),
         });
       });
+
+      /* ── CTA button entrance ── */
+      if (ctaRef.current) {
+        gsap.fromTo(
+          ctaRef.current,
+          { opacity: 0, y: 24 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.7,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: ctaRef.current,
+              start: "top 92%",
+              once: true,
+            },
+          }
+        );
+      }
     }, sectionRef);
 
     return () => ctx.revert();
@@ -140,7 +182,7 @@ export function HowItWorks() {
       className="scroll-mt-32 relative overflow-hidden bg-white py-24"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-20 max-w-2xl">
+        <div ref={headerRef} className="mb-20 max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold)]">
             The journey to your first payout
           </p>
@@ -154,9 +196,7 @@ export function HowItWorks() {
           </p>
         </div>
 
-        <div className="relative grid grid-cols-1 gap-0 lg:grid-cols-2 lg:gap-20">
-          {/* LEFT: timeline */}
-          <div className="relative">
+        <div className="relative">
             <div
               className="absolute left-[19px] top-3 bottom-3 w-[2px]"
               style={{ background: "var(--border)" }}
@@ -201,7 +241,7 @@ export function HowItWorks() {
                       </div>
                     </div>
 
-                    <div className="min-w-0 pt-1.5">
+                    <div className="min-w-0 flex-1 pt-1.5">
                       <div className="flex flex-wrap items-center gap-3">
                         <span
                           className="font-display text-xs font-black tracking-widest"
@@ -238,12 +278,20 @@ export function HowItWorks() {
                         <StepScreenCard index={i} isActive />
                       </div>
                     </div>
+
+                    {/* desktop: screen card aligned with this step */}
+                    <div
+                      ref={(el) => { cardRefs.current[i] = el; }}
+                      className="hidden w-[44%] shrink-0 lg:block"
+                    >
+                      <StepScreenCard index={i} isActive={isActive} />
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="mt-12 pl-[72px]">
+            <div ref={ctaRef} className="mt-12 pl-[72px]">
               <Link
                 href="/organizer/login?mode=signup&redirect=/organizer/onboarding"
                 className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-[#fbf7f1] shadow-[var(--shadow-glow-gold)] transition-all duration-300 hover:scale-[1.03]"
@@ -254,30 +302,6 @@ export function HowItWorks() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-          </div>
-
-          {/* RIGHT: one screen card per step */}
-          <div className="hidden lg:block">
-            <div className="sticky top-28 space-y-4">
-              {STEPS.map((s, i) => {
-                const isActive = activeStep === i;
-                return (
-                  <div
-                    key={s.number}
-                    ref={(el) => { cardRefs.current[i] = el; }}
-                    className="transition-all duration-500"
-                    style={{
-                      opacity: isActive ? 1 : 0.3,
-                      transform: isActive ? "scale(1)" : "scale(0.98)",
-                      filter: isActive ? "none" : "grayscale(20%)",
-                    }}
-                  >
-                    <StepScreenCard index={i} isActive={isActive} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
       </div>
     </section>

@@ -101,8 +101,31 @@ const PAYMENT_IMAGES = [
 // ];
 
 function PaymentImagePanel() {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!gridRef.current) return;
+    const cells = Array.from(gridRef.current.children) as HTMLElement[];
+    gsap.fromTo(
+      cells,
+      { opacity: 0, scale: 0.9 },
+      {
+        opacity: 1,
+        scale: 1,
+        duration: 0.7,
+        stagger: 0.15,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: gridRef.current,
+          start: "top 82%",
+          once: true,
+        },
+      }
+    );
+  }, []);
+
   return (
-    <div className="grid h-[480px] grid-cols-2 grid-rows-2 gap-3 sm:h-[520px]">
+    <div ref={gridRef} className="grid h-[480px] grid-cols-2 grid-rows-2 gap-3 sm:h-[520px]">
       {PAYMENT_IMAGES.map((image) => (
         <div
           key={image.label}
@@ -139,6 +162,8 @@ function PaymentImagePanel() {
 export function PaymentsSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const counterRef = useRef<HTMLSpanElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const imagePanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sectionRef.current || !counterRef.current) return;
@@ -153,7 +178,48 @@ export function PaymentsSection() {
           if (counterRef.current) counterRef.current.textContent = `GHS ${obj.val.toFixed(1)}M+`;
         },
       });
-    });
+
+      /* ── checklist items: stagger from left ── */
+      if (listRef.current) {
+        const items = Array.from(listRef.current.children);
+        gsap.fromTo(
+          items,
+          { opacity: 0, x: -28 },
+          {
+            opacity: 1,
+            x: 0,
+            duration: 0.6,
+            stagger: 0.1,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: listRef.current,
+              start: "top 85%",
+              once: true,
+            },
+          }
+        );
+      }
+
+      /* ── image collage: scale up from 0.9 ── */
+      if (imagePanelRef.current) {
+        gsap.fromTo(
+          imagePanelRef.current,
+          { opacity: 0, scale: 0.92, y: 40 },
+          {
+            opacity: 1,
+            scale: 1,
+            y: 0,
+            duration: 1,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: imagePanelRef.current,
+              start: "top 85%",
+              once: true,
+            },
+          }
+        );
+      }
+    }, sectionRef);
     return () => ctx.revert();
   }, []);
 
@@ -202,10 +268,10 @@ export function PaymentsSection() {
             </RevealBox>
 
             {/* checklist */}
-            <RevealBox delay={0.15} className="mt-10">
-              <ul className="space-y-3">
+            <div className="mt-10">
+              <ul ref={listRef} className="space-y-3">
                 {PAYMENT_POINTS.map((pt, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "rgba(251,247,241,0.78)" }}>
+                  <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "rgba(251,247,241,0.78)", opacity: 0 }}>
                     <span
                       className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
                       style={{ background: "var(--gold)", color: "#2a1b0f" }}
@@ -216,11 +282,11 @@ export function PaymentsSection() {
                   </li>
                 ))}
               </ul>
-            </RevealBox>
+            </div>
           </div>
 
           {/* ── RIGHT: payment image collage ── */}
-          <div className="relative">
+          <div ref={imagePanelRef} className="relative" style={{ opacity: 0 }}>
             <PaymentImagePanel />
           </div>
 

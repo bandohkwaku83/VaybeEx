@@ -4,7 +4,10 @@ import { fileURLToPath } from "url";
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
-const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
+const apiBaseUrl = (process.env.API_BASE_URL ?? "http://localhost:8000")
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/i, "");
 
 function collectImageRemotePatterns() {
   const seen = new Set<string>();

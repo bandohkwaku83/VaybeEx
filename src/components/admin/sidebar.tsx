@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import Link from "next/link";
@@ -19,9 +20,15 @@ import {
 import { BrandLogo } from "@/components/brand-logo";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { cn } from "@/lib/utils";
+import AdminDashboardLogo from "@public/admin-dashboard-logo.jpeg";
 
 const links = [
-  { href: "/admin-portal", label: "Overview", icon: LayoutDashboard, exact: true },
+  {
+    href: "/admin-portal",
+    label: "Overview",
+    icon: LayoutDashboard,
+    exact: true,
+  },
   {
     href: "/admin-portal/users?queue=pending_approval",
     label: "Approvals",
@@ -52,7 +59,11 @@ const links = [
   { href: "/admin-portal/messages", label: "Messages", icon: Mail },
   { href: "/admin-portal/trips", label: "Trips", icon: Map },
   { href: "/admin-portal/refunds", label: "Refunds", icon: RotateCcw },
-  { href: "/admin-portal/withdrawals", label: "Payouts", icon: ArrowDownToLine },
+  {
+    href: "/admin-portal/withdrawals",
+    label: "Payouts",
+    icon: ArrowDownToLine,
+  },
 ] as const;
 
 const STORAGE_KEY = "vaybeex-admin-sidebar-collapsed";
@@ -81,7 +92,7 @@ export function useAdminSidebarCollapsed() {
 function linkActive(
   pathname: string,
   search: string,
-  link: (typeof links)[number]
+  link: (typeof links)[number],
 ) {
   if ("exact" in link && link.exact) return pathname === link.href;
   if ("match" in link && typeof link.match === "function") {
@@ -113,15 +124,15 @@ export function AdminSidebar({
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-screen shrink-0 flex-col border-r bg-white transition-[width] duration-300 ease-out lg:flex",
-        collapsed ? "w-[76px]" : "w-[240px]"
+        "sticky top-0 hidden h-screen shrink-0 flex-col overflow-y-auto border-r bg-white transition-[width] duration-300 ease-out lg:flex",
+        collapsed ? "w-[76px]" : "w-[240px]",
       )}
       style={{ borderColor: "#e5e5e5" }}
     >
       <div
         className={cn(
           "flex h-16 items-center border-b px-4",
-          collapsed ? "justify-center" : "justify-between gap-2"
+          collapsed ? "justify-center" : "justify-between gap-2",
         )}
         style={{ borderColor: "#e5e5e5" }}
       >
@@ -134,6 +145,7 @@ export function AdminSidebar({
             wordmarkStyle={{ color: "#171717" }}
             subline={collapsed ? undefined : "Operations"}
             sublineStyle={{ color: "#a3a3a3" }}
+            imgSrc={AdminDashboardLogo}
           />
         </Link>
 
@@ -175,7 +187,7 @@ export function AdminSidebar({
                 href={link.href}
                 className={cn(
                   "relative flex items-center gap-3 rounded-none px-3 py-2.5 text-[13px] font-medium transition-colors",
-                  collapsed && "justify-center px-0"
+                  collapsed && "justify-center px-0",
                 )}
                 style={{
                   background: active ? "#f5f5f5" : "transparent",
@@ -238,7 +250,10 @@ export function AdminSidebar({
         })}
       </nav>
 
-      <div className="space-y-2 border-t p-3" style={{ borderColor: "#e5e5e5" }}>
+      <div
+        className="space-y-2 border-t p-3"
+        style={{ borderColor: "#e5e5e5" }}
+      >
         {!collapsed && (
           <div className="mb-1 flex items-center gap-2.5 rounded-xl px-2 py-2">
             <span
@@ -251,7 +266,10 @@ export function AdminSidebar({
               {initial}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium" style={{ color: "#171717" }}>
+              <p
+                className="truncate text-xs font-medium"
+                style={{ color: "#171717" }}
+              >
                 {user?.name?.split(" ")[0] ?? "Admin"}
               </p>
               <p className="truncate text-[10px]" style={{ color: "#a3a3a3" }}>
@@ -268,7 +286,7 @@ export function AdminSidebar({
           }}
           className={cn(
             "flex w-full items-center gap-3 rounded-none px-3 py-2.5 text-[13px] font-medium transition-colors",
-            collapsed && "justify-center px-0"
+            collapsed && "justify-center px-0",
           )}
           style={{ color: "#a3a3a3" }}
           onMouseEnter={(e) => {

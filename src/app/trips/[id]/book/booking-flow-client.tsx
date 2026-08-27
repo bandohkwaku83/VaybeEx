@@ -132,7 +132,7 @@ function partyValid(
 }
 
 const fieldClass =
-  "h-12 rounded-xl border-[var(--border)] bg-white px-3.5 text-[var(--text)] placeholder:text-[var(--text-tertiary)] focus-visible:ring-[var(--primary)]/25";
+  "h-12 !rounded-none border-[var(--border-strong)] bg-white px-3.5 text-[var(--text)] placeholder:text-[var(--text-tertiary)] focus-visible:ring-[var(--primary)]/25 focus-visible:border-[var(--primary)]";
 
 function StepRail({ step }: { step: number }) {
   return (
@@ -681,7 +681,7 @@ function BookingFlow({
               type="button"
               onClick={() => void handleResumeExisting()}
               disabled={submitting}
-              className="h-12 w-full rounded-xl font-semibold"
+              className="h-12 w-full !rounded-none font-semibold"
               style={{ background: "var(--primary)", color: "#fbf7f1" }}
             >
               {submitting ? (
@@ -698,7 +698,7 @@ function BookingFlow({
               type="button"
               variant="outline"
               onClick={() => router.push("/dashboard")}
-              className="h-12 w-full rounded-xl"
+              className="h-12 w-full !rounded-none"
             >
               Go to dashboard
             </Button>
@@ -962,8 +962,7 @@ function BookingFlow({
                                 : "var(--surface)",
                             }}
                           >
-                            <div
-                              className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
+                            <div                               className="mb-3 flex h-10 w-10 items-center justify-center !rounded-none transition-colors"
                               style={{
                                 background: selected
                                   ? "var(--primary)"
@@ -1467,8 +1466,7 @@ function BookingFlow({
               {step < STEP_COUNT - 1 ? (
                 <Button
                   onClick={() => setStep(step + 1)}
-                  disabled={!canAdvance}
-                  className="h-11 rounded-xl px-6 font-semibold"
+                  disabled={!canAdvance}                   className="h-11 !rounded-none px-6 font-semibold"
                   style={{ background: "var(--primary)", color: "#fbf7f1" }}
                 >
                   Continue <ArrowRight className="h-4 w-4" />
@@ -1477,8 +1475,7 @@ function BookingFlow({
                 <Button
                   size="lg"
                   onClick={() => void handlePay()}
-                  disabled={submitting}
-                  className="h-12 rounded-xl px-7 font-semibold"
+                  disabled={submitting}                   className="h-12 !rounded-none px-7 font-semibold"
                   style={{ background: "var(--primary)", color: "#fbf7f1" }}
                 >
                   {submitting ? (
@@ -1630,8 +1627,7 @@ function BookingFlow({
               variant="outline"
               size="icon"
               onClick={() => setStep(step - 1)}
-              disabled={submitting}
-              className="h-12 w-12 shrink-0 rounded-xl border-[var(--border)]"
+              disabled={submitting}               className="h-12 w-12 shrink-0 !rounded-none border-[var(--border)]"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -1641,7 +1637,7 @@ function BookingFlow({
               <Button
                 onClick={() => setStep(step + 1)}
                 disabled={!canAdvance}
-                className="h-12 w-full rounded-xl font-semibold"
+                className="h-12 w-full !rounded-none font-semibold"
                 style={{ background: "var(--primary)", color: "#fbf7f1" }}
               >
                 Continue
@@ -1650,7 +1646,7 @@ function BookingFlow({
               <Button
                 onClick={() => void handlePay()}
                 disabled={submitting}
-                className="h-12 w-full rounded-xl font-semibold"
+                className="h-12 w-full !rounded-none font-semibold"
                 style={{ background: "var(--primary)", color: "#fbf7f1" }}
               >
                 {submitting ? (

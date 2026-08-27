@@ -60,9 +60,9 @@ export default function OrganizerPortalLayout({ children }: { children: React.Re
     <RequireOrganizerAuth>
       <PortalGate>
         <OrganizerTripsProvider>
-          <div className="flex min-h-screen" style={{ background: "#f5f5f5" }}>
+          <div className="fixed inset-0 z-40 flex overflow-hidden" style={{ background: "#f5f5f5" }}>
             <OrganizerSidebar collapsed={collapsed} onToggle={toggle} />
-            <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-auto">
+            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
               <OrganizerTopbar
                 menuOpen={mobileMenuOpen}
                 onMenuToggle={() => setMobileMenuOpen((v) => !v)}

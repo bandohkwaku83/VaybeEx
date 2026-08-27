@@ -58,7 +58,7 @@ export function RefundRequestsSection({
 
   const handleUpdate = async (
     requestId: string,
-    status: "refunded" | "denied"
+    status: "refunded" | "denied",
   ) => {
     const request = requests.find((r) => r.id === requestId);
     if (!request) return;
@@ -74,7 +74,7 @@ export function RefundRequestsSection({
         toast.success("Refund sent");
       } else {
         toast.success(
-          "Refund submitted — traveler will receive it via Paystack"
+          "Refund submitted — traveler will receive it via Paystack",
         );
       }
       onUpdated();
@@ -82,7 +82,7 @@ export function RefundRequestsSection({
       toast.error(
         error instanceof ApiError
           ? error.message
-          : "Failed to update refund request"
+          : "Failed to update refund request",
       );
     } finally {
       setBusyId(null);
@@ -158,7 +158,8 @@ export function RefundRequestsSection({
                 {isProcessing && (
                   <p className="mt-2 flex items-center gap-1.5 text-sm text-stone-600">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Paystack is sending the refund…
+                    {/* Paystack is sending the refund… */}
+                    Processing
                   </p>
                 )}
                 {request.refundFailureReason && (

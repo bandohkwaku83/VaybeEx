@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert, Button, Input, Select, Space, Table, Tag } from "antd";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, Button, Input, Select, Space } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
+import { DataTable } from "@/components/ui/data-table";
 import { ApiError } from "@/lib/api/client";
 import {
   activityLabel,
@@ -19,6 +20,18 @@ import {
 import { formatDateShort, formatRelativeTime } from "@/lib/format";
 
 type RoleTab = "" | "organizer" | "traveler";
+
+function CategoryBadge({ category }: { category: string }) {
+  const tone = categoryTone(category);
+  return (
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+      style={{ background: tone.bg, color: tone.color }}
+    >
+      {activityLabel(category)}
+    </span>
+  );
+}
 
 function categoryTone(category: string) {
   switch (category) {
@@ -155,40 +168,38 @@ function ActivityInner() {
     return [...keys, ...fromFilters];
   }, [categories, categoryCounts]);
 
-  const columns: ColumnsType<AdminActivityItem> = [
+  const columns: ColumnDef<AdminActivityItem, unknown>[] = [
     {
-      title: "Event",
-      key: "event",
-      render: (_, row) => {
-        const tone = categoryTone(row.category);
+      header: "Event",
+      id: "event",
+      cell: ({ row }) => {
+        const item = row.original;
         return (
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium" style={{ color: "var(--text)" }}>
-                {row.summary || activityLabel(row.action)}
+                {item.summary || activityLabel(item.action)}
               </span>
-              <Tag
-                variant="filled"
+              <span
+                className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
                 style={{
-                  background: tone.bg,
-                  color: tone.color,
-                  marginInlineEnd: 0,
-                  fontWeight: 500,
+                  background: categoryTone(item.category).bg,
+                  color: categoryTone(item.category).color,
                 }}
               >
-                {activityLabel(row.action)}
-              </Tag>
+                {activityLabel(item.action)}
+              </span>
             </div>
           </div>
         );
       },
     },
     {
-      title: "Time",
-      key: "time",
-      width: 150,
-      render: (_, row) => {
-        const at = activityEventAt(row);
+      header: "Time",
+      id: "time",
+      size: 150,
+      cell: ({ row }) => {
+        const at = activityEventAt(row.original);
         if (!at) return "—";
         return (
           <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
@@ -199,43 +210,43 @@ function ActivityInner() {
       },
     },
     {
-      title: "Device",
-      key: "device",
-      width: 180,
-      render: (_, row) =>
-        row.device?.label ? (
+      header: "Device",
+      id: "device",
+      size: 180,
+      cell: ({ row }) =>
+        row.original.device?.label ? (
           <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            {row.device.label}
+            {row.original.device.label}
           </span>
         ) : (
           "—"
         ),
     },
     {
-      title: "Type",
-      key: "type",
-      width: 110,
-      render: (_, row) => <DeviceTypeCell device={row.device} />,
+      header: "Type",
+      id: "type",
+      size: 110,
+      cell: ({ row }) => <DeviceTypeCell device={row.original.device} />,
     },
     {
-      title: "IP",
-      key: "ip",
-      width: 130,
-      render: (_, row) =>
-        row.ip ? (
+      header: "IP",
+      id: "ip",
+      size: 130,
+      cell: ({ row }) =>
+        row.original.ip ? (
           <span className="font-mono text-xs" style={{ color: "var(--text-tertiary)" }}>
-            {row.ip}
+            {row.original.ip}
           </span>
         ) : (
           "—"
         ),
     },
     {
-      title: "Actor",
-      key: "actor",
-      width: 180,
-      render: (_, row) => {
-        const actor = row.actor;
+      header: "Actor",
+      id: "actor",
+      size: 180,
+      cell: ({ row }) => {
+        const actor = row.original.actor;
         if (!actor?.id && !actor?.email) return "—";
         const name = actor.fullName || actor.email || "User";
         return actor.id ? (
@@ -255,66 +266,60 @@ function ActivityInner() {
       },
     },
     {
-      title: "Related",
-      key: "related",
-      width: 240,
-      render: (_, row) => (
-        <div className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-          {row.trip?.title ? (
-            <div>
+      header: "Related",
+      id: "related",
+      size: 240,
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            {item.trip?.title ? (
+              <div>
+                <Link
+                  href={`/admin-portal/trips?q=${encodeURIComponent(item.trip.title)}`}
+                  className="hover:underline"
+                  style={{ color: "var(--text)" }}
+                >
+                  {item.trip.title}
+                </Link>
+                {item.trip.destination ? ` · ${item.trip.destination}` : ""}
+              </div>
+            ) : null}
+            {item.relatedUser?.id ? (
               <Link
-                href={`/admin-portal/trips?q=${encodeURIComponent(row.trip.title)}`}
-                className="hover:underline"
-                style={{ color: "var(--text)" }}
+                href={`/admin-portal/users/${item.relatedUser.id}`}
+                className="block hover:underline"
               >
-                {row.trip.title}
+                {item.relatedUser.businessName ||
+                  item.relatedUser.fullName ||
+                  item.relatedUser.email}
               </Link>
-              {row.trip.destination ? ` · ${row.trip.destination}` : ""}
-            </div>
-          ) : null}
-          {row.relatedUser?.id ? (
-            <Link
-              href={`/admin-portal/users/${row.relatedUser.id}`}
-              className="block hover:underline"
-            >
-              {row.relatedUser.businessName ||
-                row.relatedUser.fullName ||
-                row.relatedUser.email}
-            </Link>
-          ) : null}
-          {row.cancellationId ? (
-            <Link
-              href={`/admin-portal/refunds/${row.cancellationId}`}
-              className="block font-medium hover:underline"
-              style={{ color: "var(--coral)" }}
-            >
-              View refund
-            </Link>
-          ) : null}
-          {row.withdrawalId ? (
-            <Link
-              href={`/admin-portal/withdrawals`}
-              className="block hover:underline"
-            >
-              Withdrawal
-            </Link>
-          ) : null}
-          {!row.trip && !row.relatedUser && !row.cancellationId && !row.withdrawalId
-            ? "—"
-            : null}
-        </div>
-      ),
+            ) : null}
+            {item.cancellationId ? (
+              <Link
+                href={`/admin-portal/refunds/${item.cancellationId}`}
+                className="block font-medium hover:underline"
+                style={{ color: "var(--coral)" }}
+              >
+                View refund
+              </Link>
+            ) : null}
+            {item.withdrawalId ? (
+              <Link
+                href="/admin-portal/withdrawals"
+                className="block hover:underline"
+              >
+                Withdrawal
+              </Link>
+            ) : null}
+            {!item.trip && !item.relatedUser && !item.cancellationId && !item.withdrawalId
+              ? "—"
+              : null}
+          </div>
+        );
+      },
     },
   ];
-
-  const pagination: TablePaginationConfig = {
-    current: page,
-    pageSize,
-    total,
-    showSizeChanger: false,
-    showTotal: (t) => `${t} event${t === 1 ? "" : "s"}`,
-    onChange: (next) => setPage(next),
-  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -442,16 +447,23 @@ function ActivityInner() {
         />
       )}
 
-      <Table<AdminActivityItem>
-        className="admin-antd-table"
-        rowKey="id"
-        columns={columns}
-        dataSource={items}
-        loading={loading}
-        pagination={pagination}
-        scroll={{ x: 1180 }}
-        locale={{ emptyText: "No activity matches these filters." }}
-      />
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+        <DataTable
+          data={items}
+          columns={columns}
+          loading={loading}
+          emptyText="No activity matches these filters."
+          scrollX={1180}
+          enableSorting={false}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showTotal: (t) => `${t} event${t === 1 ? "" : "s"}`,
+            onChange: (next) => setPage(next),
+          }}
+        />
+      </div>
     </div>
   );
 }

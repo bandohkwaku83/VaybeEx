@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert, Button, Input, Select, Space, Table, Tag } from "antd";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, Button, Input, Select, Space, Tag } from "antd";
 import { ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button as UiButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DataTable } from "@/components/ui/data-table";
 import { ApiError } from "@/lib/api/client";
 import {
   createAdminMessage,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/api/admin";
 import { formatDateShort, formatRelativeTime } from "@/lib/format";
 
-function statusTag(status: string) {
+function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, { bg: string; color: string }> = {
     pending: { bg: "#eff6ff", color: "#1d4ed8" },
     sent: { bg: "#f0fdf4", color: "#15803d" },
@@ -34,17 +35,12 @@ function statusTag(status: string) {
   };
   const tone = styles[status] ?? { bg: "#f5f5f5", color: "#525252" };
   return (
-    <Tag
-      variant="filled"
-      style={{
-        background: tone.bg,
-        color: tone.color,
-        marginInlineEnd: 0,
-        fontWeight: 500,
-      }}
+    <span
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+      style={{ background: tone.bg, color: tone.color }}
     >
       {messageStatusLabel(status)}
-    </Tag>
+    </span>
   );
 }
 
@@ -332,82 +328,83 @@ function MessagesInner() {
     }
   };
 
-  const previewColumns: ColumnsType<AdminAudienceRecipient> = [
+  const previewColumns: ColumnDef<AdminAudienceRecipient, unknown>[] = [
     {
-      title: "Name",
-      dataIndex: "fullName",
-      render: (name: string) => name || "—",
+      header: "Name",
+      accessorKey: "fullName",
+      cell: ({ getValue }) => (getValue() as string) || "—",
     },
     {
-      title: channel === "sms" ? "Phone" : "Email",
-      key: "contact",
-      render: (_, row) =>
-        channel === "sms" ? row.phone || "—" : row.email || "—",
+      header: channel === "sms" ? "Phone" : "Email",
+      id: "contact",
+      cell: ({ row }) =>
+        channel === "sms" ? row.original.phone || "—" : row.original.email || "—",
     },
     {
-      title: "",
-      width: 180,
-      render: (_, row) =>
-        row.sendable ? (
+      header: "",
+      id: "sendable",
+      size: 180,
+      cell: ({ row }) =>
+        row.original.sendable ? (
           <span className="text-xs" style={{ color: "#15803d" }}>
             Will get it
           </span>
         ) : (
           <span className="text-xs" style={{ color: "#c2410c" }}>
-            {row.skipReason || "Left out"}
+            {row.original.skipReason || "Left out"}
           </span>
         ),
     },
   ];
 
-  const historyColumns: ColumnsType<AdminMessageCampaign> = [
+  const historyColumns: ColumnDef<AdminMessageCampaign, unknown>[] = [
     {
-      title: "What you sent",
-      key: "preview",
-      render: (_, row) => (
-        <Link href={`/admin-portal/messages/${row.id}`} className="block min-w-0">
+      header: "What you sent",
+      id: "preview",
+      cell: ({ row }) => (
+        <Link href={`/admin-portal/messages/${row.original.id}`} className="block min-w-0">
           <span className="block font-medium" style={{ color: "var(--text)" }}>
-            {row.subject || row.preview || "Message"}
+            {row.original.subject || row.original.preview || "Message"}
           </span>
           <span className="block text-xs" style={{ color: "var(--text-tertiary)" }}>
-            {row.snippet}
+            {row.original.snippet}
           </span>
         </Link>
       ),
     },
     {
-      title: "To",
-      dataIndex: "audience",
-      width: 200,
+      header: "To",
+      accessorKey: "audience",
+      size: 200,
     },
     {
-      title: "Via",
-      dataIndex: "channel",
-      width: 90,
-      render: (value: string) => (
+      header: "Via",
+      accessorKey: "channel",
+      size: 90,
+      cell: ({ getValue }) => (
         <span className="text-xs font-medium">
-          {value === "email" ? "Email" : "Text"}
+          {(getValue() as string) === "email" ? "Email" : "Text"}
         </span>
       ),
     },
     {
-      title: "People",
-      dataIndex: "recipients",
-      width: 90,
-      render: (value: number) => <span className="tabular-nums">{value}</span>,
+      header: "People",
+      accessorKey: "recipients",
+      size: 90,
+      cell: ({ getValue }) => <span className="tabular-nums">{getValue() as number}</span>,
     },
     {
-      title: "Status",
-      dataIndex: "status",
-      width: 110,
-      render: (value: string) => statusTag(value),
+      header: "Status",
+      accessorKey: "status",
+      size: 110,
+      cell: ({ getValue }) => <StatusBadge status={getValue() as string} />,
     },
     {
-      title: "When",
-      key: "sent",
-      width: 140,
-      render: (_, row) => {
-        const at = row.sentAt || row.createdAt;
+      header: "When",
+      id: "sent",
+      size: 140,
+      cell: ({ row }) => {
+        const at = row.original.sentAt || row.original.createdAt;
         return at ? (
           <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
             <div>{formatRelativeTime(at)}</div>
@@ -726,22 +723,19 @@ function MessagesInner() {
             </div>
 
             {showList ? (
-              <div className="mt-3">
-                <Table<AdminAudienceRecipient>
-                  className="admin-antd-table"
-                  rowKey="id"
-                  size="small"
+              <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: "#e5e5e5" }}>
+                <DataTable
+                  data={preview}
                   columns={previewColumns}
-                  dataSource={preview}
                   loading={previewLoading}
+                  emptyText="No one matches yet."
+                  enableSorting={false}
                   pagination={{
                     current: previewPage,
                     pageSize: 8,
                     total: previewTotal,
-                    showSizeChanger: false,
                     onChange: (next) => setPreviewPage(next),
                   }}
-                  locale={{ emptyText: "No one matches yet." }}
                 />
               </div>
             ) : null}
@@ -828,29 +822,24 @@ function MessagesInner() {
           />
         ) : null}
 
-        <Table<AdminMessageCampaign>
-          className="admin-antd-table"
-          rowKey="id"
-          columns={historyColumns}
-          dataSource={campaigns}
-          loading={historyLoading}
-          pagination={
-            {
+        <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+          <DataTable
+            data={campaigns}
+            columns={historyColumns}
+            loading={historyLoading}
+            emptyText="Nothing sent yet."
+            scrollX={860}
+            enableSorting={false}
+            pagination={{
               current: page,
               pageSize,
               total,
-              showSizeChanger: false,
               showTotal: (t) => `${t} message${t === 1 ? "" : "s"}`,
               onChange: (next) => setPage(next),
-            } satisfies TablePaginationConfig
-          }
-          scroll={{ x: 860 }}
-          locale={{ emptyText: "Nothing sent yet." }}
-          onRow={(row) => ({
-            style: { cursor: "pointer" },
-            onClick: () => router.push(`/admin-portal/messages/${row.id}`),
-          })}
-        />
+            }}
+            onRowClick={(row) => router.push(`/admin-portal/messages/${row.id}`)}
+          />
+        </div>
       </section>
     </div>
   );

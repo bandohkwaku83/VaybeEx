@@ -200,14 +200,14 @@ function VerificationContent() {
               : "Your profile is under review. We’ll email you when there’s a decision — then your portal unlocks and you can publish trips."}
           </p>
 
-          <ol className="mt-9 space-y-0">
+          <ol className="mt-9 space-y-0" style={{ animationDelay: "0.2s" }}>
             {STEPS.map((step, index) => {
               const done = index < activeStep;
               const current = index === activeStep;
               const locked = index > activeStep;
 
               return (
-                <li key={step.id} className="relative flex gap-4 pb-6 last:pb-0">
+                <li key={step.id} className="relative flex gap-4 pb-6 last:pb-0" style={{ animation: `fade-up 0.5s cubic-bezier(0.16,1,0.3,1) ${0.3 + index * 0.12}s both` }}>
                   {index < STEPS.length - 1 && (
                     <span
                       className="absolute left-[15px] top-8 h-[calc(100%-1.25rem)] w-px"
@@ -265,7 +265,7 @@ function VerificationContent() {
             </p>
           )}
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ animation: "fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 0.8s both" }}>
             <button
               type="button"
               disabled={refreshing}
@@ -274,7 +274,7 @@ function VerificationContent() {
                 setError(null);
                 void refreshStatus();
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-opacity disabled:opacity-70"
+              className="inline-flex items-center justify-center gap-2 !rounded-none px-5 py-3 text-sm font-semibold transition-opacity disabled:opacity-70"
               style={{
                 background: "var(--primary)",
                 color: "#fbf7f1",
@@ -291,7 +291,7 @@ function VerificationContent() {
 
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold transition-colors hover:bg-[var(--surface-raised)]"
+              className="inline-flex items-center justify-center gap-2 !rounded-none border px-5 py-3 text-sm font-semibold transition-colors hover:bg-[var(--surface-raised)]"
               style={{
                 borderColor: "var(--border-strong)",
                 color: "var(--text)",
@@ -302,7 +302,7 @@ function VerificationContent() {
             </a>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-6" style={{ borderColor: "var(--border)" }}>
+          <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-6" style={{ borderColor: "var(--border)", animation: "fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 0.95s both" }}>
             <Link
               href="/organizer/login"
               className="text-sm font-medium transition-colors hover:text-[var(--primary)]"

@@ -271,7 +271,7 @@ export function TripWithdrawDialog({
                           aria-checked={selected}
                           onClick={() => setNetwork(opt.value)}
                           className={cn(
-                            "!rounded-xl flex-1 px-2 py-2.5 text-sm font-semibold transition-all duration-200",
+                            "!rounded-none flex-1 px-2 py-2.5 text-sm font-semibold transition-all duration-200",
                             selected && "shadow-sm"
                           )}
                           style={{

@@ -77,7 +77,7 @@ function statusMeta(status: string, failureReason?: string | null) {
     return {
       label: copy.label,
       Icon: Clock,
-      color: "#d08a3c",
+      color: "#c4864c",
       bg: "rgba(208,138,60,0.1)",
       border: "rgba(208,138,60,0.25)",
     };
@@ -85,7 +85,7 @@ function statusMeta(status: string, failureReason?: string | null) {
     return {
       label: copy.label,
       Icon: AlertCircle,
-      color: "#b5523a",
+      color: "#6b3f1d",
       bg: "rgba(181,82,58,0.1)",
       border: "rgba(181,82,58,0.25)",
     };
@@ -538,7 +538,7 @@ export default function WithdrawalsPage() {
             className="mt-1 text-[13px]"
             style={{ color: "var(--text-secondary)" }}
           >
-            Request a payout to MoMo. An admin reviews it and sends the money.
+            Request a payout to MoMo.
             Pending requests lock that amount until they are paid or rejected.
           </p>
         </div>
@@ -743,7 +743,7 @@ export default function WithdrawalsPage() {
                       value={globalSearch}
                       onChange={(e) => setGlobalSearch(e.target.value)}
                       placeholder="Search trip or destination…"
-                      className="h-9 w-52 rounded-xl pl-9 text-sm"
+                      className="h-9 w-52 !rounded-none pl-9 text-sm"
                       style={{ borderColor: "var(--border-strong)" }}
                     />
                   </div>
@@ -753,7 +753,7 @@ export default function WithdrawalsPage() {
                     onValueChange={(v) => setDateRange(v as DateRangeFilter)}
                   >
                     <SelectTrigger
-                      className="h-9 w-40 rounded-xl text-sm"
+                      className="h-9 w-40 !rounded-none text-sm"
                       style={{
                         borderColor: "var(--border-strong)",
                         background: "var(--surface)",

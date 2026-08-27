@@ -3,8 +3,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Plus, Smartphone, Star, Trash2, X, Wallet,
-  CreditCard, Building2, CalendarClock, Check,
+  Plus, Star, Trash2, X, Wallet,
+  CreditCard, Building2, Smartphone, CalendarClock, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -261,30 +261,19 @@ export function PayoutAccountsSection() {
       {/* ── Add account modal ───────────────────────────────────── */}
       <Modal open={dialogOpen} onClose={() => handleOpenChange(false)}>
         {/* Header */}
-        <div
-          className="flex items-start justify-between gap-3 px-6 py-5 border-b"
-          style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
-        >
-          <div className="flex items-start gap-3">
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none"
-              style={{ background: "linear-gradient(135deg,#6b3f1d,#c4864c)" }}
-            >
-              <Wallet className="h-4 w-4" style={{ color: "#fbf7f1" }} />
-            </div>
-            <div>
-              <h2 className="text-[15px] font-bold" style={{ color: "var(--text)" }}>
-                Add payout account
-              </h2>
-              <p className="text-[12px] mt-0.5 max-w-[260px]" style={{ color: "var(--text-tertiary)" }}>
-                This account will receive your trip earnings when you withdraw.
-              </p>
-            </div>
+        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-2">
+          <div>
+            <h2 className="text-[17px] font-bold" style={{ color: "var(--text)" }}>
+              Add payout account
+            </h2>
+            <p className="text-[12.5px] mt-1 max-w-[280px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+              Choose your mobile money provider and enter the account details.
+            </p>
           </div>
           <button
             type="button"
             onClick={() => handleOpenChange(false)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
             style={{ color: "var(--text-tertiary)" }}
             onMouseEnter={e => (e.currentTarget.style.background = "var(--border)")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
@@ -329,13 +318,26 @@ export function PayoutAccountsSection() {
             </button>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <OutlineButton onClick={() => handleOpenChange(false)}>
-              Cancel
-            </OutlineButton>
-            <PrimaryButton type="submit">
-              <Plus className="h-3.5 w-3.5" /> Save account
-            </PrimaryButton>
+          <div className="flex justify-end gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => handleOpenChange(false)}
+              className="inline-flex items-center justify-center rounded-full border px-5 py-2.5 text-[13px] font-semibold transition-colors"
+              style={{ borderColor: "var(--border-strong, #d4d4d4)", color: "var(--text-secondary, #525252)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-secondary, #f5f5f5)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              Back
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition-all"
+              style={{ background: "var(--primary, #6b3f1d)", color: "#fbf7f1" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--primary-dark, #4a2a12)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "var(--primary, #6b3f1d)")}
+            >
+              Next
+            </button>
           </div>
         </form>
       </Modal>

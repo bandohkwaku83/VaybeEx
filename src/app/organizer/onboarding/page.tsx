@@ -649,7 +649,23 @@ function OnboardingFlow() {
 
         <div className="flex flex-1 flex-col lg:overflow-hidden">
           {/* Form column */}
-          <form onSubmit={finish} className="flex flex-1 flex-col">
+          <form
+            onSubmit={finish}
+            onKeyDown={(e) => {
+              // Press Enter to advance to next step (unless on the last step or inside textarea)
+              if (
+                e.key === "Enter" &&
+                !isLast &&
+                currentStepValid &&
+                !submitting &&
+                (e.target as HTMLElement).tagName !== "TEXTAREA"
+              ) {
+                e.preventDefault();
+                goNext();
+              }
+            }}
+            className="flex flex-1 flex-col"
+          >
             <div ref={panelRef} className="mx-auto w-full max-w-xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
               {isResubmit && kyc.rejectionReason ? (
                 <div
@@ -757,7 +773,7 @@ function OnboardingFlow() {
                       </Label>
                       <Input
                         id="name"
-                        className="h-11 rounded-xl"
+                        className="h-11 !rounded-none"
                         style={{ borderColor: "var(--border-strong)" }}
                         placeholder="Your full name"
                         value={form.name}
@@ -776,7 +792,7 @@ function OnboardingFlow() {
                       </Label>
                       <Input
                         id="location"
-                        className="h-11 rounded-xl"
+                        className="h-11 !rounded-none"
                         style={{ borderColor: "var(--border-strong)" }}
                         placeholder="City, Country (e.g. Accra, Ghana)"
                         value={form.location}
@@ -796,7 +812,7 @@ function OnboardingFlow() {
                       <Input
                         id="email"
                         type="email"
-                        className="h-11 rounded-xl"
+                        className="h-11 !rounded-none"
                         style={{
                           borderColor: "var(--border)",
                           background: "var(--bg-secondary)",
@@ -816,7 +832,7 @@ function OnboardingFlow() {
                       <Input
                         id="phone"
                         type="tel"
-                        className="h-11 rounded-xl"
+                        className="h-11 !rounded-none"
                         style={{ borderColor: "var(--border-strong)" }}
                         placeholder="+233 XX XXX XXXX"
                         value={form.phone}
@@ -850,7 +866,7 @@ function OnboardingFlow() {
                       <Input
                         id="whatsapp"
                         type="tel"
-                        className="h-11 rounded-xl"
+                        className="h-11 !rounded-none"
                         style={{ borderColor: "var(--border-strong)" }}
                         placeholder="Same as phone or different number"
                         value={form.whatsapp}
@@ -877,7 +893,7 @@ function OnboardingFlow() {
                       </Label>
                       <Input
                         id="businessName"
-                        className="h-11 rounded-xl"
+                        className="h-11 !rounded-none"
                         style={{ borderColor: "var(--border-strong)" }}
                         placeholder="How travelers will know you"
                         value={form.businessName}
@@ -904,7 +920,7 @@ function OnboardingFlow() {
                         <span style={{ color: "var(--coral)" }}>*</span>
                       </Label>
                       <div
-                        className="flex overflow-hidden rounded-xl border"
+                        className="flex overflow-hidden !rounded-none border"
                         style={{
                           borderColor: "var(--border-strong)",
                           background: "var(--surface)",
@@ -1006,7 +1022,7 @@ function OnboardingFlow() {
                       </Label>
                       <Textarea
                         id="bio"
-                        className="min-h-[120px] rounded-xl"
+                        className="min-h-[120px] !rounded-none"
                         style={{ borderColor: "var(--border-strong)" }}
                         placeholder="Tell travelers about your experience organizing trips, where you operate, and what makes your trips unique..."
                         value={form.bio}

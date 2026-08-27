@@ -86,7 +86,12 @@
   --glow-gold: 0 14px 30px -16px rgba(196, 134, 76, 0.45);
 
   --gradient-brand: #6b3f1d;
-  --gradient-hero: linear-gradient(180deg, #fbf7f1 0%, #f2eada 60%, #fbf7f1 100%);
+  --gradient-hero: linear-gradient(
+    180deg,
+    #fbf7f1 0%,
+    #f2eada 60%,
+    #fbf7f1 100%
+  );
   --gradient-card: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.9) 0%,
@@ -198,7 +203,9 @@
     color: #fbf7f1;
   }
   /* Rectangular buttons project-wide (exclude toggles, tabs, soft chips, intentional rounded rects) */
-  button:not([role="switch"]):not([role="tab"]):not(.soft-chip):not(.rounded-rect),
+  button:not([role="switch"]):not([role="tab"]):not(.soft-chip):not(
+      .rounded-rect
+    ),
   input[type="button"],
   input[type="submit"],
   input[type="reset"],
@@ -361,4 +368,48 @@
 }
 .organizer-antd-table .ant-pagination-item-active:hover a {
   color: #fbf7f1 !important;
+}
+@keyframes splash-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.splash-spinner {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #6b3f1d;
+  border-right-color: rgba(107, 63, 29, 0.3);
+  animation: splash-spin 1.2s linear infinite;
+  pointer-events: none;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none !important;
+}
+
+::view-transition-group(root) {
+  z-index: auto !important;
+}
+
+::view-transition-image-pair(root) {
+  isolation: isolate;
+  will-change: transform, opacity, clip-path;
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 1000;
+  animation: none !important;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+  animation: none !important;
 }

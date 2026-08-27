@@ -150,7 +150,7 @@ const CARDS = [
   {
     id: "wishlist",
     icon: Heart,
-    accentColor: "#b5523a",
+    accentColor: "#6b3f1d",
     tag: "Retention",
     title: "Wishlist saves",
     desc: "Travelers save your trips and get nudged back when departure nears. Warm leads, automated.",
@@ -170,7 +170,7 @@ const CARDS = [
   {
     id: "reviews",
     icon: Star,
-    accentColor: "#d08a3c",
+    accentColor: "#c4864c",
     tag: "Social proof",
     title: "Review signals",
     desc: "Authentic ratings appear everywhere your trip is shown.",

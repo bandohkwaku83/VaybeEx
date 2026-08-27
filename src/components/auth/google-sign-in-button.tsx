@@ -2,6 +2,7 @@
 
 import { useGoogleOAuth } from "@react-oauth/google";
 import { useCallback, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getGoogleClientId } from "@/components/auth/google-auth-provider";
@@ -160,14 +161,24 @@ function GoogleSignInButtonInner({
         variant="outline"
         size="lg"
         className={cn(
-          "w-full border-stone-200 bg-white hover:bg-stone-50",
+          "w-full border-stone-200 bg-white transition-all duration-200",
+          busy ? "cursor-wait" : "hover:bg-stone-50",
           className
         )}
         onClick={() => void handleClick()}
         disabled={disabled || busy || !scriptLoadedSuccessfully}
       >
-        <GoogleIcon className="h-5 w-5" />
-        {busy ? "Connecting..." : label}
+        {busy ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Connecting...
+          </>
+        ) : (
+          <>
+            <GoogleIcon className="h-5 w-5" />
+            {label}
+          </>
+        )}
       </Button>
       <div
         ref={hiddenHostRef}

@@ -11,7 +11,37 @@ const ParallaxBlock = () => {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Hero: animated typography reveal + 3D layered parallax
+      // ── Left content entrance: eyebrow → heading → description → stat cards ──
+      gsap.utils.toArray<HTMLElement>(".parallax-entrance").forEach((el) => {
+        gsap.fromTo(
+          el,
+          { opacity: 0, y: 32 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.8,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 88%", once: true },
+          },
+        );
+      });
+
+      // Stat cards: stagger from below
+      gsap.utils.toArray<HTMLElement>(".stat-card").forEach((el, i) => {
+        gsap.fromTo(
+          el,
+          { opacity: 0, y: 24, scale: 0.95 },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.6,
+            delay: i * 0.1,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 90%", once: true },
+          },
+        );
+      });
 
       // Parallax/3D rotate cards on scroll for gallery
       gsap.utils.toArray<HTMLElement>(".tilt-card").forEach((el) => {
@@ -60,17 +90,17 @@ const ParallaxBlock = () => {
     >
       <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-14 sm:gap-12 sm:px-6 sm:py-32 lg:grid-cols-2">
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">
+          <span className="parallax-entrance text-[11px] font-semibold uppercase tracking-[0.22em] text-gold" style={{ opacity: 0 }}>
             Plotted by locals
           </span>
-          <h2 className="mt-3 font-display text-3xl font-bold text-text sm:text-5xl">
+          <h2 className="parallax-entrance mt-3 font-display text-3xl font-bold text-text sm:text-5xl" style={{ opacity: 0 }}>
             Every trip{" "}
             <span className="italic font-light text-gradient-warm">
               handcrafted
             </span>
             , never templated.
           </h2>
-          <p className="mt-4 max-w-lg text-sm leading-relaxed text-text-secondary sm:mt-5 sm:text-base">
+          <p className="parallax-entrance mt-4 max-w-lg text-sm leading-relaxed text-text-secondary sm:mt-5 sm:text-base" style={{ opacity: 0 }}>
             Our organisers are Ghana-grown — drivers who know which road floods
             in August, chefs who source from their cousin&apos;s farm, guides
             who can read the bush. You get the real story, not a glossy
@@ -85,7 +115,8 @@ const ParallaxBlock = () => {
             ].map((s) => (
               <div
                 key={s.k}
-                className="rounded-2xl border border-border bg-surface p-3.5 sm:p-5"
+                className="stat-card rounded-2xl border border-border bg-surface p-3.5 sm:p-5"
+                style={{ opacity: 0 }}
               >
                 <div
                   className="font-display text-3xl font-bold text-primary"

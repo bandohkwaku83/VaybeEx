@@ -22,9 +22,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ConfigProvider, Table } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { EyeOutlined } from "@ant-design/icons";
+import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -58,48 +58,6 @@ import {
 import { cn, formatDate } from "@/lib/utils";
 import { getOrganizerProfile } from "@/lib/organizer-profile";
 import { useAuth } from "@/hooks/use-auth";
-
-const organizerAntdTheme = {
-  token: {
-    colorPrimary: "#6b3f1d",
-    colorInfo: "#6b3f1d",
-    colorSuccess: "#2e7d52",
-    colorWarning: "#d08a3c",
-    colorError: "#b5523a",
-    colorText: "#2a1b0f",
-    colorTextSecondary: "#6b5544",
-    colorTextTertiary: "#9c8773",
-    colorBorder: "rgba(107, 63, 29, 0.14)",
-    colorBorderSecondary: "rgba(107, 63, 29, 0.07)",
-    colorBgContainer: "#ffffff",
-    colorBgElevated: "#ffffff",
-    colorBgLayout: "#f5f5f5",
-    borderRadius: 10,
-    borderRadiusLG: 12,
-    fontFamily:
-      'var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif',
-    fontSize: 13,
-  },
-  components: {
-    Table: {
-      headerBg: "#f2eada",
-      headerColor: "#6b5544",
-      headerSplitColor: "rgba(107, 63, 29, 0.14)",
-      rowHoverBg: "#fbf7f1",
-      borderColor: "rgba(107, 63, 29, 0.14)",
-      cellPaddingBlock: 14,
-      cellPaddingInline: 16,
-      headerBorderRadius: 12,
-    },
-    Pagination: {
-      itemActiveBg: "#6b3f1d",
-      borderRadius: 8,
-    },
-    Button: {
-      borderRadius: 0,
-    },
-  },
-} as const;
 
 type SendStage = "idle" | "sending" | "delivered";
 
@@ -158,13 +116,13 @@ function statusMeta(status: BroadcastStatus) {
   if (status === "pending") {
     return {
       label: "Pending",
-      color: "#d08a3c",
+      color: "#c4864c",
       bg: "rgba(208,138,60,0.14)",
     };
   }
   return {
     label: "Failed",
-    color: "#b5523a",
+    color: "#6b3f1d",
     bg: "rgba(181,82,58,0.12)",
   };
 }
@@ -335,7 +293,7 @@ function BroadcastDrawer({
                       >
                         Error
                       </p>
-                      <p className="text-sm" style={{ color: "#b5523a" }}>
+                      <p className="text-sm" style={{ color: "#6b3f1d" }}>
                         {record.errorMessage}
                       </p>
                     </div>
@@ -759,88 +717,77 @@ export default function CommunicationPage() {
     }
   };
 
-  const historyColumns: ColumnsType<BroadcastRecord> = useMemo(
+  const historyColumns: ColumnDef<BroadcastRecord, unknown>[] = useMemo(
     () => [
       {
-        title: "Date",
-        dataIndex: "date",
-        key: "date",
-        width: 120,
-        sorter: (a, b) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime(),
-        defaultSortOrder: "descend",
-        render: (date: string) => (
+        header: "Date",
+        accessorKey: "date",
+        size: 120,
+        cell: ({ getValue }) => (
           <span style={{ color: "var(--text-tertiary)", whiteSpace: "nowrap" }}>
-            {formatDate(date)}
+            {formatDate(getValue() as string)}
           </span>
         ),
       },
       {
-        title: "Message",
-        key: "message",
-        ellipsis: true,
-        render: (_, record) => (
+        header: "Message",
+        id: "message",
+        cell: ({ row }) => (
           <div className="min-w-0">
             <p
               className="truncate text-[13px] font-semibold"
               style={{ color: "var(--text)" }}
             >
-              {record.preview}
+              {row.original.preview}
             </p>
             <p
               className="mt-0.5 truncate text-[12px]"
               style={{ color: "var(--text-tertiary)" }}
             >
-              {record.snippet}
+              {row.original.snippet}
             </p>
           </div>
         ),
       },
       {
-        title: "Trip",
-        dataIndex: "tripTitle",
-        key: "tripTitle",
-        ellipsis: true,
-        width: 180,
-        render: (title: string) => (
-          <span style={{ color: "var(--text-secondary)" }}>{title}</span>
+        header: "Trip",
+        accessorKey: "tripTitle",
+        size: 180,
+        cell: ({ getValue }) => (
+          <span style={{ color: "var(--text-secondary)" }}>{getValue() as string}</span>
         ),
       },
       {
-        title: "Audience",
-        dataIndex: "audience",
-        key: "audience",
-        width: 140,
-        render: (value: string) => (
-          <span style={{ color: "var(--text-secondary)" }}>{value}</span>
+        header: "Audience",
+        accessorKey: "audience",
+        size: 140,
+        cell: ({ getValue }) => (
+          <span style={{ color: "var(--text-secondary)" }}>{getValue() as string}</span>
         ),
       },
       {
-        title: "Recipients",
-        dataIndex: "recipients",
-        key: "recipients",
-        width: 110,
-        align: "right",
-        sorter: (a, b) => a.recipients - b.recipients,
-        render: (n: number) => (
+        header: "Recipients",
+        accessorKey: "recipients",
+        size: 110,
+        cell: ({ getValue }) => (
           <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-            {n}
+            {getValue() as number}
           </span>
         ),
       },
       {
-        title: "Status",
-        dataIndex: "status",
-        key: "status",
-        width: 110,
-        render: (status: BroadcastStatus) => <StatusBadge status={status} />,
+        header: "Status",
+        accessorKey: "status",
+        size: 110,
+        cell: ({ getValue }) => <StatusBadge status={getValue() as BroadcastStatus} />,
       },
       {
-        title: "",
-        key: "actions",
-        width: 88,
-        align: "right",
-        render: (_, record) => (
+        header: "",
+        id: "actions",
+        size: 88,
+        cell: ({ row }) => {
+          const record = row.original;
+          return (
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded-none px-2 py-1 text-[12px] font-medium transition-colors hover:bg-[var(--bg-secondary)]"
@@ -853,7 +800,8 @@ export default function CommunicationPage() {
             <EyeOutlined />
             View
           </button>
-        ),
+          );
+        },
       },
     ],
     [openDrawer]
@@ -1330,43 +1278,23 @@ export default function CommunicationPage() {
                 )}
               />
 
-              <ConfigProvider theme={organizerAntdTheme}>
-                <Table<BroadcastRecord>
-                  className="organizer-antd-table"
-                  rowKey="id"
+              <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border, rgba(0,0,0,0.08))" }}>
+                <DataTable
+                  data={history}
                   columns={historyColumns}
-                  dataSource={history}
                   loading={historyLoading}
-                  scroll={{ x: 800 }}
+                  emptyText="No broadcasts yet. Your sent messages will show up here."
+                  scrollX={800}
+                  enableSorting={false}
                   pagination={{
                     current: historyPage,
                     pageSize: 8,
                     total: historyTotal,
-                    showSizeChanger: false,
-                    hideOnSinglePage: true,
                     onChange: (page) => void loadHistory(page),
                   }}
-                  locale={{
-                    emptyText: (
-                      <OrganizerEmptyState
-                        icon={MessageSquare}
-                        title="No broadcasts yet"
-                        description="Your sent messages will show up here."
-                        action={{
-                          label: "Create a broadcast",
-                          onClick: () => setActiveTab("compose"),
-                        }}
-                        framed={false}
-                        className="py-10"
-                      />
-                    ),
-                  }}
-                  onRow={(record) => ({
-                    style: { cursor: "pointer" },
-                    onClick: () => void openDrawer(record.id, record),
-                  })}
+                  onRowClick={(record) => void openDrawer(record.id, record)}
                 />
-              </ConfigProvider>
+              </div>
             </section>
           )}
         </motion.div>
