@@ -10,6 +10,7 @@ import { GoogleAuthProvider } from "@/components/auth/google-auth-provider";
 import { Navbar } from "@/components/layout/navbar";
 import { ConditionalFooter } from "@/components/layout/conditional-footer";
 import { SplashScreen } from "@/components/splash-screen";
+import { JsonLd } from "@/components/seo/json-ld";
 import { ViewTransitions } from "next-view-transitions";
 import "./globals.css";
 
@@ -32,7 +33,9 @@ const bigShoulders = Big_Shoulders({
 
 const SITE_URL = process.env.NEXT_PUBLIC_ROOT_DOMAIN
   ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`
-  : "http://localhost:3000";
+  : "https://vaybeex.com";
+
+const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -41,8 +44,11 @@ export const metadata: Metadata = {
     template: "%s | VaybeEx",
   },
   description:
-    "Curated group travel experiences across Ghana and West Africa. Browse expeditions, book adventures, and track your trips on VaybeEx.",
+    "VaybeEx (vaybeex) — curated group travel experiences across Ghana and West Africa. Browse expeditions, book adventures, and track your trips.",
   keywords: [
+    "VaybeEx",
+    "vaybeex",
+    "Vaybe Ex",
     "group travel",
     "Ghana travel",
     "West Africa tours",
@@ -55,11 +61,15 @@ export const metadata: Metadata = {
   authors: [{ name: "VaybeEx" }],
   creator: "VaybeEx",
   publisher: "VaybeEx",
+  applicationName: "VaybeEx",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
+  ...(googleSiteVerification
+    ? { verification: { google: googleSiteVerification } }
+    : {}),
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -67,7 +77,7 @@ export const metadata: Metadata = {
     siteName: "VaybeEx",
     title: "VaybeEx — Discover & Book Group Trips",
     description:
-      "Curated group travel experiences across Ghana and West Africa. Browse expeditions, book adventures, and track your trips.",
+      "VaybeEx — curated group travel experiences across Ghana and West Africa. Browse expeditions, book adventures, and track your trips.",
     images: [
       {
         url: "/images/web_logo.png",
@@ -81,7 +91,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "VaybeEx — Discover & Book Group Trips",
     description:
-      "Curated group travel experiences across Ghana and West Africa.",
+      "VaybeEx — curated group travel experiences across Ghana and West Africa.",
     images: ["/images/web_logo.png"],
   },
   robots: {
@@ -119,6 +129,7 @@ export default function RootLayout({
         className="min-h-full flex flex-col overflow-x-clip bg-stone-50 overscroll-x-none"
         suppressHydrationWarning
       >
+        <JsonLd />
         <ViewTransitions>
           <AuthProvider>
             <GoogleAuthProvider>
